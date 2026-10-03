@@ -1,0 +1,4 @@
+project_id = "planifia-seller"
+
+[functions.goal-plan]
+verify_jwt = false

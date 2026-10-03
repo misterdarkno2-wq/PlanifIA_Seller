@@ -1,0 +1,524 @@
+// Las respuestas de Auth y de IA son fixtures explícitas. Las reglas SQL se prueban aparte.
+import { chromium } from "@playwright/test";
+import { spawn } from "node:child_process";
+import { mkdir } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import assert from "node:assert/strict";
+import { today, progression } from "../src/domain.js";
+
+const server = spawn(
+  process.execPath,
+  [
+    "node_modules/vite/bin/vite.js",
+    "--host",
+    "127.0.0.1",
+    "--port",
+    "5183",
+    "--strictPort",
+  ],
+  {
+    env: {
+      ...process.env,
+      VITE_SUPABASE_URL: "https://supabase.example.test",
+      VITE_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_test_fixture",
+    },
+  },
+);
+server.stdout.on("data", () => {});
+server.stderr.on("data", () => {});
+let browser;
+try {
+  for (let i = 0; i < 100; i++) {
+    try {
+      if ((await fetch("http://127.0.0.1:5183")).ok) break;
+    } catch {}
+    await new Promise((r) => setTimeout(r, 150));
+  }
+  await mkdir("dist/qa", { recursive: true });
+  browser = await chromium.launch({ channel: "msedge", headless: true });
+  const date = today(),
+    uid = randomUUID(),
+    user = {
+      id: uid,
+      email: "ana@example.test",
+      aud: "authenticated",
+      role: "authenticated",
+      user_metadata: { name: "Ana" },
+    };
+  const payload = Buffer.from(
+    JSON.stringify({
+      sub: uid,
+      exp: Math.floor(Date.now() / 1000) + 7200,
+      aud: "authenticated",
+    }),
+  ).toString("base64url");
+  const token = "eyJhbGciOiJIUzI1NiJ9." + payload + ".fixture";
+  const session = {
+    access_token: token,
+    token_type: "bearer",
+    refresh_token: "fixture",
+    expires_in: 7200,
+    user,
+  };
+  const data = {
+    profiles: {
+      user_id: uid,
+      name: "Ana",
+      timezone: "America/Santiago",
+      weekly_minutes: 700,
+      available_days: [0, 1, 2, 3, 4, 5, 6],
+    },
+    goals: [],
+    milestones: [],
+    tasks: [],
+    habits: [],
+    habit_completions: [],
+    imports: [],
+  };
+  let total = 0,
+    aiCalls = 0,
+    failSave = false;
+  const pet = () => {
+    const p = progression(total);
+    return {
+      name: "Lumi",
+      total_xp: total,
+      level: p.level,
+      stage: p.stage,
+      level_xp: p.levelXp,
+      next_xp: p.nextXp,
+    };
+  };
+  const proposal = {
+    title: "Hablar inglés con confianza",
+    description: "Practicar una presentación breve.",
+    category: "learning",
+    outcome: "Presentarme durante dos minutos sin apuntes",
+    first_action: "Grabar una presentación",
+    summary: "Dos pasos pequeños para empezar.",
+    weekly_minutes: 140,
+    target_date: null,
+    start_date: date,
+    milestones: [
+      {
+        title: "Mi presentación",
+        tasks: [
+          {
+            title: "Grabar mi presentación",
+            description: "Escuchar y corregir una frase",
+            priority: "medium",
+            minutes: 20,
+            day_offset: 0,
+            deadline: null,
+          },
+          {
+            title: "Practicar una conversación",
+            description: "Responder tres preguntas",
+            priority: "high",
+            minutes: 20,
+            day_offset: 1,
+            deadline: null,
+          },
+        ],
+      },
+    ],
+  };
+  async function fixture(route) {
+    const request = route.request(),
+      url = new URL(request.url()),
+      body = request.postDataJSON() || {};
+    let result;
+    if (url.pathname.startsWith("/auth/v1/")) {
+      if (url.pathname.endsWith("/signup")) result = { user, session: null };
+      else if (url.pathname.endsWith("/logout"))
+        return route.fulfill({ status: 204, body: "" });
+      else result = url.pathname.endsWith("/user") ? user : session;
+    } else if (url.pathname.includes("/functions/")) {
+      aiCalls++;
+      result = {
+        proposal,
+        goal_id: body.goal_id || null,
+        expected_version: body.goal_id
+          ? data.goals.find((g) => g.id === body.goal_id).version
+          : null,
+      };
+    } else if (url.pathname.includes("/rpc/")) {
+      const name = url.pathname.split("/").at(-1);
+      if (failSave && name === "save_task") {
+        failSave = false;
+        return route.fulfill({
+          status: 503,
+          json: { message: "No se pudo guardar la acción.", code: "PGRST503" },
+        });
+      }
+      if (name === "pet_state") result = pet();
+      else if (name === "apply_goal_plan") {
+        let g = data.goals.find((g) => g.id === body.p_goal_id);
+        if (g) {
+          data.tasks
+            .filter((t) => t.goal_id === g.id && t.status === "pending")
+            .forEach((t) => (t.status = "cancelled"));
+          Object.assign(g, body.p_plan, { version: g.version + 1 });
+        } else {
+          g = {
+            ...body.p_plan,
+            id: randomUUID(),
+            user_id: uid,
+            status: "active",
+            version: 1,
+          };
+          data.goals.push(g);
+        }
+        for (const milestone of body.p_plan.milestones) {
+          const mid = randomUUID();
+          data.milestones.push({
+            id: mid,
+            goal_id: g.id,
+            title: milestone.title,
+          });
+          for (const t of milestone.tasks) {
+            const d = new Date(date + "T12:00:00Z");
+            d.setUTCDate(d.getUTCDate() + t.day_offset);
+            data.tasks.push({
+              ...t,
+              id: randomUUID(),
+              user_id: uid,
+              goal_id: g.id,
+              milestone_id: mid,
+              status: "pending",
+              scheduled_date: d.toISOString().slice(0, 10),
+            });
+          }
+        }
+        result = g.id;
+      } else if (name === "save_milestone") {
+        const m = {
+          id: randomUUID(),
+          goal_id: body.p_goal_id,
+          title: body.p_title,
+          position: data.milestones.length,
+        };
+        data.milestones.push(m);
+        result = m.id;
+      } else if (name === "save_goal") {
+        let g = data.goals.find((g) => g.id === body.p_id);
+        if (g) Object.assign(g, body.p_data, { version: g.version + 1 });
+        else {
+          g = {
+            ...body.p_data,
+            id: randomUUID(),
+            user_id: uid,
+            status: "active",
+            version: 1,
+          };
+          data.goals.push(g);
+        }
+        result = g.id;
+      } else if (name === "save_task") {
+        let t = data.tasks.find((t) => t.id === body.p_id);
+        if (t) Object.assign(t, body.p_data);
+        else {
+          t = {
+            ...body.p_data,
+            id: randomUUID(),
+            user_id: uid,
+            status: "pending",
+          };
+          data.tasks.push(t);
+        }
+        result = t.id;
+      } else if (name === "set_task_status") {
+        const t = data.tasks.find((t) => t.id === body.p_id);
+        const amount = { low: 10, medium: 20, high: 35 }[t.priority];
+        const delta =
+          t.status === body.p_status
+            ? 0
+            : body.p_status === "completed"
+              ? amount
+              : -amount;
+        t.status = body.p_status;
+        total += delta;
+        result = { xp_delta: delta, pet: pet() };
+      } else if (name === "set_goal_status") {
+        data.goals.find((g) => g.id === body.p_id).status = body.p_status;
+        result = null;
+      } else if (name === "save_profile") {
+        Object.assign(data.profiles, {
+          name: body.p_name,
+          timezone: body.p_timezone,
+          weekly_minutes: body.p_minutes,
+          available_days: body.p_days,
+        });
+        result = null;
+      } else if (name === "save_habit") {
+        let h = data.habits.find((h) => h.id === body.p_id);
+        if (h) Object.assign(h, body.p_data);
+        else {
+          h = { ...body.p_data, id: randomUUID() };
+          data.habits.push(h);
+        }
+        result = h.id;
+      } else if (name === "set_habit_completion") {
+        let c = data.habit_completions.find(
+          (c) => c.habit_id === body.p_id && c.day === body.p_day,
+        );
+        if (c) c.completed = body.p_completed;
+        else {
+          c = {
+            id: randomUUID(),
+            habit_id: body.p_id,
+            day: body.p_day,
+            completed: body.p_completed,
+          };
+          data.habit_completions.push(c);
+        }
+        total += body.p_completed ? 10 : -10;
+        result = { xp_delta: body.p_completed ? 10 : -10, pet: pet() };
+      } else if (name === "import_legacy") {
+        const existing = data.imports.some(
+          (i) => i.source === body.p_data.source,
+        );
+        if (!existing) {
+          data.imports.push({
+            id: randomUUID(),
+            source: body.p_data.source,
+            original: body.p_data.original,
+          });
+          for (const t of body.p_data.items)
+            data.tasks.push({ ...t, id: randomUUID() });
+        }
+        result = {
+          added: existing ? 0 : body.p_data.items.length,
+          skipped: existing ? body.p_data.items.length : 0,
+        };
+      } else throw new Error("Unknown fixture RPC " + name);
+    } else result = data[url.pathname.split("/").at(-1)] ?? [];
+    await route.fulfill({ status: 200, json: result });
+  }
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 1050 },
+  });
+  await context.route("https://supabase.example.test/**", fixture);
+  const page = await context.newPage(),
+    errors = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.goto("http://127.0.0.1:5183");
+  await page.getByRole("heading", { name: /Tus metas/ }).waitFor();
+  await page.screenshot({
+    path: "dist/qa/landing-desktop.png",
+    fullPage: true,
+  });
+  await page.getByRole("link", { name: "Empezar", exact: true }).click();
+  await page.getByLabel("Tu nombre", { exact: true }).fill("Ana");
+  await page.getByLabel("Correo electrónico").fill("ana@example.test");
+  await page.getByLabel("Contraseña", { exact: true }).fill("fixture-password");
+  await page.getByRole("button", { name: "Crear cuenta", exact: true }).click();
+  await page
+    .getByRole("status")
+    .filter({ hasText: "Revisa tu correo" })
+    .waitFor();
+  async function login(p) {
+    await p.goto("http://127.0.0.1:5183/#login");
+    await p.getByLabel("Correo electrónico").fill("ana@example.test");
+    await p.getByLabel("Contraseña", { exact: true }).fill("fixture-password");
+    await p
+      .getByRole("button", { name: "Iniciar sesión", exact: true })
+      .click();
+    await p.getByRole("heading", { name: /Un paso a la vez, Ana/ }).waitFor();
+  }
+  await login(page);
+  await page
+    .getByRole("button", { name: "+ Crear una meta", exact: true })
+    .click();
+  await page.getByLabel("Mi idea o meta").fill("Quiero hablar inglés");
+  await page.getByLabel("Minutos por semana para esta meta").fill("140");
+  await page.getByRole("button", { name: "Proponer un plan con IA" }).click();
+  await page
+    .getByRole("heading", { name: "Tu propuesta, antes de guardar" })
+    .waitFor();
+  assert.equal(data.goals.length, 0);
+  await page
+    .locator("[data-field=title]")
+    .first()
+    .fill("Grabar una presentación de dos minutos");
+  await page
+    .getByRole("button", { name: "Confirmar y guardar el plan" })
+    .click();
+  await page
+    .getByRole("button", { name: "Hablar inglés con confianza", exact: true })
+    .waitFor();
+  assert.equal(data.goals.length, 1);
+  assert.equal(aiCalls, 1);
+  await page.screenshot({
+    path: "dist/qa/dashboard-desktop.png",
+    fullPage: true,
+  });
+  await page
+    .getByRole("button", { name: "Hablar inglés con confianza", exact: true })
+    .click();
+  await page.getByRole("button", { name: "+ Crear hito" }).click();
+  await page
+    .getByLabel("Qué quiero completar en esta etapa")
+    .fill("Una conversación real");
+  await page.getByRole("button", { name: "Guardar hito" }).click();
+  await page.getByRole("heading", { name: "Una conversación real" }).waitFor();
+  await page.getByRole("button", { name: "Cerrar", exact: true }).click();
+  await page
+    .getByRole("button", {
+      name: "Completar: Grabar una presentación de dos minutos",
+      exact: true,
+    })
+    .click();
+  await page.getByText("+20 XP.", { exact: false }).waitFor();
+  assert.equal(total, 20);
+  await page
+    .getByRole("button", {
+      name: "Volver a pendiente: Grabar una presentación de dos minutos",
+      exact: true,
+    })
+    .click();
+  await page.getByText("Se ajustaron 20 XP", { exact: false }).waitFor();
+  assert.equal(total, 0);
+  await page
+    .getByRole("button", { name: "Reprogramar / editar" })
+    .first()
+    .click();
+  await page.getByLabel("Hacer el", { exact: true }).fill("2026-10-25");
+  await page
+    .getByRole("button", { name: "Guardar acción", exact: true })
+    .click();
+  await page.locator("dialog").waitFor({ state: "hidden" });
+  assert.equal(data.tasks[0].scheduled_date, "2026-10-25");
+  await page
+    .getByRole("button", { name: "Hablar inglés con confianza", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Revisar / ajustar con IA" }).click();
+  await page.getByRole("button", { name: "Proponer un plan con IA" }).click();
+  await page.getByRole("heading", { name: "Revisar el ajuste" }).waitFor();
+  await page
+    .getByRole("button", { name: "Confirmar y guardar el plan" })
+    .click();
+  await page.locator("dialog").waitFor({ state: "hidden" });
+  assert.equal(data.tasks.filter((t) => t.status === "cancelled").length, 2);
+  await page
+    .getByRole("button", { name: "Hablar inglés con confianza", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Confirmar que logré mi meta" })
+    .click();
+  await page.getByRole("button", { name: "Sí, alcancé mi meta" }).click();
+  await page.locator("dialog").waitFor({ state: "hidden" });
+  assert.equal(data.goals[0].status, "achieved");
+  await page.getByRole("link", { name: "Hábitos", exact: true }).click();
+  await page
+    .getByRole("button", { name: "+ Crear hábito", exact: true })
+    .click();
+  await page.getByLabel("Qué quiero repetir").fill("Leer diez minutos");
+  await page
+    .getByLabel(
+      ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"][
+        new Date(date + "T12:00:00").getDay()
+      ],
+      { exact: true },
+    )
+    .check();
+  await page.getByRole("button", { name: "Guardar hábito" }).click();
+  await page.getByRole("button", { name: "Marcar hoy como hecho" }).click();
+  await page.getByRole("button", { name: "✓ Hecho hoy · deshacer" }).waitFor();
+  assert.equal(data.habit_completions.length, 1);
+  await page.getByRole("link", { name: "Ajustes", exact: true }).click();
+  await page
+    .locator("#import-file")
+    .setInputFiles({
+      name: "legacy.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(
+        JSON.stringify({
+          sourceId: "legacy-user-1",
+          tareas: [
+            {
+              id: 1,
+              titulo: "Tarea anterior",
+              asignatura: "Biología",
+              fecha_entrega: "2026-10-20",
+              tiempo_estimado: 600,
+            },
+          ],
+        }),
+      ),
+    });
+  await page.getByLabel("Confirmo que estos datos son míos").check();
+  await page.getByRole("button", { name: "Confirmar importación" }).click();
+  await page.locator("dialog").waitFor({ state: "hidden" });
+  assert.equal(data.imports.length, 1);
+  await page.getByRole("link", { name: "Acciones", exact: true }).click();
+  await page
+    .locator(".task-row")
+    .filter({ hasText: "Tarea anterior" })
+    .getByRole("button", { name: "Reprogramar / editar" })
+    .click();
+  await page.getByLabel("Hacer el", { exact: true }).fill("2026-10-26");
+  await page
+    .getByRole("button", { name: "Guardar acción", exact: true })
+    .click();
+  await page.locator("dialog").waitFor({ state: "hidden" });
+  assert.equal(
+    data.tasks.find((t) => t.title === "Tarea anterior").minutes,
+    600,
+  );
+  await page.getByRole("button", { name: "+ Crear acción" }).click();
+  await page.getByLabel("Acción", { exact: true }).fill("No debe guardarse");
+  failSave = true;
+  await page
+    .getByRole("button", { name: "Guardar acción", exact: true })
+    .click();
+  await page
+    .getByRole("alert")
+    .filter({ hasText: "No se pudo guardar" })
+    .waitFor();
+  assert.equal(
+    data.tasks.some((t) => t.title === "No debe guardarse"),
+    false,
+  );
+  await page.getByRole("button", { name: "Cerrar", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Cerrar sesión", exact: true })
+    .click();
+  await page
+    .getByRole("link", { name: "Iniciar sesión", exact: true })
+    .waitFor();
+  const mobile = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    reducedMotion: "reduce",
+  });
+  await mobile.route("https://supabase.example.test/**", fixture);
+  const phone = await mobile.newPage();
+  await login(phone);
+  await phone.screenshot({
+    path: "dist/qa/dashboard-mobile.png",
+    fullPage: true,
+  });
+  assert.equal(
+    await phone.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+    true,
+  );
+  assert.equal(
+    await phone
+      .locator(".lumi-body")
+      .evaluate((el) => getComputedStyle(el).animationName),
+    "none",
+  );
+  await phone.getByRole("link", { name: "Metas", exact: true }).click();
+  await phone
+    .getByRole("heading", { name: "Metas alcanzadas", exact: true })
+    .waitFor();
+  assert.deepEqual(errors, []);
+  console.log(
+    "UI fixtures: registro, login/logout, propuesta editable, ajustes, acciones, hábitos, importación, errores, segundo dispositivo, responsive y movimiento reducido: OK",
+  );
+} finally {
+  if (browser) await browser.close();
+  server.kill();
+}

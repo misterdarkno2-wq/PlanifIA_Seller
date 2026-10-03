@@ -1,0 +1,408 @@
+.pet-card {
+  display: grid;
+  grid-template-columns: 200px minmax(220px, 1fr) minmax(240px, 0.85fr);
+  align-items: center;
+  gap: 26px;
+  padding: 20px 28px;
+  background: linear-gradient(120deg, #f0faf5, #fff 70%);
+  border: 1px solid #cbe4d7;
+  border-radius: 18px;
+  margin-bottom: 24px;
+  min-height: 230px;
+  overflow: hidden;
+}
+.pet-portrait {
+  width: 100%;
+  max-width: 210px;
+  justify-self: center;
+}
+.lumi-art {
+  display: block;
+  width: 100%;
+  overflow: visible;
+}
+.lumi-body {
+  transform-origin: 130px 180px;
+  animation: lumi-breathe 4.5s ease-in-out infinite;
+}
+.lumi-eyes {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: lumi-blink 6s infinite;
+}
+.lumi-sparks {
+  opacity: 0.75;
+}
+.pet-info .eyebrow {
+  font-size: 10px;
+  letter-spacing: 1.4px;
+  margin-bottom: 7px;
+}
+.pet-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.pet-title h2 {
+  font-size: 30px;
+  margin: 0;
+  letter-spacing: -1px;
+}
+.pet-level {
+  font-size: 12px;
+  font-weight: 700;
+  background: #d9efe4;
+  color: #17614f;
+  padding: 4px 10px;
+  border-radius: 20px;
+}
+.pet-stage {
+  font-size: 14px;
+  margin: 5px 0 18px;
+  color: #255d51;
+}
+.pet-stage span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.pet-xp-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.pet-info progress {
+  display: block;
+  height: 10px;
+  border: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #e1ece6;
+}
+.pet-info progress::-webkit-progress-bar {
+  background: #e1ece6;
+}
+.pet-info progress::-webkit-progress-value {
+  background: #278b73;
+  border-radius: 10px;
+  transition: width 0.5s ease;
+}
+.pet-message {
+  font-size: 13px;
+  color: #526c65;
+  margin: 12px 0 0;
+  min-height: 38px;
+  max-width: 360px;
+}
+.pet-journey {
+  padding-left: 22px;
+  border-left: 1px solid #d9e7de;
+}
+.pet-journey > p {
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: #526c65;
+  font-weight: 650;
+}
+.pet-journey ol {
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 0;
+  margin: 18px 0 0;
+}
+.pet-journey li {
+  flex: 1;
+  text-align: center;
+  color: #627784;
+  position: relative;
+}
+.pet-journey li span {
+  display: grid;
+  place-items: center;
+  width: 29px;
+  height: 29px;
+  margin: auto auto 8px;
+  border: 1px solid #bbcfc5;
+  background: #fff;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 650;
+}
+.pet-journey .reached span {
+  background: #19745f;
+  color: white;
+  border-color: #19745f;
+}
+.pet-journey [aria-current] span {
+  outline: 3px solid #c0e4ce;
+  outline-offset: 3px;
+}
+.pet-journey small {
+  display: block;
+  font-size: 10px;
+  line-height: 1.3;
+}
+.pet-journey em {
+  font-size: 10px;
+  font-style: normal;
+}
+.pet-card.compact {
+  grid-template-columns: 110px 1fr;
+  min-height: 160px;
+  max-width: 700px;
+  padding: 14px 24px;
+  gap: 22px;
+}
+.compact .pet-title h2 {
+  font-size: 23px;
+}
+.compact .pet-journey {
+  display: none;
+}
+.compact .pet-stage {
+  margin-bottom: 9px;
+}
+.compact .pet-message {
+  min-height: 0;
+  margin-top: 8px;
+}
+.pet-loading {
+  display: block;
+  min-height: 120px;
+}
+.pet-unavailable {
+  grid-column: 1/-1;
+  padding: 10px;
+}
+.pet-unavailable h2 {
+  margin-bottom: 8px;
+}
+.pet-unavailable p {
+  color: var(--muted);
+  font-size: 14px;
+}
+.pet-happy .lumi-body {
+  animation: lumi-jump 0.6s ease 2;
+}
+.pet-level-up .lumi-body {
+  animation: lumi-jump 0.6s ease 2;
+}
+.pet-level-up .pet-level {
+  animation: lumi-glow 0.6s ease 2;
+}
+.pet-evolving .pet-portrait {
+  animation: lumi-evolve 1.5s ease;
+}
+.pet-evolving .lumi-sparks {
+  animation: lumi-glow 0.4s ease 4;
+}
+@keyframes lumi-breathe {
+  50% {
+    transform: translateY(-3px) scale(1.015);
+  }
+}
+@keyframes lumi-blink {
+  0%,
+  43%,
+  47%,
+  100% {
+    transform: scaleY(1);
+  }
+  45% {
+    transform: scaleY(0.12);
+  }
+}
+@keyframes lumi-jump {
+  40% {
+    transform: translateY(-12px) rotate(-5deg);
+  }
+  75% {
+    transform: translateY(-5px) rotate(4deg);
+  }
+}
+@keyframes lumi-glow {
+  50% {
+    filter: brightness(1.35);
+    transform: scale(1.08);
+  }
+}
+@keyframes lumi-evolve {
+  30% {
+    filter: brightness(1.6);
+    transform: scale(0.88);
+  }
+  65% {
+    filter: drop-shadow(0 0 15px #e8bf63);
+    transform: scale(1.08);
+  }
+  100% {
+    filter: none;
+    transform: scale(1);
+  }
+}
+@media (max-width: 1200px) {
+  .pet-card {
+    grid-template-columns: 150px 1fr;
+    gap: 16px;
+  }
+  .pet-journey {
+    grid-column: 1/-1;
+    border-left: 0;
+    border-top: 1px solid #d9e7de;
+    padding: 16px 0 0;
+  }
+  .pet-journey > p {
+    display: none;
+  }
+  .pet-journey ol {
+    margin: 0;
+  }
+  .pet-message {
+    min-height: 0;
+  }
+  .pet-card {
+    min-height: 0;
+  }
+}
+@media (max-width: 680px) {
+  .pet-card {
+    grid-template-columns: 100px minmax(0, 1fr);
+    padding: 16px;
+    gap: 12px;
+  }
+  .pet-info .eyebrow {
+    font-size: 9px;
+    letter-spacing: 0.6px;
+  }
+  .pet-title h2 {
+    font-size: 25px;
+  }
+  .pet-title {
+    gap: 7px;
+  }
+  .pet-stage span {
+    display: block;
+  }
+  .pet-stage {
+    margin: 5px 0 12px;
+  }
+  .pet-message {
+    font-size: 12px;
+  }
+  .pet-card.compact {
+    padding: 14px;
+    grid-template-columns: 85px minmax(0, 1fr);
+    gap: 12px;
+  }
+  .pet-journey small {
+    font-size: 9px;
+  }
+}
+.lumi-gaze {
+  animation: lumi-look 11s ease-in-out infinite;
+}
+.lumi-sway {
+  transform-origin: 130px 180px;
+  animation: lumi-curious 14s ease-in-out infinite;
+}
+.lumi-sprout {
+  transform-origin: 130px 65px;
+  animation: lumi-leaf 5s ease-in-out infinite;
+}
+.lumi-shadow {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: lumi-shadow-breathe 4.5s ease-in-out infinite;
+}
+.pet-happy .lumi-sway,
+.pet-level-up .lumi-sway,
+.pet-evolving .lumi-sway {
+  animation: none;
+}
+@keyframes lumi-look {
+  0%,
+  15%,
+  45%,
+  65%,
+  100% {
+    transform: translate(0, 0);
+  }
+  22%,
+  33% {
+    transform: translate(4px, -1px);
+  }
+  73%,
+  84% {
+    transform: translate(-4px, 1px);
+  }
+}
+@keyframes lumi-curious {
+  0%,
+  60%,
+  85%,
+  100% {
+    transform: rotate(0);
+  }
+  68%,
+  73% {
+    transform: rotate(-3deg);
+  }
+  78% {
+    transform: rotate(2deg);
+  }
+}
+@keyframes lumi-leaf {
+  0%,
+  100% {
+    transform: rotate(-4deg);
+  }
+  50% {
+    transform: rotate(6deg);
+  }
+}
+@keyframes lumi-shadow-breathe {
+  0%,
+  100% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scaleX(0.94);
+    opacity: 0.75;
+  }
+}
+@media (hover: hover) {
+  .pet-portrait:hover .lumi-gaze {
+    animation: none;
+    transform: translate(0, -2px);
+  }
+  .pet-portrait:hover .lumi-sway {
+    animation: lumi-hello 0.9s ease-in-out 1;
+  }
+}
+@keyframes lumi-hello {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  25% {
+    transform: rotate(-5deg);
+  }
+  65% {
+    transform: rotate(5deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pet-card * {
+    animation: none !important;
+    transition: none !important;
+  }
+  .pet-portrait:hover .lumi-gaze {
+    transform: none;
+  }
+}
