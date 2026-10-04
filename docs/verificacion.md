@@ -17,6 +17,8 @@
 
 `npm run test:ui`: las respuestas de Supabase Auth y del proveedor son fixtures de prueba, no conexiones externas. Verifica registro con confirmación, login/logout, revisión antes de guardar, edición de acciones, ajuste de pendientes, confirmación de meta lograda, hábitos, importación, error de guardado, recuperación desde un contexto de navegador distinto y móvil con movimiento reducido. Las capturas se generan bajo `dist/qa/`, fuera de Git.
 
+La prueba de interfaz también comprueba Lumi visible en la primera pantalla, saludo sin XP, animaciones y reducción de movimiento, carga de IA con respuesta diferida, bloqueo de doble clic y envío simultáneo, recuperación del formulario tras error, reintento y cierre con respuesta tardía. Genera capturas de Lumi y de la carga en escritorio y móvil; estos escenarios utilizan fixtures y no envían solicitudes al modelo real.
+
 `deno check`: comprueba el código de la función. `npm run build`: produce los archivos estáticos con configuración pública y rechaza claves privadas VITE\_.
 
 ## Prueba real después de configurar Supabase

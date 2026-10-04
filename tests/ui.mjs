@@ -77,7 +77,15 @@ try {
   };
   let total = 0,
     aiCalls = 0,
-    failSave = false;
+    failSave = false,
+    nextAi = null;
+  function holdAi(status = 200) {
+    let release, finished;
+    const response = new Promise((resolve) => (release = resolve));
+    const done = new Promise((resolve) => (finished = resolve));
+    nextAi = { response, status, finished };
+    return { release, done };
+  }
   const pet = () => {
     const p = progression(total);
     return {
@@ -135,6 +143,30 @@ try {
       else result = url.pathname.endsWith("/user") ? user : session;
     } else if (url.pathname.includes("/functions/")) {
       aiCalls++;
+      const pending = nextAi;
+      nextAi = null;
+      if (pending) {
+        await pending.response;
+        try {
+          if (pending.status !== 200)
+            return await route.fulfill({
+              status: pending.status,
+              json: { error: "La IA está ocupada. Inténtalo nuevamente." },
+            });
+          return await route.fulfill({
+            status: 200,
+            json: {
+              proposal,
+              goal_id: body.goal_id || null,
+              expected_version: body.goal_id
+                ? data.goals.find((g) => g.id === body.goal_id).version
+                : null,
+            },
+          });
+        } finally {
+          pending.finished();
+        }
+      }
       result = {
         proposal,
         goal_id: body.goal_id || null,
@@ -326,16 +358,124 @@ try {
       .click();
     await p.getByRole("heading", { name: /Un paso a la vez, Ana/ }).waitFor();
   }
+  async function featuredLumi(p) {
+    const card = p.locator("#pet.pet-card.featured");
+    await card.waitFor();
+    const portrait = await card.locator(".pet-portrait").boundingBox(),
+      overview = await p.locator(".overview").boundingBox(),
+      bounds = await card.boundingBox(),
+      viewport = p.viewportSize();
+    assert.ok(bounds.y < overview.y, "Lumi aparece antes de las estadísticas");
+    assert.ok(portrait.width >= 140, "El retrato de Lumi tiene protagonismo");
+    assert.ok(
+      portrait.y + portrait.height <= viewport.height,
+      "El retrato es visible en la primera pantalla",
+    );
+    assert.equal(
+      await p.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+      true,
+    );
+    await card.getByRole("button", { name: "Saludar a Lumi" }).waitFor();
+  }
+  async function waitingPlan(p) {
+    const loader = p.locator(".ai-loading"),
+      host = p.getByRole("dialog");
+    await loader.waitFor();
+    assert.equal(await loader.getAttribute("role"), "status");
+    assert.equal(await loader.getAttribute("aria-live"), "polite");
+    assert.equal(await loader.getAttribute("aria-atomic"), "true");
+    assert.equal(
+      await p.locator("#goal-form").getAttribute("aria-busy"),
+      "true",
+    );
+    assert.notEqual(await host.getAttribute("aria-busy"), "true");
+    await loader
+      .getByRole("heading", { name: "Lumi está preparando tu plan" })
+      .waitFor();
+    assert.equal(await p.locator("#goal-form").isVisible(), false);
+    assert.equal(
+      await p
+        .locator("#goal-form")
+        .evaluate((form) =>
+          [...form.elements].every((control) => control.disabled),
+        ),
+      true,
+    );
+    assert.equal(
+      await host
+        .getByRole("button", { name: "Cerrar", exact: true })
+        .isEnabled(),
+      true,
+    );
+    assert.equal(
+      await loader
+        .locator("[data-plan-elapsed]")
+        .evaluate((timer) => Boolean(timer.closest('[aria-hidden="true"]'))),
+      true,
+    );
+    assert.equal(
+      await p.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+      true,
+    );
+  }
+  async function waitAiCalls(expected) {
+    for (let i = 0; i < 100 && aiCalls < expected; i++)
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.equal(aiCalls, expected);
+  }
   await login(page);
+  await featuredLumi(page);
+  for (const part of [".lumi-body", ".lumi-eyes", ".lumi-pupils"])
+    assert.notEqual(
+      await page
+        .locator(`#pet ${part}`)
+        .evaluate((el) => getComputedStyle(el).animationName),
+      "none",
+    );
+  await page.getByRole("button", { name: "Saludar a Lumi" }).click();
+  await page.locator("#pet.pet-greeting").waitFor();
+  assert.equal(total, 0, "Saludar a Lumi no entrega XP");
   await page
     .getByRole("button", { name: "+ Crear una meta", exact: true })
     .click();
   await page.getByLabel("Mi idea o meta").fill("Quiero hablar inglés");
   await page.getByLabel("Minutos por semana para esta meta").fill("140");
+  const firstPlan = holdAi();
   await page.getByRole("button", { name: "Proponer un plan con IA" }).click();
+  await waitingPlan(page);
+  await waitAiCalls(1);
+  await page
+    .locator("#ai-plan")
+    .evaluate((button) =>
+      button.dispatchEvent(new MouseEvent("click", { bubbles: true })),
+    );
+  await page
+    .locator("#goal-form")
+    .evaluate((form) =>
+      form.dispatchEvent(
+        new Event("submit", { bubbles: true, cancelable: true }),
+      ),
+    );
+  assert.equal(aiCalls, 1, "Repetir el clic no duplica la generación");
+  assert.equal(
+    data.goals.length,
+    0,
+    "El formulario no se guarda mientras genera",
+  );
+  await page.screenshot({
+    path: "dist/qa/loading-desktop.png",
+    fullPage: false,
+  });
+  firstPlan.release();
+  await firstPlan.done;
   await page
     .getByRole("heading", { name: "Tu propuesta, antes de guardar" })
     .waitFor();
+  assert.equal(await page.locator(".ai-loading").count(), 0);
   assert.equal(data.goals.length, 0);
   await page
     .locator("[data-field=title]")
@@ -427,26 +567,24 @@ try {
   await page.getByRole("button", { name: "✓ Hecho hoy · deshacer" }).waitFor();
   assert.equal(data.habit_completions.length, 1);
   await page.getByRole("link", { name: "Ajustes", exact: true }).click();
-  await page
-    .locator("#import-file")
-    .setInputFiles({
-      name: "legacy.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(
-        JSON.stringify({
-          sourceId: "legacy-user-1",
-          tareas: [
-            {
-              id: 1,
-              titulo: "Tarea anterior",
-              asignatura: "Biología",
-              fecha_entrega: "2026-10-20",
-              tiempo_estimado: 600,
-            },
-          ],
-        }),
-      ),
-    });
+  await page.locator("#import-file").setInputFiles({
+    name: "legacy.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(
+      JSON.stringify({
+        sourceId: "legacy-user-1",
+        tareas: [
+          {
+            id: 1,
+            titulo: "Tarea anterior",
+            asignatura: "Biología",
+            fecha_entrega: "2026-10-20",
+            tiempo_estimado: 600,
+          },
+        ],
+      }),
+    ),
+  });
   await page.getByLabel("Confirmo que estos datos son míos").check();
   await page.getByRole("button", { name: "Confirmar importación" }).click();
   await page.locator("dialog").waitFor({ state: "hidden" });
@@ -481,6 +619,88 @@ try {
     false,
   );
   await page.getByRole("button", { name: "Cerrar", exact: true }).click();
+
+  await page.getByRole("link", { name: "Hoy", exact: true }).click();
+  await page
+    .getByRole("button", { name: "+ Crear una meta", exact: true })
+    .click();
+  await page.getByLabel("Mi idea o meta").fill("Retomar mi inglés");
+  await page.getByLabel("Minutos por semana para esta meta").fill("140");
+  const failedPlan = holdAi(503);
+  await page.getByRole("button", { name: "Proponer un plan con IA" }).click();
+  await waitingPlan(page);
+  await waitAiCalls(3);
+  failedPlan.release();
+  await failedPlan.done;
+  await page
+    .getByRole("alert")
+    .filter({ hasText: "La IA está ocupada" })
+    .waitFor();
+  assert.equal(await page.locator(".ai-loading").count(), 0);
+  assert.notEqual(
+    await page.getByRole("dialog").getAttribute("aria-busy"),
+    "true",
+  );
+  assert.notEqual(
+    await page.locator("#goal-form").getAttribute("aria-busy"),
+    "true",
+  );
+  assert.equal(
+    await page.getByLabel("Mi idea o meta").inputValue(),
+    "Retomar mi inglés",
+  );
+  assert.equal(
+    await page
+      .locator("#goal-form")
+      .evaluate((form) =>
+        [...form.elements].every((control) => !control.disabled),
+      ),
+    true,
+    "Un error restaura el formulario y permite reintentar",
+  );
+  assert.equal(data.goals.length, 1);
+  const retryPlan = holdAi();
+  await page.getByRole("button", { name: "Proponer un plan con IA" }).click();
+  await waitingPlan(page);
+  await waitAiCalls(4);
+  assert.equal(
+    (await page.locator("#goal-form [role=alert]").getAttribute("hidden")) !==
+      null,
+    true,
+  );
+  retryPlan.release();
+  await retryPlan.done;
+  await page
+    .getByRole("heading", { name: "Tu propuesta, antes de guardar" })
+    .waitFor();
+  await page.getByRole("button", { name: "Cerrar", exact: true }).click();
+  assert.equal(
+    data.goals.length,
+    1,
+    "Reintentar no guarda una propuesta sin confirmación",
+  );
+
+  await page
+    .getByRole("button", { name: "+ Crear una meta", exact: true })
+    .click();
+  await page.getByLabel("Mi idea o meta").fill("Una idea para después");
+  await page.getByLabel("Minutos por semana para esta meta").fill("140");
+  const closedPlan = holdAi();
+  await page.getByRole("button", { name: "Proponer un plan con IA" }).click();
+  await waitingPlan(page);
+  await waitAiCalls(5);
+  await page.getByRole("button", { name: "Cerrar", exact: true }).click();
+  assert.equal(await page.locator("dialog").count(), 0);
+  closedPlan.release();
+  await closedPlan.done;
+  await page.waitForLoadState("networkidle");
+  assert.equal(
+    await page.locator("dialog").count(),
+    0,
+    "Una respuesta tardía no reabre el diálogo",
+  );
+  assert.equal(await page.locator(".ai-loading").count(), 0);
+  assert.equal(data.goals.length, 1);
   await page
     .getByRole("button", { name: "Cerrar sesión", exact: true })
     .click();
@@ -493,7 +713,9 @@ try {
   });
   await mobile.route("https://supabase.example.test/**", fixture);
   const phone = await mobile.newPage();
+  phone.on("pageerror", (e) => errors.push(e.message));
   await login(phone);
+  await featuredLumi(phone);
   await phone.screenshot({
     path: "dist/qa/dashboard-mobile.png",
     fullPage: true,
@@ -504,19 +726,58 @@ try {
     ),
     true,
   );
+  for (const part of [".lumi-body", ".lumi-eyes", ".lumi-pupils"])
+    assert.equal(
+      await phone
+        .locator(`#pet ${part}`)
+        .evaluate((el) => getComputedStyle(el).animationName),
+      "none",
+    );
+  await phone
+    .getByRole("button", { name: "+ Crear una meta", exact: true })
+    .click();
+  await phone.getByLabel("Mi idea o meta").fill("Practicar en mi teléfono");
+  await phone.getByLabel("Minutos por semana para esta meta").fill("140");
+  const mobilePlan = holdAi();
+  await phone.getByRole("button", { name: "Proponer un plan con IA" }).click();
+  await waitingPlan(phone);
+  await waitAiCalls(6);
+  for (const part of [
+    ".lumi-body",
+    ".lumi-eyes",
+    ".lumi-pupils",
+    ".ai-loading-track",
+  ])
+    assert.equal(
+      await phone
+        .locator(`.ai-loading ${part}`)
+        .evaluate((el) => getComputedStyle(el).animationName),
+      "none",
+    );
   assert.equal(
     await phone
-      .locator(".lumi-body")
-      .evaluate((el) => getComputedStyle(el).animationName),
-    "none",
+      .locator(".ai-loading")
+      .evaluate((loader) => loader.getAnimations({ subtree: true }).length),
+    0,
+    "Movimiento reducido también detiene los adornos de la pantalla de carga",
   );
+  await phone.screenshot({
+    path: "dist/qa/loading-mobile.png",
+    fullPage: false,
+  });
+  mobilePlan.release();
+  await mobilePlan.done;
+  await phone
+    .getByRole("heading", { name: "Tu propuesta, antes de guardar" })
+    .waitFor();
+  await phone.getByRole("button", { name: "Cerrar", exact: true }).click();
   await phone.getByRole("link", { name: "Metas", exact: true }).click();
   await phone
     .getByRole("heading", { name: "Metas alcanzadas", exact: true })
     .waitFor();
   assert.deepEqual(errors, []);
   console.log(
-    "UI fixtures: registro, login/logout, propuesta editable, ajustes, acciones, hábitos, importación, errores, segundo dispositivo, responsive y movimiento reducido: OK",
+    "UI fixtures: registro, login/logout, Lumi destacada/animada, propuesta editable, carga IA, doble clic, error/reintento, cierre seguro, ajustes, acciones, hábitos, importación, segundo dispositivo, responsive y movimiento reducido: OK",
   );
 } finally {
   if (browser) await browser.close();

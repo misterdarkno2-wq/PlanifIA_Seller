@@ -18,6 +18,7 @@ import {
   normalizeLegacy,
 } from "./domain.js";
 import { portrait } from "./pet-art.js";
+import { startPlanLoading } from "./plan-loading.js";
 import { validateProposal } from "../supabase/functions/_shared/plan.js";
 
 const app = document.querySelector("#app"),
@@ -39,6 +40,7 @@ let user = null,
   loading = false,
   loadVersion = 0,
   toastTimer,
+  greetingTimer,
   dialog;
 const uuid = () => crypto.randomUUID();
 const requestId = (form) => (form.dataset.requestId ||= uuid());
@@ -148,7 +150,7 @@ function closeModal() {
 const alert = () => '<p class="error" role="alert" hidden></p>';
 function petCard() {
   const p = state.pet;
-  return `<aside class="pet-card compact" id="pet"><div class="pet-portrait">${portrait(p.stage)}</div><div class="pet-info"><p class="eyebrow">UN PASO MÁS, JUNTOS</p><div class="pet-title"><h2>${e(p.name)}</h2><span class="pet-level">Nivel ${p.level}</span></div><p class="pet-stage">${STAGES[p.stage - 1]} · ${p.total_xp} XP</p><progress aria-label="Experiencia de Lumi" value="${p.next_xp === null ? 1 : p.level_xp}" max="${p.next_xp ?? 1}"></progress><p class="pet-message">${p.next_xp === null ? "Evolución final alcanzada" : `${p.level_xp} / ${p.next_xp} XP para el siguiente nivel`}</p></div></aside>`;
+  return `<aside class="pet-card featured" id="pet" aria-labelledby="pet-name"><button type="button" class="pet-portrait pet-interact" data-greet-pet aria-label="Saludar a Lumi" title="Toca para saludar">${portrait(p.stage)}</button><div class="pet-info"><p class="eyebrow">TU COMPAÑERA DE CADA PASO</p><div class="pet-title"><h2 id="pet-name">${e(p.name)}</h2><span class="pet-level">Nivel ${p.level}</span></div><p class="pet-stage">${STAGES[p.stage - 1]} · ${p.total_xp} XP</p><progress aria-label="Experiencia de Lumi" value="${p.next_xp === null ? 1 : p.level_xp}" max="${p.next_xp ?? 1}"></progress><p class="pet-xp-label">${p.next_xp === null ? "Evolución final alcanzada" : `${p.level_xp} / ${p.next_xp} XP para el siguiente nivel`}</p><p class="pet-message">Un paso pequeño también es avanzar. Estoy contigo.</p></div></aside>`;
 }
 function celebrate(result, before) {
   const p = result.pet,
@@ -193,14 +195,14 @@ function dashboard() {
       (t) => activeTask(t) && t.scheduled_date && t.scheduled_date <= day(),
     );
   const pending = tasks.filter((t) => t.status === "pending");
-  return `<div class="page-heading"><div><p class="eyebrow">TU CAMINO</p><h1>Un paso a la vez, ${e(state.profile.name.split(" ")[0] || "a tu ritmo")}.</h1><p class="muted">Tus metas tienen espacio aquí. Elige lo que puedes hacer hoy.</p></div><button data-new-goal>+ Crear una meta</button></div><div class="overview"><div class="stat"><strong>${goals.length}</strong><span>metas activas</span></div><div class="stat"><strong>${pending.length}</strong><span>acciones para hoy y por retomar</span></div><div class="stat"><strong>${liveTasks().filter((t) => t.status === "completed").length}</strong><span>pasos completados</span></div></div><section><div class="section-heading"><div><p class="eyebrow">¿QUÉ QUIERO LOGRAR?</p><h2>Mis metas</h2></div><a href="#goals">Ver todas →</a></div>${goals.length ? `<div class="goal-grid">${goals.slice(0, 4).map(goalCard).join("")}</div>` : `<div class="welcome"><h3>Tu primera meta puede empezar con una idea.</h3><p>Aprender un idioma, crear tu proyecto, preparar una carrera o encontrar un hábito que te haga bien.</p><button data-new-goal>Crear mi primera meta</button></div>`}</section><div class="today-grid"><section class="panel"><div class="section-heading"><div><p class="eyebrow">¿QUÉ PUEDO HACER HOY?</p><h2>Hoy</h2></div><button class="text-button" data-new-task>+ Acción</button></div>${
+  return `<div class="page-heading"><div><p class="eyebrow">TU CAMINO</p><h1>Un paso a la vez, ${e(state.profile.name.split(" ")[0] || "a tu ritmo")}.</h1><p class="muted">Tus metas tienen espacio aquí. Elige lo que puedes hacer hoy.</p></div><button data-new-goal>+ Crear una meta</button></div>${petCard()}<div class="overview"><div class="stat"><strong>${goals.length}</strong><span>metas activas</span></div><div class="stat"><strong>${pending.length}</strong><span>acciones para hoy y por retomar</span></div><div class="stat"><strong>${liveTasks().filter((t) => t.status === "completed").length}</strong><span>pasos completados</span></div></div><section><div class="section-heading"><div><p class="eyebrow">¿QUÉ QUIERO LOGRAR?</p><h2>Mis metas</h2></div><a href="#goals">Ver todas →</a></div>${goals.length ? `<div class="goal-grid">${goals.slice(0, 4).map(goalCard).join("")}</div>` : `<div class="welcome"><h3>Tu primera meta puede empezar con una idea.</h3><p>Aprender un idioma, crear tu proyecto, preparar una carrera o encontrar un hábito que te haga bien.</p><button data-new-goal>Crear mi primera meta</button></div>`}</section><div class="today-grid"><section class="panel"><div class="section-heading"><div><p class="eyebrow">¿QUÉ PUEDO HACER HOY?</p><h2>Hoy</h2></div><button class="text-button" data-new-task>+ Acción</button></div>${
     tasks.length
       ? tasks
           .sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date))
           .map(taskRow)
           .join("")
       : '<div class="empty"><p>Hoy hay espacio para elegir tu siguiente paso.</p><a href="#calendar">Organizar mi calendario →</a></div>'
-  }${liveTasks().some((t) => t.status === "pending" && !t.scheduled_date) ? `<p class="muted">Hay ${liveTasks().filter((t) => t.status === "pending" && !t.scheduled_date).length} acciones sin fecha. Puedes organizarlas desde <a href="#tasks">Acciones</a>.</p>` : ""}</section><div><p class="eyebrow">¿CÓMO VOY AVANZANDO?</p>${petCard()}<div class="note"><h3>El progreso también es encontrar tu ritmo.</h3><p>La barra de cada meta cuenta sus acciones completadas. Tú decides cuándo el resultado que buscabas está alcanzado.</p><a href="#habits">Ver mis hábitos →</a></div></div></div>`;
+  }${liveTasks().some((t) => t.status === "pending" && !t.scheduled_date) ? `<p class="muted">Hay ${liveTasks().filter((t) => t.status === "pending" && !t.scheduled_date).length} acciones sin fecha. Puedes organizarlas desde <a href="#tasks">Acciones</a>.</p>` : ""}</section><aside class="note"><h3>El progreso también es encontrar tu ritmo.</h3><p>La barra de cada meta cuenta sus acciones completadas. Tú decides cuándo el resultado que buscabas está alcanzado.</p><a href="#habits">Ver mis hábitos →</a></aside></div>`;
 }
 function goalsPage() {
   return `<div class="page-heading"><div><p class="eyebrow">¿QUÉ QUIERO LOGRAR?</p><h1>Mis metas</h1><p class="muted">Cada camino puede cambiar de ritmo.</p></div><button data-new-goal>+ Crear una meta</button></div>${
@@ -416,6 +418,16 @@ function bindShell() {
   $("#retry-load")?.addEventListener("click", refresh);
 }
 function bindActions() {
+  $("[data-greet-pet]")?.addEventListener("click", () => {
+    const pet = $("#pet");
+    if (pet.classList.contains("pet-greeting")) return;
+    clearTimeout(greetingTimer);
+    pet.classList.add("pet-greeting");
+    greetingTimer = setTimeout(
+      () => pet.classList.remove("pet-greeting"),
+      1400,
+    );
+  });
   document
     .querySelectorAll("[data-new-goal]")
     .forEach((b) => (b.onclick = () => goalForm()));
@@ -581,6 +593,7 @@ function goalForm(goal = null) {
   const form = $("#goal-form", host);
   form.onsubmit = (event) => {
     event.preventDefault();
+    if (host.classList.contains("is-generating")) return;
     busy($("button[type=submit],button.secondary", form), async () => {
       const fields = Object.fromEntries(new FormData(form));
       fields.weekly_minutes = Number(fields.weekly_minutes);
@@ -598,28 +611,34 @@ function goalForm(goal = null) {
     });
   };
   $("#ai-plan", host).onclick = () => {
+    if (host.classList.contains("is-generating")) return;
     if (!form.reportValidity()) return;
     const fields = Object.fromEntries(new FormData(form));
     const button = $("#ai-plan", host);
+    const accountId = user.id;
     busy(button, async () => {
-      const loading = document.createElement("div");
-      loading.className = "ai-loading";
-      loading.setAttribute("role", "status");
-      loading.innerHTML = `${portrait(state.pet.stage)}<div><strong>Buscando un próximo paso posible…</strong><p>Organizando tu idea según tu tiempo. Podrás revisar y editar todo.</p></div>`;
-      form.append(loading);
-      const controls = [...form.elements];
-      controls.forEach((el) => (el.disabled = true));
+      const previousError = $("[role=alert]", form);
+      previousError.hidden = true;
+      previousError.textContent = "";
+      const waiting = startPlanLoading(host, form, state.pet.stage);
       try {
-        const response = await generatePlan({
-          ...fields,
-          idea: fields.title,
-          weekly_minutes: Number(fields.weekly_minutes),
-          goal_id: goal?.id || null,
-        });
+        const response = await generatePlan(
+          {
+            ...fields,
+            idea: fields.title,
+            weekly_minutes: Number(fields.weekly_minutes),
+            goal_id: goal?.id || null,
+          },
+          { signal: waiting.signal },
+        );
+        if (!waiting.isActive() || dialog !== host || user?.id !== accountId)
+          return;
         proposalEditor(response);
+      } catch (error) {
+        if (waiting.isActive() && dialog === host && user?.id === accountId)
+          throw error;
       } finally {
-        loading.remove();
-        controls.forEach((el) => (el.disabled = false));
+        waiting.dispose();
       }
     });
   };

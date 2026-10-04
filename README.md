@@ -126,6 +126,10 @@ npm.cmd run preview
 
 ## Lumi y seguridad de XP
 
+Lumi aparece destacada al inicio de **Hoy**, antes de las metas y acciones. Respira, parpadea, mueve los ojos y celebra tu progreso. Puedes tocarla o usar el teclado para saludarla; esa interacción no otorga XP. Las animaciones respetan la opción de reducir movimiento del dispositivo.
+
+Al pedir un plan de IA aparece una pantalla de espera con Lumi, un indicador sin porcentaje y el tiempo transcurrido. Si falla, se recuperan los datos del formulario para reintentar. Cerrar la ventana descarta la respuesta pendiente y evita que vuelva a abrirse por una respuesta tardía.
+
 Las reglas están centralizadas en `private.game_rules`: 10/20/35 XP por prioridad, 5 extra solo antes de una fecha límite real. Sin fecha o en el vencimiento/después: XP base. La curva empieza con 100 XP y suma 35 al coste de cada nivel siguiente. Hay 20 niveles y evoluciones en 1, 5, 10, 15 y 20.
 
 `set_task_status` y `set_habit_completion` bloquean primero la mascota de la cuenta, cambian el estado y actualizan recompensas y eventos dentro de una transacción. Una recompensa conserva su primer importe aunque se cambien prioridad o fecha después. Reabrir resta ese importe exacto; completar nuevamente restaura la misma recompensa. El identificador de solicitud evita que un reintento antiguo vuelva a aplicar un cambio ya deshecho.

@@ -16,6 +16,55 @@
   max-width: 210px;
   justify-self: center;
 }
+.pet-card.featured {
+  grid-template-columns: 230px minmax(0, 1fr);
+  min-height: 260px;
+  gap: 32px;
+  padding: 24px 34px;
+  background:
+    radial-gradient(ellipse at 10% 50%, #e1f3e6, transparent 48%), #fbfdf9;
+}
+.featured .pet-portrait {
+  max-width: 230px;
+}
+.featured .pet-title h2 {
+  font-size: 34px;
+}
+.featured .pet-info {
+  min-width: 0;
+}
+.featured .pet-info progress {
+  width: 100%;
+  max-width: 480px;
+  height: 12px;
+}
+.featured .pet-message {
+  max-width: 480px;
+  min-height: 0;
+}
+.featured .pet-journey {
+  grid-column: 1/-1;
+  padding: 18px 0 0;
+  border-left: 0;
+  border-top: 1px solid #d9e7de;
+}
+.pet-portrait.pet-interact {
+  display: block;
+  background: transparent;
+  padding: 0;
+  border: 0;
+  border-radius: 28px;
+  color: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.pet-portrait.pet-interact:hover:not(:disabled) {
+  filter: none;
+}
+.pet-portrait.pet-interact:focus-visible {
+  outline: 3px solid #dcad56;
+  outline-offset: 4px;
+}
 .lumi-art {
   display: block;
   width: 100%;
@@ -29,6 +78,12 @@
   transform-box: fill-box;
   transform-origin: center;
   animation: lumi-blink 6s infinite;
+}
+.lumi-delighted-eyes {
+  opacity: 0;
+}
+.lumi-wave-arm {
+  transform-origin: 182px 137px;
 }
 .lumi-sparks {
   opacity: 0.75;
@@ -201,6 +256,28 @@
 .pet-evolving .lumi-sparks {
   animation: lumi-glow 0.4s ease 4;
 }
+.pet-happy .lumi-gaze,
+.pet-level-up .lumi-gaze,
+.pet-greeting .lumi-gaze {
+  opacity: 0;
+}
+.pet-happy .lumi-delighted-eyes,
+.pet-level-up .lumi-delighted-eyes,
+.pet-greeting .lumi-delighted-eyes {
+  opacity: 1;
+}
+.pet-happy .lumi-wave-arm,
+.pet-level-up .lumi-wave-arm,
+.pet-greeting .lumi-wave-arm {
+  animation: lumi-wave 0.6s ease-in-out 2;
+}
+.pet-greeting .lumi-sway {
+  animation: lumi-hello 1.2s ease-in-out;
+}
+.pet-happy .lumi-sparks,
+.pet-level-up .lumi-sparks {
+  animation: lumi-sparkle 1.2s ease-in-out;
+}
 @keyframes lumi-breathe {
   50% {
     transform: translateY(-3px) scale(1.015);
@@ -245,6 +322,28 @@
     transform: scale(1);
   }
 }
+@keyframes lumi-wave {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  25% {
+    transform: rotate(-22deg);
+  }
+  65% {
+    transform: rotate(8deg);
+  }
+}
+@keyframes lumi-sparkle {
+  0%,
+  100% {
+    opacity: 0.75;
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
 @media (max-width: 1200px) {
   .pet-card {
     grid-template-columns: 150px 1fr;
@@ -267,6 +366,10 @@
   }
   .pet-card {
     min-height: 0;
+  }
+  .pet-card.featured {
+    grid-template-columns: 200px minmax(0, 1fr);
+    gap: 24px;
   }
 }
 @media (max-width: 680px) {
@@ -302,8 +405,28 @@
   .pet-journey small {
     font-size: 9px;
   }
+  .pet-card.featured {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    padding: 20px;
+  }
+  .featured .pet-portrait {
+    max-width: 170px;
+  }
+  .featured .pet-title h2 {
+    font-size: 30px;
+  }
+  .featured .pet-stage span {
+    display: inline;
+  }
+  .featured .pet-message {
+    font-size: 13px;
+  }
+  .featured .pet-journey {
+    padding-top: 16px;
+  }
 }
-.lumi-gaze {
+.lumi-pupils {
   animation: lumi-look 11s ease-in-out infinite;
 }
 .lumi-sway {
@@ -377,12 +500,15 @@
   }
 }
 @media (hover: hover) {
-  .pet-portrait:hover .lumi-gaze {
+  .pet-portrait:hover .lumi-pupils {
     animation: none;
     transform: translate(0, -2px);
   }
   .pet-portrait:hover .lumi-sway {
     animation: lumi-hello 0.9s ease-in-out 1;
+  }
+  .pet-portrait:hover .lumi-wave-arm {
+    animation: lumi-wave 0.6s ease-in-out 2;
   }
 }
 @keyframes lumi-hello {
@@ -398,11 +524,13 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .pet-card * {
+  .pet-card *,
+  .lumi-art,
+  .lumi-art * {
     animation: none !important;
     transition: none !important;
   }
-  .pet-portrait:hover .lumi-gaze {
+  .pet-portrait:hover .lumi-pupils {
     transform: none;
   }
 }

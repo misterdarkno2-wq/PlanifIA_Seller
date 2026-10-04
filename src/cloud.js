@@ -89,9 +89,10 @@ export async function loadState() {
   };
 }
 export const rpc = (name, args) => checked(cloud.rpc(name, args));
-export async function generatePlan(input) {
+export async function generatePlan(input, { signal } = {}) {
   const { data, error } = await cloud.functions.invoke("goal-plan", {
     body: input,
+    signal,
   });
   if (error) {
     let detail;
