@@ -21,6 +21,13 @@
 
 ## Pruebas automatizadas locales
 
+### Lumi animada por defecto — 4 de octubre de 2026
+
+- El modo inicial es Animadas incluso si el dispositivo reduce movimiento. No se muestran preguntas ni selectores en Hoy o durante la espera de IA; los modos opcionales permanecen únicamente en Ajustes y se conservan si el usuario los eligió.
+- `npm test`: 33 pruebas correctas, incluidos el nuevo valor inicial, almacenamiento ausente o dañado y preferencias explícitas guardadas. El resto de la interfaz conserva la reducción de movimiento del dispositivo.
+- `npm run test:ui`: correcto en escritorio y móvil. Se comprobó el primer inicio animado con reducir movimiento, autonomía sin clic, ausencia de selectores en Hoy y carga, y persistencia de los modos opcionales de Ajustes. Las celebraciones, límites y cinco evoluciones siguen pasando.
+- En el navegador local se comprobó Lumi con respiración y desplazamiento autónomo, sin selector en Hoy y con reducir movimiento del dispositivo activado. Captura en `dist/qa/lumi-animada-por-defecto.jpg`, fuera de Git.
+
 ### Preferencia de animaciones de Lumi — 4 de octubre de 2026
 
 - `npm test`: 33 pruebas correctas; siete nuevas comprueban los tres modos, persistencia, cambios del sistema, sincronización entre pestañas, almacenamiento bloqueado y limpieza.

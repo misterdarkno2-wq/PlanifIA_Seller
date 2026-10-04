@@ -73,11 +73,11 @@ function fixture({
   };
 }
 
-test("Lumi respeta el dispositivo por defecto y permite una elección explícita", () => {
+test("Lumi está animada por defecto incluso si el dispositivo reduce el movimiento", () => {
   const { settings } = fixture();
-  assert.equal(settings.mode, "auto");
+  assert.equal(settings.mode, "animated");
   assert.equal(settings.systemReduced, true);
-  assert.equal(settings.matches, true);
+  assert.equal(settings.matches, false);
   settings.setMode("animated");
   assert.equal(settings.mode, "animated");
   assert.equal(settings.matches, false);
@@ -112,20 +112,20 @@ test("La elección de Lumi persiste en este dispositivo y se restaura al recarga
   }
 });
 
-test("Configuraciones ausentes o dañadas y errores de lectura conservan el modo automático", () => {
+test("Configuraciones ausentes o dañadas y errores de lectura mantienen Lumi animada", () => {
   for (const stored of [null, "", "invalid", "ANIMATED", "{}", '"calm"']) {
     const { settings, writes } = fixture({ stored, reduced: true });
-    assert.equal(settings.mode, "auto", String(stored));
-    assert.equal(settings.matches, true);
+    assert.equal(settings.mode, "animated", String(stored));
+    assert.equal(settings.matches, false);
     assert.deepEqual(writes, [], "Leer una preferencia no debe escribirla");
     settings.dispose();
   }
   const { settings } = fixture({
-    stored: "animated",
+    stored: "calm",
     readError: true,
     reduced: false,
   });
-  assert.equal(settings.mode, "auto");
+  assert.equal(settings.mode, "animated");
   assert.equal(settings.matches, false);
   settings.dispose();
 });
@@ -144,7 +144,7 @@ test("Si el almacenamiento rechaza una escritura la elección sigue funcionando 
 });
 
 test("Los cambios del sistema se reflejan en automático y notifican sin anular elecciones explícitas", () => {
-  const f = fixture({ reduced: false });
+  const f = fixture({ reduced: false, stored: "auto" });
   const changes = [];
   const listener = () =>
     changes.push({
@@ -205,17 +205,19 @@ test("Las otras pestañas sincronizan la elección sin reescribir ni reaccionar 
   assert.equal(f.settings.mode, "calm");
   assert.equal(f.settings.matches, true);
   f.external("invalid");
-  assert.equal(f.settings.mode, "auto");
-  f.external("animated");
+  assert.equal(f.settings.mode, "animated");
+  f.external("calm");
   f.external(null);
+  assert.equal(f.settings.mode, "animated");
+  assert.equal(f.settings.matches, false);
+  f.external("auto");
   assert.equal(f.settings.mode, "auto");
   assert.equal(f.settings.matches, true);
-  f.external("animated");
   f.external(null, null);
   assert.equal(
     f.settings.mode,
-    "auto",
-    "Limpiar el almacenamiento en otra pestaña restaura el modo automático",
+    "animated",
+    "Limpiar el almacenamiento en otra pestaña restaura Lumi animada",
   );
   assert.deepEqual(
     f.writes,
@@ -238,8 +240,8 @@ test("Desmontar las preferencias limpia los listeners y no permite reactivacione
   f.system(false);
   f.external("animated");
   f.settings.setMode("animated");
-  assert.equal(f.settings.mode, "auto");
-  assert.equal(f.settings.matches, true);
+  assert.equal(f.settings.mode, "animated");
+  assert.equal(f.settings.matches, false);
   assert.equal(changes, 0);
   assert.deepEqual(f.writes, []);
 });

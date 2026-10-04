@@ -1,7 +1,6 @@
 import { portrait } from "./pet-art.js";
 import { createPetBehavior } from "./pet-behavior.js";
 import { getPetMotionSettings } from "./pet-motion.js";
-import { petMotionControls, bindPetMotionControls } from "./pet-motion-ui.js";
 
 /** Owns the waiting screen, request lifetime and form restoration. */
 export function startPlanLoading(host, form, stage) {
@@ -27,8 +26,7 @@ export function startPlanLoading(host, form, stage) {
     <div class="ai-loading-track" aria-hidden="true"><span></span></div>
     <p class="ai-loading-time" aria-hidden="true"><span class="ai-wait-dot"></span>Generando con IA <span data-plan-elapsed>0:00 de espera</span></p>
     <div class="ai-plan-preview" aria-hidden="true">${[1, 2, 3].map((number) => `<div class="ai-preview-card"><span class="ai-preview-number">${number}</span><div><i></i><i></i></div></div>`).join("")}</div>
-    <p class="ai-loading-note">Podrás revisar y editar la propuesta antes de guardar.<br>Tu meta todavía no ha cambiado.</p>
-    ${petMotionControls()}`;
+    <p class="ai-loading-note">Podrás revisar y editar la propuesta antes de guardar.<br>Tu meta todavía no ha cambiado.</p>`;
   controls.forEach(([element]) => (element.disabled = true));
   form.hidden = true;
   form.setAttribute("aria-busy", "true");
@@ -38,7 +36,6 @@ export function startPlanLoading(host, form, stage) {
   const petBehavior = createPetBehavior(screen.querySelector(".lumi-art"), {
     motionQuery: getPetMotionSettings(),
   });
-  const disposeMotionControls = bindPetMotionControls(screen);
   host.scrollTop = 0;
   screen.querySelector("h3").focus({ preventScroll: true });
 
@@ -68,7 +65,6 @@ export function startPlanLoading(host, form, stage) {
     clearInterval(timer);
     controller.abort();
     petBehavior.dispose();
-    disposeMotionControls();
     host.removeEventListener("close", dispose);
     host.removeEventListener("cancel", dispose);
     screen.remove();

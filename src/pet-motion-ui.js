@@ -6,7 +6,7 @@ function motionStatus(settings) {
   if (settings.mode === "calm")
     return "Lumi está en modo tranquilo, sin desplazamientos, saltos ni giros.";
   if (settings.systemReduced)
-    return "Tu dispositivo pide reducir el movimiento. Lumi permanece tranquila; puedes elegir Animadas si lo prefieres.";
+    return "Lumi sigue la preferencia de movimiento reducido de tu dispositivo y permanece tranquila.";
   return "Lumi se mueve automáticamente y respeta la preferencia de movimiento de tu dispositivo.";
 }
 

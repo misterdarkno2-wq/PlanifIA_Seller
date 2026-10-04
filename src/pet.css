@@ -206,9 +206,6 @@
   color: var(--muted);
   font-size: 10px !important;
 }
-.ai-loading .pet-motion-settings {
-  margin: 14px auto 0;
-}
 .pet-journey {
   padding-left: 22px;
   border-left: 1px solid #d9e7de;

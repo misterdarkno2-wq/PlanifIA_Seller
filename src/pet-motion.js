@@ -1,5 +1,6 @@
 export const PET_MOTION_STORAGE_KEY = "planifia-lumi-motion";
 const MODES = new Set(["auto", "animated", "calm"]);
+const DEFAULT_MODE = "animated";
 
 /** A browser preference for Lumi, independent of the rest of the interface. */
 export function createPetMotionSettings({
@@ -17,12 +18,12 @@ export function createPetMotionSettings({
       // A blocked storage area still allows a preference for this session.
     }
   }
-  let mode = "auto";
+  let mode = DEFAULT_MODE;
   try {
     const saved = storage?.getItem(PET_MOTION_STORAGE_KEY);
     if (MODES.has(saved)) mode = saved;
   } catch {
-    // Automatic motion remains the default if storage cannot be read.
+    // Lumi stays animated by default even when storage cannot be read.
   }
   let systemReduced = Boolean(systemQuery?.matches);
   let disposed = false;
@@ -91,7 +92,7 @@ export function createPetMotionSettings({
       (event.storageArea && event.storageArea !== storage)
     )
       return;
-    const next = MODES.has(event.newValue) ? event.newValue : "auto";
+    const next = MODES.has(event.newValue) ? event.newValue : DEFAULT_MODE;
     if (next === mode) return;
     mode = next;
     notify();

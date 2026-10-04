@@ -380,7 +380,7 @@ try {
     );
     assert.equal(await card.getByRole("button").count(), 0);
     assert.equal(await card.locator("[data-greet-pet]").count(), 0);
-    assert.equal(await card.getByLabel("Animaciones de Lumi").count(), 1);
+    assert.equal(await card.getByLabel("Animaciones de Lumi").count(), 0);
   }
   const petSvg = "#pet .lumi-art";
   async function pauseClock(p) {
@@ -634,6 +634,7 @@ try {
     const loader = p.locator(".ai-loading"),
       host = p.getByRole("dialog");
     await loader.waitFor();
+    assert.equal(await loader.getByLabel("Animaciones de Lumi").count(), 0);
     assert.equal(await loader.getAttribute("role"), "status");
     assert.equal(await loader.getAttribute("aria-live"), "polite");
     assert.equal(await loader.getAttribute("aria-atomic"), "true");
@@ -1024,34 +1025,12 @@ try {
     ),
     true,
   );
-  for (const part of [".lumi-body", ".lumi-eyes", ".lumi-pupils"])
-    assert.equal(
-      await phone
-        .locator(`#pet ${part}`)
-        .evaluate((el) => getComputedStyle(el).animationName),
-      "none",
-    );
-  await pauseClock(phone);
-  await phone.clock.fastForward(60000);
-  assert.equal(await lumiState(phone), "idle");
-  assert.equal(
-    await phone
-      .locator(petSvg)
-      .evaluate((svg) => svg.getAnimations({ subtree: true }).length),
-    0,
-    "La mascota permanece tranquila con movimiento reducido",
-  );
-  await phone.clock.resume();
-  const phoneMotion = () =>
-    phone.locator("#pet").getByLabel("Animaciones de Lumi");
-  assert.equal(await phoneMotion().inputValue(), "auto");
   assert.equal(
     await phone.evaluate(
       () => matchMedia("(prefers-reduced-motion: reduce)").matches,
     ),
     true,
   );
-  await phoneMotion().selectOption("animated");
   assert.equal(
     await phone.locator(petSvg).getAttribute("data-lumi-motion"),
     "animated",
@@ -1062,23 +1041,38 @@ try {
         .locator(`#pet ${part}`)
         .evaluate((el) => getComputedStyle(el).animationName),
       "none",
-      "La elección Animadas recupera respiración y parpadeo aunque el dispositivo reduzca movimiento",
+      "Lumi respira y parpadea desde el primer inicio aunque el dispositivo reduzca movimiento",
     );
   await autonomousLumi(phone, { cycles: 2 });
+  async function setPhoneMotion(mode) {
+    await phone.getByRole("link", { name: "Ajustes", exact: true }).click();
+    const selector = phone
+      .locator(".pet-motion-panel")
+      .getByLabel("Animaciones de Lumi");
+    await selector.selectOption(mode);
+    assert.equal(await selector.inputValue(), mode);
+    await phone.getByRole("link", { name: "Hoy", exact: true }).click();
+    await phone
+      .getByRole("heading", { name: /Un paso a la vez, Ana/ })
+      .waitFor();
+    assert.equal(
+      await phone.locator(petSvg).getAttribute("data-lumi-motion"),
+      mode,
+    );
+    assert.equal(
+      await phone.getByLabel("Animaciones de Lumi").count(),
+      0,
+      "El retrato no pide elegir un modo",
+    );
+  }
+  await setPhoneMotion("calm");
   await phone.reload();
   await phone.getByRole("heading", { name: /Un paso a la vez, Ana/ }).waitFor();
   assert.equal(
-    await phoneMotion().inputValue(),
-    "animated",
-    "La elección persiste al recargar",
+    await phone.locator(petSvg).getAttribute("data-lumi-motion"),
+    "calm",
+    "Tranquilas persiste al recargar",
   );
-  assert.notEqual(
-    await phone
-      .locator("#pet .lumi-body")
-      .evaluate((el) => getComputedStyle(el).animationName),
-    "none",
-  );
-  await phoneMotion().selectOption("calm");
   await pauseClock(phone);
   await phone.clock.fastForward(60000);
   assert.equal(await lumiState(phone), "idle");
@@ -1087,7 +1081,7 @@ try {
       .locator(petSvg)
       .evaluate((svg) => svg.getAnimations({ subtree: true }).length),
     0,
-    "Tranquilas detiene tanto las acciones espontáneas como las animaciones de las partes",
+    "La opción Tranquilas detiene tanto las acciones espontáneas como las animaciones de las partes",
   );
   await phone.emulateMedia({ reducedMotion: "no-preference" });
   assert.equal(
@@ -1097,7 +1091,8 @@ try {
     0,
     "Tranquilas conserva la calma aunque el sistema permita animaciones",
   );
-  await phoneMotion().selectOption("auto");
+  await phone.clock.resume();
+  await setPhoneMotion("auto");
   assert.notEqual(
     await phone
       .locator("#pet .lumi-body")
@@ -1112,20 +1107,31 @@ try {
       svg.getAnimations({ subtree: true }).length === 0
     );
   });
-  await phone.clock.resume();
-  await phone.getByRole("link", { name: "Ajustes", exact: true }).click();
-  const settingsMotion = phone
-    .locator(".pet-motion-panel")
-    .getByLabel("Animaciones de Lumi");
-  assert.equal(await settingsMotion.inputValue(), "auto");
-  await settingsMotion.selectOption("animated");
-  await phone.getByRole("link", { name: "Hoy", exact: true }).click();
+  await phone.reload();
+  await phone.getByRole("heading", { name: /Un paso a la vez, Ana/ }).waitFor();
   assert.equal(
-    await phoneMotion().inputValue(),
-    "animated",
-    "El selector de Ajustes comparte la elección con el retrato",
+    await phone.locator(petSvg).getAttribute("data-lumi-motion"),
+    "auto",
+    "Según dispositivo persiste si se eligió explícitamente",
   );
-  await phoneMotion().selectOption("auto");
+  await pauseClock(phone);
+  await phone.clock.fastForward(60000);
+  assert.equal(await lumiState(phone), "idle");
+  assert.equal(
+    await phone
+      .locator(petSvg)
+      .evaluate((svg) => svg.getAnimations({ subtree: true }).length),
+    0,
+  );
+  await phone.clock.resume();
+  await setPhoneMotion("animated");
+  await phone.reload();
+  await phone.getByRole("heading", { name: /Un paso a la vez, Ana/ }).waitFor();
+  assert.equal(
+    await phone.locator(petSvg).getAttribute("data-lumi-motion"),
+    "animated",
+    "Animadas persiste si se eligió explícitamente",
+  );
   await phone
     .getByRole("button", { name: "+ Crear una meta", exact: true })
     .click();
@@ -1135,6 +1141,53 @@ try {
   await phone.getByRole("button", { name: "Proponer un plan con IA" }).click();
   await waitingPlan(phone);
   await waitAiCalls(6);
+  for (const part of [".lumi-body", ".lumi-eyes"])
+    assert.notEqual(
+      await phone
+        .locator(`.ai-loading ${part}`)
+        .evaluate((el) => getComputedStyle(el).animationName),
+      "none",
+      "La Lumi de la carga está animada sin pedir una selección",
+    );
+  assert.equal(
+    await phone
+      .locator(".ai-loading-track")
+      .evaluate((el) => getComputedStyle(el).animationName),
+    "none",
+    "Animar Lumi no anula la reducción de movimiento de los otros adornos",
+  );
+  await phone.screenshot({
+    path: "dist/qa/loading-mobile.png",
+    fullPage: false,
+  });
+  await pauseClock(phone);
+  await phone.clock.fastForward(21000);
+  assert.ok(
+    ["walk", "look", "jump", "stretch", "turn", "flip"].includes(
+      await lumiState(phone, ".ai-loading"),
+    ),
+    "La Lumi de la carga actúa autónomamente sin interacción",
+  );
+  await finishLumi(phone, ".ai-loading");
+  await phone.clock.resume();
+  mobilePlan.release();
+  await mobilePlan.done;
+  await phone
+    .getByRole("heading", { name: "Tu propuesta, antes de guardar" })
+    .waitFor();
+  await phone.getByRole("button", { name: "Cerrar", exact: true }).click();
+  await setPhoneMotion("auto");
+  await phone
+    .getByRole("button", { name: "+ Crear una meta", exact: true })
+    .click();
+  await phone
+    .getByLabel("Mi idea o meta")
+    .fill("Una carga tranquila por elección");
+  await phone.getByLabel("Minutos por semana para esta meta").fill("140");
+  const quietMobilePlan = holdAi();
+  await phone.getByRole("button", { name: "Proponer un plan con IA" }).click();
+  await waitingPlan(phone);
+  await waitAiCalls(7);
   for (const part of [
     ".lumi-body",
     ".lumi-eyes",
@@ -1146,72 +1199,19 @@ try {
         .locator(`.ai-loading ${part}`)
         .evaluate((el) => getComputedStyle(el).animationName),
       "none",
+      "La pantalla de carga respeta Según dispositivo cuando se eligió explícitamente",
     );
-  assert.equal(
-    await phone
-      .locator(".ai-loading")
-      .evaluate((loader) => loader.getAnimations({ subtree: true }).length),
-    0,
-    "Movimiento reducido también detiene los adornos de la pantalla de carga",
-  );
-  await phone.screenshot({
-    path: "dist/qa/loading-mobile.png",
-    fullPage: false,
-  });
-  const loaderMotion = phone
-    .locator(".ai-loading")
-    .getByLabel("Animaciones de Lumi");
-  assert.equal(await loaderMotion.inputValue(), "auto");
-  await loaderMotion.selectOption("animated");
-  assert.equal(
-    await phoneMotion().inputValue(),
-    "animated",
-    "La carga sincroniza el selector del retrato sin reconstruirlo",
-  );
-  for (const part of [".lumi-body", ".lumi-eyes"])
-    assert.notEqual(
-      await phone
-        .locator(`.ai-loading ${part}`)
-        .evaluate((el) => getComputedStyle(el).animationName),
-      "none",
-    );
-  assert.equal(
-    await phone
-      .locator(".ai-loading-track")
-      .evaluate((el) => getComputedStyle(el).animationName),
-    "none",
-    "Animar Lumi no anula la reducción de movimiento de los otros adornos",
-  );
   await pauseClock(phone);
-  await phone.clock.fastForward(21000);
-  assert.ok(
-    ["walk", "look", "jump", "stretch", "turn", "flip"].includes(
-      await lumiState(phone, ".ai-loading"),
-    ),
-    "La Lumi de la carga también actúa autónomamente con la elección Animadas",
-  );
-  await finishLumi(phone, ".ai-loading");
-  await loaderMotion.selectOption("calm");
-  assert.equal(await phoneMotion().inputValue(), "calm");
-  assert.equal(
-    await phone
-      .locator(".ai-loading .lumi-art")
-      .evaluate((svg) => svg.getAnimations({ subtree: true }).length),
-    0,
-  );
-  await loaderMotion.selectOption("auto");
-  assert.equal(await phoneMotion().inputValue(), "auto");
   await phone.clock.fastForward(60000);
   assert.equal(
     await phone
       .locator(".ai-loading")
       .evaluate((loader) => loader.getAnimations({ subtree: true }).length),
     0,
-    "Volver a Según dispositivo mantiene tranquila toda la pantalla de carga",
   );
   await phone.clock.resume();
-  mobilePlan.release();
-  await mobilePlan.done;
+  quietMobilePlan.release();
+  await quietMobilePlan.done;
   await phone
     .getByRole("heading", { name: "Tu propuesta, antes de guardar" })
     .waitFor();
