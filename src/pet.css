@@ -15,6 +15,8 @@
   width: 100%;
   max-width: 210px;
   justify-self: center;
+  overflow: hidden;
+  isolation: isolate;
 }
 .pet-card.featured {
   grid-template-columns: 230px minmax(0, 1fr);
@@ -48,30 +50,33 @@
   border-left: 0;
   border-top: 1px solid #d9e7de;
 }
-.pet-portrait.pet-interact {
-  display: block;
-  background: transparent;
-  padding: 0;
-  border: 0;
-  border-radius: 28px;
-  color: inherit;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-.pet-portrait.pet-interact:hover:not(:disabled) {
-  filter: none;
-}
-.pet-portrait.pet-interact:focus-visible {
-  outline: 3px solid #dcad56;
-  outline-offset: 4px;
-}
 .lumi-art {
   display: block;
   width: 100%;
-  overflow: visible;
+  overflow: hidden;
+  pointer-events: none;
 }
+.lumi-position,
+.lumi-shadow-position,
+.lumi-action,
+.lumi-sway,
+.lumi-body,
+.lumi-rest-arm,
+.lumi-wave-arm,
+.lumi-wing-left,
+.lumi-wing-right,
+.lumi-foot-left,
+.lumi-foot-right {
+  transform-box: view-box;
+}
+.lumi-action {
+  transform-origin: 130px 115px;
+}
+.lumi-sway,
 .lumi-body {
   transform-origin: 130px 180px;
+}
+.lumi-body {
   animation: lumi-breathe 4.5s ease-in-out infinite;
 }
 .lumi-eyes {
@@ -84,6 +89,21 @@
 }
 .lumi-wave-arm {
   transform-origin: 182px 137px;
+}
+.lumi-rest-arm {
+  transform-origin: 78px 137px;
+}
+.lumi-wing-left {
+  transform-origin: 88px 137px;
+}
+.lumi-wing-right {
+  transform-origin: 172px 137px;
+}
+.lumi-foot-left {
+  transform-origin: 95px 174px;
+}
+.lumi-foot-right {
+  transform-origin: 165px 174px;
 }
 .lumi-sparks {
   opacity: 0.75;
@@ -241,42 +261,64 @@
   color: var(--muted);
   font-size: 14px;
 }
-.pet-happy .lumi-body {
-  animation: lumi-jump 0.6s ease 2;
-}
-.pet-level-up .lumi-body {
-  animation: lumi-jump 0.6s ease 2;
-}
-.pet-level-up .pet-level {
-  animation: lumi-glow 0.6s ease 2;
-}
-.pet-evolving .pet-portrait {
-  animation: lumi-evolve 1.5s ease;
-}
-.pet-evolving .lumi-sparks {
-  animation: lumi-glow 0.4s ease 4;
-}
-.pet-happy .lumi-gaze,
-.pet-level-up .lumi-gaze,
-.pet-greeting .lumi-gaze {
+[data-lumi-state="celebrate"] .lumi-gaze {
   opacity: 0;
 }
-.pet-happy .lumi-delighted-eyes,
-.pet-level-up .lumi-delighted-eyes,
-.pet-greeting .lumi-delighted-eyes {
+[data-lumi-state="celebrate"] .lumi-delighted-eyes {
   opacity: 1;
 }
-.pet-happy .lumi-wave-arm,
-.pet-level-up .lumi-wave-arm,
-.pet-greeting .lumi-wave-arm {
+[data-lumi-state="celebrate"] .lumi-wave-arm {
   animation: lumi-wave 0.6s ease-in-out 2;
 }
-.pet-greeting .lumi-sway {
-  animation: lumi-hello 1.2s ease-in-out;
+[data-lumi-state="celebrate"] .lumi-rest-arm {
+  animation: lumi-cheer 0.6s ease-in-out 2;
 }
-.pet-happy .lumi-sparks,
-.pet-level-up .lumi-sparks {
+[data-lumi-state="celebrate"] .lumi-sparks {
   animation: lumi-sparkle 1.2s ease-in-out;
+}
+[data-lumi-state="celebrate"][data-lumi-reaction="evolve"] .lumi-sparks {
+  animation: lumi-sparkle 0.55s ease-in-out 4;
+}
+[data-lumi-state="walk"] .lumi-foot-left {
+  animation: lumi-step-left 0.48s ease-in-out infinite;
+}
+[data-lumi-state="walk"] .lumi-foot-right {
+  animation: lumi-step-left 0.48s ease-in-out -0.24s infinite;
+}
+[data-lumi-state="walk"] .lumi-wave-arm,
+[data-lumi-state="walk"] .lumi-rest-arm {
+  animation: lumi-arm-step 0.48s ease-in-out infinite;
+}
+[data-lumi-state="walk"] .lumi-rest-arm {
+  animation-delay: -0.24s;
+}
+[data-lumi-state="stretch"] .lumi-wing-left {
+  animation: lumi-wing-stretch 1.8s ease-in-out;
+}
+[data-lumi-state="stretch"] .lumi-wing-right {
+  animation: lumi-wing-stretch-right 1.8s ease-in-out;
+}
+[data-lumi-state="flip"] .lumi-rest-arm {
+  transform: rotate(-60deg);
+}
+[data-lumi-state="flip"] .lumi-wave-arm {
+  transform: rotate(115deg);
+}
+[data-lumi-state="flip"] .lumi-foot-left {
+  transform: rotate(15deg);
+}
+[data-lumi-state="flip"] .lumi-foot-right {
+  transform: rotate(-15deg);
+}
+.lumi-rest-arm,
+.lumi-wave-arm,
+.lumi-foot-left,
+.lumi-foot-right {
+  transition: transform 0.22s ease-in-out;
+}
+.lumi-paused .lumi-art *,
+.lumi-art.lumi-paused * {
+  animation-play-state: paused !important;
 }
 @keyframes lumi-breathe {
   50% {
@@ -294,34 +336,6 @@
     transform: scaleY(0.12);
   }
 }
-@keyframes lumi-jump {
-  40% {
-    transform: translateY(-12px) rotate(-5deg);
-  }
-  75% {
-    transform: translateY(-5px) rotate(4deg);
-  }
-}
-@keyframes lumi-glow {
-  50% {
-    filter: brightness(1.35);
-    transform: scale(1.08);
-  }
-}
-@keyframes lumi-evolve {
-  30% {
-    filter: brightness(1.6);
-    transform: scale(0.88);
-  }
-  65% {
-    filter: drop-shadow(0 0 15px #e8bf63);
-    transform: scale(1.08);
-  }
-  100% {
-    filter: none;
-    transform: scale(1);
-  }
-}
 @keyframes lumi-wave {
   0%,
   100% {
@@ -332,6 +346,54 @@
   }
   65% {
     transform: rotate(8deg);
+  }
+}
+@keyframes lumi-cheer {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  35% {
+    transform: rotate(65deg);
+  }
+  70% {
+    transform: rotate(45deg);
+  }
+}
+@keyframes lumi-step-left {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0);
+  }
+  50% {
+    transform: translateY(-4px) rotate(-9deg);
+  }
+}
+@keyframes lumi-arm-step {
+  0%,
+  100% {
+    transform: rotate(-5deg);
+  }
+  50% {
+    transform: rotate(10deg);
+  }
+}
+@keyframes lumi-wing-stretch {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  50% {
+    transform: rotate(8deg);
+  }
+}
+@keyframes lumi-wing-stretch-right {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  50% {
+    transform: rotate(-8deg);
   }
 }
 @keyframes lumi-sparkle {
@@ -426,13 +488,6 @@
     padding-top: 16px;
   }
 }
-.lumi-pupils {
-  animation: lumi-look 11s ease-in-out infinite;
-}
-.lumi-sway {
-  transform-origin: 130px 180px;
-  animation: lumi-curious 14s ease-in-out infinite;
-}
 .lumi-sprout {
   transform-origin: 130px 65px;
   animation: lumi-leaf 5s ease-in-out infinite;
@@ -441,43 +496,6 @@
   transform-box: fill-box;
   transform-origin: center;
   animation: lumi-shadow-breathe 4.5s ease-in-out infinite;
-}
-.pet-happy .lumi-sway,
-.pet-level-up .lumi-sway,
-.pet-evolving .lumi-sway {
-  animation: none;
-}
-@keyframes lumi-look {
-  0%,
-  15%,
-  45%,
-  65%,
-  100% {
-    transform: translate(0, 0);
-  }
-  22%,
-  33% {
-    transform: translate(4px, -1px);
-  }
-  73%,
-  84% {
-    transform: translate(-4px, 1px);
-  }
-}
-@keyframes lumi-curious {
-  0%,
-  60%,
-  85%,
-  100% {
-    transform: rotate(0);
-  }
-  68%,
-  73% {
-    transform: rotate(-3deg);
-  }
-  78% {
-    transform: rotate(2deg);
-  }
 }
 @keyframes lumi-leaf {
   0%,
@@ -499,38 +517,11 @@
     opacity: 0.75;
   }
 }
-@media (hover: hover) {
-  .pet-portrait:hover .lumi-pupils {
-    animation: none;
-    transform: translate(0, -2px);
-  }
-  .pet-portrait:hover .lumi-sway {
-    animation: lumi-hello 0.9s ease-in-out 1;
-  }
-  .pet-portrait:hover .lumi-wave-arm {
-    animation: lumi-wave 0.6s ease-in-out 2;
-  }
-}
-@keyframes lumi-hello {
-  0%,
-  100% {
-    transform: rotate(0);
-  }
-  25% {
-    transform: rotate(-5deg);
-  }
-  65% {
-    transform: rotate(5deg);
-  }
-}
 @media (prefers-reduced-motion: reduce) {
   .pet-card *,
   .lumi-art,
   .lumi-art * {
     animation: none !important;
     transition: none !important;
-  }
-  .pet-portrait:hover .lumi-pupils {
-    transform: none;
   }
 }

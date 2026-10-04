@@ -126,7 +126,9 @@ npm.cmd run preview
 
 ## Lumi y seguridad de XP
 
-Lumi aparece destacada al inicio de **Hoy**, antes de las metas y acciones. Respira, parpadea, mueve los ojos y celebra tu progreso. Puedes tocarla o usar el teclado para saludarla; esa interacción no otorga XP. Las animaciones respetan la opción de reducir movimiento del dispositivo.
+Lumi aparece destacada al inicio de **Hoy**, antes de las metas y acciones. Respira y parpadea mientras intercala por iniciativa propia miradas, pasos, pequeños saltos, estiramientos, giros y alguna voltereta. Los clics, el tacto y el cursor no activan animaciones. Cada acción termina antes de empezar otra; completar acciones, subir de nivel o evolucionar da prioridad a una celebración.
+
+Los intervalos (8–20 segundos), pesos, duraciones, desplazamiento máximo y descanso entre volteretas se configuran en `src/pet-behavior.js`, en `LUMI_BEHAVIOR`. La posición se conserva entre movimientos y al actualizar el panel. El personaje permanece dentro de su retrato en móvil y escritorio. Al ocultar la pestaña se pausa; al salir de la vista se limpian sus temporizadores y animaciones. Con movimiento reducido mantiene una expresión tranquila sin desplazamientos, saltos ni giros.
 
 Al pedir un plan de IA aparece una pantalla de espera con Lumi, un indicador sin porcentaje y el tiempo transcurrido. Si falla, se recuperan los datos del formulario para reintentar. Cerrar la ventana descarta la respuesta pendiente y evita que vuelva a abrirse por una respuesta tardía.
 

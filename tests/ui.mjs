@@ -334,6 +334,7 @@ try {
   const page = await context.newPage(),
     errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
+  await page.clock.install();
   await page.goto("http://127.0.0.1:5183");
   await page.getByRole("heading", { name: /Tus metas/ }).waitFor();
   await page.screenshot({
@@ -377,7 +378,256 @@ try {
       ),
       true,
     );
-    await card.getByRole("button", { name: "Saludar a Lumi" }).waitFor();
+    assert.equal(await card.getByRole("button").count(), 0);
+    assert.equal(await card.locator("[data-greet-pet]").count(), 0);
+  }
+  const petSvg = "#pet .lumi-art";
+  async function pauseClock(p) {
+    await p.clock.pauseAt(await p.evaluate(() => Date.now() + 100));
+  }
+  async function lumiState(p, root = "#pet") {
+    return p.locator(`${root} .lumi-art`).getAttribute("data-lumi-state");
+  }
+  async function finishLumi(p, root = "#pet") {
+    await p.locator(`${root} .lumi-art`).evaluate(async (svg) => {
+      const actions = svg
+        .getAnimations({ subtree: true })
+        .filter((a) => Number.isFinite(a.effect.getTiming().iterations));
+      actions.forEach((action) => action.finish());
+      await Promise.allSettled(actions.map((action) => action.finished));
+    });
+    assert.equal(await lumiState(p, root), "idle");
+  }
+  async function boundedLumi(p, root = "#pet") {
+    const bounds = await p.locator(`${root} .pet-portrait`).boundingBox(),
+      body = await p.locator(`${root} .lumi-action`).boundingBox(),
+      info = await p.locator(`${root} .pet-info`).boundingBox();
+    const detail = `${await lumiState(p, root)}, stage ${await p.locator(`${root} .lumi-art`).getAttribute("data-lumi-stage")}, phase ${await p.locator(`${root} .lumi-art`).getAttribute("data-test-phase")}: ${JSON.stringify({ body, bounds })}`;
+    assert.ok(
+      body.x >= bounds.x - 1,
+      `Lumi no sale por la izquierda (${detail})`,
+    );
+    assert.ok(body.y >= bounds.y - 1, `Lumi no sale por arriba (${detail})`);
+    assert.ok(
+      body.x + body.width <= bounds.x + bounds.width + 1,
+      `Lumi no sale por la derecha (${detail})`,
+    );
+    assert.ok(
+      body.y + body.height <= bounds.y + bounds.height + 1,
+      `Lumi no sale por abajo (${detail})`,
+    );
+    assert.ok(
+      body.x + body.width <= info.x || body.y + body.height <= info.y,
+      "El personaje no invade el texto del planificador",
+    );
+    assert.equal(
+      await p
+        .locator(`${root} .lumi-art`)
+        .evaluate((svg) => getComputedStyle(svg).transform),
+      "none",
+      "La tarjeta y el SVG no giran",
+    );
+  }
+  async function sampleAction(p, root = "#pet") {
+    for (let fraction = 0; fraction < 1; fraction += 0.1) {
+      await p.locator(`${root} .lumi-art`).evaluate((svg, progress) => {
+        svg.dataset.testPhase = String(progress);
+        const actions = svg
+          .getAnimations({ subtree: true })
+          .filter((a) => Number.isFinite(a.effect.getTiming().iterations));
+        for (const action of actions) {
+          action.pause();
+          action.currentTime = action.effect.getTiming().duration * progress;
+        }
+        const characterActions = actions.filter((a) =>
+          a.effect.target.classList.contains("lumi-action"),
+        );
+        if (characterActions.length > 1)
+          throw new Error("No deben superponerse dos acciones del personaje");
+      }, fraction);
+      await boundedLumi(p, root);
+    }
+  }
+  async function autonomousLumi(p, { cycles = 4 } = {}) {
+    await pauseClock(p);
+    assert.equal(await lumiState(p), "idle");
+    const before = await p.locator(petSvg).evaluate((svg) =>
+      svg
+        .getAnimations({ subtree: true })
+        .map((a) => a.animationName || "WAAPI")
+        .sort(),
+    );
+    await p.locator("#pet .pet-portrait").hover();
+    await p.locator("#pet .pet-portrait").click();
+    assert.equal(
+      await lumiState(p),
+      "idle",
+      "Clic y cursor no activan acciones",
+    );
+    assert.equal(await p.locator("#pet.pet-greeting").count(), 0);
+    assert.deepEqual(
+      await p.locator(petSvg).evaluate((svg) =>
+        svg
+          .getAnimations({ subtree: true })
+          .map((a) => a.animationName || "WAAPI")
+          .sort(),
+      ),
+      before,
+      "Clic y cursor no añaden animaciones",
+    );
+    const seen = new Set();
+    for (let i = 0; i < cycles; i++) {
+      await p.clock.fastForward(21000);
+      const action = await lumiState(p);
+      assert.ok(
+        ["walk", "look", "jump", "stretch", "turn", "flip"].includes(action),
+        "Una acción espontánea comienza sin interactuar",
+      );
+      seen.add(action);
+      const destination =
+        action === "walk"
+          ? await p.locator("#pet .lumi-position").evaluate((position) => {
+              const movement = position
+                .getAnimations()
+                .find((a) => Number.isFinite(a.effect.getTiming().iterations));
+              return new DOMMatrix(
+                movement.effect.getKeyframes().at(-1).transform,
+              ).m41;
+            })
+          : null;
+      await sampleAction(p);
+      await finishLumi(p);
+      if (destination !== null) {
+        const settled = await p
+          .locator("#pet .lumi-position")
+          .evaluate(
+            (position) =>
+              new DOMMatrix(getComputedStyle(position).transform).m41,
+          );
+        assert.ok(
+          Math.abs(settled - destination) < 0.1,
+          "Caminar mantiene la posición alcanzada y no vuelve al centro",
+        );
+      }
+      await boundedLumi(p);
+      await p.clock.fastForward(7000);
+      assert.equal(
+        await lumiState(p),
+        "idle",
+        "Cada acción deja una pausa tranquila",
+      );
+    }
+    assert.ok(seen.size > 1, "Las acciones espontáneas varían");
+    await p.clock.fastForward(21000);
+    const activeState = await lumiState(p);
+    await p.evaluate(() => {
+      Object.defineProperty(document, "hidden", {
+        configurable: true,
+        get: () => true,
+      });
+      Object.defineProperty(document, "visibilityState", {
+        configurable: true,
+        get: () => "hidden",
+      });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    assert.equal(
+      await p
+        .locator(petSvg)
+        .evaluate((svg) =>
+          svg
+            .getAnimations({ subtree: true })
+            .every((a) => a.playState === "paused"),
+        ),
+      true,
+      "Ocultar la pestaña pausa también respiración y parpadeo",
+    );
+    const position = await p.locator("#pet .lumi-position").boundingBox();
+    await p.clock.fastForward(60000);
+    assert.equal(await lumiState(p), activeState);
+    assert.deepEqual(
+      await p.locator("#pet .lumi-position").boundingBox(),
+      position,
+      "El tiempo oculto no mueve ni acumula acciones",
+    );
+    await p.evaluate(() => {
+      delete document.hidden;
+      delete document.visibilityState;
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await finishLumi(p);
+    await p.clock.resume();
+  }
+  async function lumiGeometry(p) {
+    await pauseClock(p);
+    const issues = [];
+    for (const stage of [1, 2, 3, 4, 5]) {
+      for (const action of [
+        "walk",
+        "look",
+        "jump",
+        "stretch",
+        "turn",
+        "flip",
+        "celebrate",
+      ]) {
+        await p.evaluate(
+          async ({ action, stage }) => {
+            const { createPetBehavior, LUMI_BEHAVIOR } =
+              await import("/src/pet-behavior.js");
+            const { portrait } = await import("/src/pet-art.js");
+            const copy = document.querySelector("#pet").cloneNode(true);
+            copy.id = "lumi-geometry-probe";
+            copy.removeAttribute("aria-labelledby");
+            copy.setAttribute("aria-hidden", "true");
+            copy
+              .querySelectorAll("[id]")
+              .forEach((element) => element.removeAttribute("id"));
+            copy.querySelector(".pet-portrait").innerHTML = portrait(stage);
+            document.querySelector("#pet").after(copy);
+            const breathing = copy
+              .querySelector(".lumi-body")
+              .getAnimations()[0];
+            breathing.pause();
+            breathing.currentTime = 2250;
+            window.geometryController = createPetBehavior(
+              copy.querySelector(".lumi-art"),
+              {
+                config: {
+                  ...LUMI_BEHAVIOR,
+                  actions:
+                    action === "celebrate"
+                      ? LUMI_BEHAVIOR.actions
+                      : { [action]: LUMI_BEHAVIOR.actions[action] },
+                },
+                random: () => 0.75,
+                initialPosition: LUMI_BEHAVIOR.maxTravel,
+                lastFlipAt: -Infinity,
+              },
+            );
+            if (action === "celebrate")
+              window.geometryController.celebrate("evolve");
+          },
+          { action, stage },
+        );
+        if (action !== "celebrate") await p.clock.fastForward(21000);
+        assert.equal(await lumiState(p, "#lumi-geometry-probe"), action);
+        try {
+          await sampleAction(p, "#lumi-geometry-probe");
+          await finishLumi(p, "#lumi-geometry-probe");
+          await boundedLumi(p, "#lumi-geometry-probe");
+        } catch (error) {
+          issues.push(`Etapa ${stage}, ${action}: ${error.message}`);
+        }
+        await p.evaluate(() => {
+          window.geometryController.dispose();
+          document.querySelector("#lumi-geometry-probe").remove();
+          delete window.geometryController;
+        });
+      }
+    }
+    await p.clock.resume();
+    assert.deepEqual(issues, [], issues.join("\n"));
   }
   async function waitingPlan(p) {
     const loader = p.locator(".ai-loading"),
@@ -429,16 +679,15 @@ try {
   }
   await login(page);
   await featuredLumi(page);
-  for (const part of [".lumi-body", ".lumi-eyes", ".lumi-pupils"])
+  for (const part of [".lumi-body", ".lumi-eyes"])
     assert.notEqual(
       await page
         .locator(`#pet ${part}`)
         .evaluate((el) => getComputedStyle(el).animationName),
       "none",
     );
-  await page.getByRole("button", { name: "Saludar a Lumi" }).click();
-  await page.locator("#pet.pet-greeting").waitFor();
-  assert.equal(total, 0, "Saludar a Lumi no entrega XP");
+  await autonomousLumi(page);
+  assert.equal(total, 0, "Las acciones espontáneas de Lumi no entregan XP");
   await page
     .getByRole("button", { name: "+ Crear una meta", exact: true })
     .click();
@@ -511,6 +760,12 @@ try {
     .click();
   await page.getByText("+20 XP.", { exact: false }).waitFor();
   assert.equal(total, 20);
+  assert.equal(await lumiState(page), "celebrate");
+  assert.equal(
+    await page.locator(petSvg).getAttribute("data-lumi-reaction"),
+    "happy",
+  );
+  await finishLumi(page);
   await page
     .getByRole("button", {
       name: "Volver a pendiente: Grabar una presentación de dos minutos",
@@ -519,6 +774,47 @@ try {
     .click();
   await page.getByText("Se ajustaron 20 XP", { exact: false }).waitFor();
   assert.equal(total, 0);
+  assert.equal(
+    await lumiState(page),
+    "idle",
+    "Retirar XP no provoca celebración",
+  );
+  // Progreso previo cargado desde el servidor: el nuevo paso cruza un umbral.
+  for (const [startingXp, expectedLevel, expectedStage, reaction, message] of [
+    [95, 2, 1, "level", "¡Nivel 2!"],
+    [600, 5, 2, "evolve", "¡Lumi evolucionó!"],
+  ]) {
+    total = startingXp;
+    data.tasks[0].status = "pending";
+    await page.reload();
+    await page
+      .getByRole("heading", { name: /Un paso a la vez, Ana/ })
+      .waitFor();
+    await page
+      .getByRole("button", {
+        name: "Completar: Grabar una presentación de dos minutos",
+        exact: true,
+      })
+      .click();
+    await page.getByText(message, { exact: false }).waitFor();
+    assert.equal(total, startingXp + 20);
+    assert.equal(progression(total).level, expectedLevel);
+    assert.equal(
+      await page.locator(petSvg).getAttribute("data-lumi-stage"),
+      String(expectedStage),
+    );
+    assert.equal(await lumiState(page), "celebrate");
+    assert.equal(
+      await page.locator(petSvg).getAttribute("data-lumi-reaction"),
+      reaction,
+    );
+    await sampleAction(page);
+    await finishLumi(page);
+  }
+  total = 0;
+  data.tasks[0].status = "pending";
+  await page.reload();
+  await page.getByRole("heading", { name: /Un paso a la vez, Ana/ }).waitFor();
   await page
     .getByRole("button", { name: "Reprogramar / editar" })
     .first()
@@ -714,6 +1010,7 @@ try {
   await mobile.route("https://supabase.example.test/**", fixture);
   const phone = await mobile.newPage();
   phone.on("pageerror", (e) => errors.push(e.message));
+  await phone.clock.install();
   await login(phone);
   await featuredLumi(phone);
   await phone.screenshot({
@@ -733,6 +1030,17 @@ try {
         .evaluate((el) => getComputedStyle(el).animationName),
       "none",
     );
+  await pauseClock(phone);
+  await phone.clock.fastForward(60000);
+  assert.equal(await lumiState(phone), "idle");
+  assert.equal(
+    await phone
+      .locator(petSvg)
+      .evaluate((svg) => svg.getAnimations({ subtree: true }).length),
+    0,
+    "La mascota permanece tranquila con movimiento reducido",
+  );
+  await phone.clock.resume();
   await phone
     .getByRole("button", { name: "+ Crear una meta", exact: true })
     .click();
@@ -775,9 +1083,50 @@ try {
   await phone
     .getByRole("heading", { name: "Metas alcanzadas", exact: true })
     .waitFor();
+  await phone.getByRole("link", { name: "Hoy", exact: true }).click();
+  total = 100000; // También se comprueba el espacio de la evolución final.
+  await phone.reload();
+  await phone.getByRole("heading", { name: /Un paso a la vez, Ana/ }).waitFor();
+  await phone.emulateMedia({ reducedMotion: "no-preference" });
+  await featuredLumi(phone);
+  await autonomousLumi(phone, { cycles: 4 });
+  assert.equal(
+    await phone.locator(petSvg).getAttribute("data-lumi-stage"),
+    "5",
+  );
+  await lumiGeometry(phone);
+  await phone.screenshot({
+    path: "dist/qa/lumi-autonomous-mobile.png",
+    fullPage: true,
+  });
+  await pauseClock(phone);
+  await phone.evaluate(() => {
+    window.detachedLumi = document.querySelector("#pet .lumi-art");
+  });
+  await phone.getByRole("link", { name: "Metas", exact: true }).click();
+  await phone
+    .getByRole("heading", { name: "Metas alcanzadas", exact: true })
+    .waitFor();
+  const detachedState = await phone.evaluate(
+    () => window.detachedLumi.dataset.lumiState,
+  );
+  await phone.clock.fastForward(60000);
+  assert.equal(
+    await phone.evaluate(
+      () => window.detachedLumi.getAnimations({ subtree: true }).length,
+    ),
+    0,
+    "Navegar desmonta las animaciones de la mascota anterior",
+  );
+  assert.equal(
+    await phone.evaluate(() => window.detachedLumi.dataset.lumiState),
+    detachedState,
+    "No quedan acciones espontáneas en un personaje desmontado",
+  );
+  await phone.clock.resume();
   assert.deepEqual(errors, []);
   console.log(
-    "UI fixtures: registro, login/logout, Lumi destacada/animada, propuesta editable, carga IA, doble clic, error/reintento, cierre seguro, ajustes, acciones, hábitos, importación, segundo dispositivo, responsive y movimiento reducido: OK",
+    "UI fixtures: registro, login/logout, Lumi autónoma sin clic/hover, movimientos dentro del retrato, pausa de pestaña y desmontaje, XP/nivel/evolución, propuesta editable, carga IA, doble clic, error/reintento, cierre seguro, ajustes, acciones, hábitos, importación, segundo dispositivo, responsive y movimiento reducido: OK",
   );
 } finally {
   if (browser) await browser.close();

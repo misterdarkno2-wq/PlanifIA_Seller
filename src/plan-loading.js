@@ -1,4 +1,5 @@
 import { portrait } from "./pet-art.js";
+import { createPetBehavior } from "./pet-behavior.js";
 
 /** Owns the waiting screen, request lifetime and form restoration. */
 export function startPlanLoading(host, form, stage) {
@@ -31,6 +32,7 @@ export function startPlanLoading(host, form, stage) {
   host.classList.add("is-generating");
   heading.textContent = "Tu plan está en camino";
   host.append(screen);
+  const petBehavior = createPetBehavior(screen.querySelector(".lumi-art"));
   host.scrollTop = 0;
   screen.querySelector("h3").focus({ preventScroll: true });
 
@@ -59,6 +61,7 @@ export function startPlanLoading(host, form, stage) {
     disposed = true;
     clearInterval(timer);
     controller.abort();
+    petBehavior.dispose();
     host.removeEventListener("close", dispose);
     host.removeEventListener("cancel", dispose);
     screen.remove();

@@ -18,6 +18,7 @@ import {
   normalizeLegacy,
 } from "./domain.js";
 import { portrait } from "./pet-art.js";
+import { createPetBehavior } from "./pet-behavior.js";
 import { startPlanLoading } from "./plan-loading.js";
 import { validateProposal } from "../supabase/functions/_shared/plan.js";
 
@@ -40,8 +41,40 @@ let user = null,
   loading = false,
   loadVersion = 0,
   toastTimer,
-  greetingTimer,
   dialog;
+const petControllers = new Map();
+let petPose = null;
+function disposePets() {
+  for (const [svg, controller] of petControllers) {
+    if (svg.closest("#pet")) petPose = controller.getState();
+    controller.dispose();
+  }
+  petControllers.clear();
+}
+function mountPets() {
+  for (const svg of app.querySelectorAll(".lumi-art")) {
+    if (petControllers.has(svg)) continue;
+    const previous = svg.closest("#pet") ? petPose : null;
+    petControllers.set(
+      svg,
+      createPetBehavior(
+        svg,
+        previous
+          ? {
+              initialPosition: previous.position,
+              initialPose: previous.pose,
+              initialReaction: previous.resumeReaction,
+              lastFlipAt: previous.lastFlipAt,
+            }
+          : {},
+      ),
+    );
+  }
+}
+function celebratePet(kind = "happy") {
+  const svg = $("#pet .lumi-art");
+  petControllers.get(svg)?.celebrate(kind);
+}
 const uuid = () => crypto.randomUUID();
 const requestId = (form) => (form.dataset.requestId ||= uuid());
 document.addEventListener("input", (event) => {
@@ -150,27 +183,20 @@ function closeModal() {
 const alert = () => '<p class="error" role="alert" hidden></p>';
 function petCard() {
   const p = state.pet;
-  return `<aside class="pet-card featured" id="pet" aria-labelledby="pet-name"><button type="button" class="pet-portrait pet-interact" data-greet-pet aria-label="Saludar a Lumi" title="Toca para saludar">${portrait(p.stage)}</button><div class="pet-info"><p class="eyebrow">TU COMPAÑERA DE CADA PASO</p><div class="pet-title"><h2 id="pet-name">${e(p.name)}</h2><span class="pet-level">Nivel ${p.level}</span></div><p class="pet-stage">${STAGES[p.stage - 1]} · ${p.total_xp} XP</p><progress aria-label="Experiencia de Lumi" value="${p.next_xp === null ? 1 : p.level_xp}" max="${p.next_xp ?? 1}"></progress><p class="pet-xp-label">${p.next_xp === null ? "Evolución final alcanzada" : `${p.level_xp} / ${p.next_xp} XP para el siguiente nivel`}</p><p class="pet-message">Un paso pequeño también es avanzar. Estoy contigo.</p></div></aside>`;
+  return `<aside class="pet-card featured" id="pet" aria-labelledby="pet-name"><div class="pet-portrait">${portrait(p.stage)}</div><div class="pet-info"><p class="eyebrow">TU COMPAÑERA DE CADA PASO</p><div class="pet-title"><h2 id="pet-name">${e(p.name)}</h2><span class="pet-level">Nivel ${p.level}</span></div><p class="pet-stage">${STAGES[p.stage - 1]} · ${p.total_xp} XP</p><progress aria-label="Experiencia de Lumi" value="${p.next_xp === null ? 1 : p.level_xp}" max="${p.next_xp ?? 1}"></progress><p class="pet-xp-label">${p.next_xp === null ? "Evolución final alcanzada" : `${p.level_xp} / ${p.next_xp} XP para el siguiente nivel`}</p><p class="pet-message">Un paso pequeño también es avanzar. Estoy contigo.</p></div></aside>`;
 }
 function celebrate(result, before) {
-  const p = result.pet,
-    host = $("#pet");
+  const p = result.pet;
   if (result.xp_delta > 0) {
     const evolved = p.stage > before.stage,
       levelled = p.level > before.level;
-    host?.classList.add(
-      evolved ? "pet-evolving" : levelled ? "pet-level-up" : "pet-happy",
-    );
+    celebratePet(evolved ? "evolve" : levelled ? "level" : "happy");
     toast(
       evolved
         ? `¡Lumi evolucionó! ${STAGES[p.stage - 1]}, nivel ${p.level}.`
         : levelled
           ? `¡Nivel ${p.level}! Cada paso cuenta.`
           : `¡Bien hecho! +${result.xp_delta} XP.`,
-    );
-    setTimeout(
-      () => host?.classList.remove("pet-evolving", "pet-level-up", "pet-happy"),
-      1800,
     );
   } else if (result.xp_delta < 0)
     toast(
@@ -289,8 +315,10 @@ function shell(content) {
     )}</nav><p>Tus metas, un plan claro<br>y un paso a la vez.</p></aside><div class="app-body"><header class="app-header"><span class="cloud-state">● Tu espacio en la nube</span><div><span>${e(state?.profile.name || user.email)}</span><button class="text-button" id="logout">Cerrar sesión</button></div></header><main id="main"><div class="error panel" id="page-error" role="alert" hidden><p></p><button id="retry-load">Volver a cargar</button></div>${content}</main></div></div>`;
 }
 function render() {
+  disposePets();
   if (!user) {
     landing();
+    mountPets();
     return;
   }
   if (!state) {
@@ -317,6 +345,7 @@ function render() {
   );
   bindShell();
   bindActions();
+  mountPets();
 }
 function landing() {
   app.innerHTML = `<header class="landing-header"><a href="#home">${logo()}</a><div><a href="#login">Iniciar sesión</a><a class="button" href="#register">Empezar</a></div></header><main id="main"><section class="hero"><div><p class="eyebrow">DALE FORMA A LO QUE TE IMPORTA</p><h1>Tus metas.<br>Un plan claro.<br><em>Un paso a la vez.</em></h1><p>Convierte lo que quieres lograr en acciones que caben en tu vida. La IA te ayuda a dividir el camino; tú eliges el ritmo.</p><div class="hero-actions"><a class="button" href="#register">Crear mi primera meta →</a><a href="#how">Cómo funciona</a></div><p class="fine">Para proyectos, aprendizaje, bienestar y todo lo que empieza con una idea.</p></div><div class="hero-example"><span class="example-label">UN EJEMPLO DE TU PRÓXIMO PASO</span><div class="example-goal"><span class="tag">Aprendizaje</span><h2>Hablar inglés con más confianza</h2><p>Un camino en acciones pequeñas.</p><div class="example-action"><span>✓</span><div><strong>Practicar una presentación de 2 minutos</strong><p>Hoy · 15 minutos · A mi ritmo</p></div></div></div><div class="hero-pet">${portrait(2)}<div><strong>Lumi crece contigo</strong><p>Cada acción completada suma experiencia.</p></div></div></div></section><section class="how" id="how"><p class="eyebrow">DEL «ALGÚN DÍA» AL SIGUIENTE PASO</p><h2>Una idea tiene por dónde empezar.</h2><div class="three-columns"><article><span>01</span><h3>Cuenta qué quieres lograr</h3><p>Tu punto de partida, el resultado que buscas y el tiempo que tienes.</p></article><article><span>02</span><h3>Revisa un plan a tu medida</h3><p>La IA propone hitos, prioridades y acciones. Puedes editarlos antes de guardar.</p></article><article><span>03</span><h3>Avanza y ajusta el camino</h3><p>Organiza tu calendario, registra lo que haces y cambia el plan cuando lo necesites.</p></article></div></section><section class="examples"><h2>Un lugar para distintas metas.</h2><div>${["Aprender un idioma", "Lanzar mi proyecto", "Preparar una carrera", "Crear un hábito de lectura"].map((t) => `<button class="secondary" data-example="${e(t)}">${e(t)} ↗</button>`).join("")}</div></section>${missing.length ? `<section class="setup-note" role="status"><h2>La conexión con la nube está pendiente.</h2><p>Falta configurar ${missing.map((x) => `<code>${x}</code>`).join(" y ")} y aplicar las migraciones de Supabase. El registro, tus datos y la IA se habilitarán al conectar el proyecto.</p></section>` : ""}<footer class="landing-footer">PlanifIA · Un paso posible vale más que un plan imposible.</footer></main>`;
@@ -418,16 +447,6 @@ function bindShell() {
   $("#retry-load")?.addEventListener("click", refresh);
 }
 function bindActions() {
-  $("[data-greet-pet]")?.addEventListener("click", () => {
-    const pet = $("#pet");
-    if (pet.classList.contains("pet-greeting")) return;
-    clearTimeout(greetingTimer);
-    pet.classList.add("pet-greeting");
-    greetingTimer = setTimeout(
-      () => pet.classList.remove("pet-greeting"),
-      1400,
-    );
-  });
   document
     .querySelectorAll("[data-new-goal]")
     .forEach((b) => (b.onclick = () => goalForm()));
@@ -471,7 +490,7 @@ function bindActions() {
             progress(liveTasks().filter((t) => t.milestone_id === m.id))
               .percent === 100
           ) {
-            $("#pet")?.classList.add("pet-happy");
+            celebratePet();
             toast(`¡Hito completado: ${m.title}! Un paso más en tu camino.`);
           }
         })),
@@ -705,7 +724,7 @@ function confirmStatus(goal, status, message) {
           ? "¡Meta alcanzada! Date un momento para reconocer este paso."
           : "Meta archivada. Su historial sigue contigo.",
       );
-      if (status === "achieved") $("#pet")?.classList.add("pet-happy");
+      if (status === "achieved") celebratePet();
     });
 }
 function milestoneForm(goal) {
@@ -942,6 +961,8 @@ window.addEventListener("hashchange", () => {
   }
   render();
 });
+window.addEventListener("pagehide", disposePets);
+window.addEventListener("pageshow", mountPets);
 render();
 if (cloud) {
   cloud.auth.onAuthStateChange((event, session) => {

@@ -39,6 +39,14 @@ Las tareas completadas de propuestas previas conservan sus hitos; los planes nue
 
 Para modificar XP, un administrador puede actualizar `private.game_rules` desde SQL Editor. Los importes de recompensas ya emitidas permanecen constantes. Cambiar la curva recalcula los niveles visibles desde el mismo total, sin alterar el saldo.
 
+## Comportamiento de Lumi
+
+`src/pet-art.js` conserva las cinco etapas SVG. El fondo y la sombra están separados del personaje; la jerarquía de grupos distingue posición, acción y respiración. Las partes del cuerpo tienen animaciones CSS para parpadeo, pasos, brazos y alas. Las volteretas afectan al personaje, sin girar la tarjeta ni el fondo.
+
+`src/pet-behavior.js` crea un controlador por retrato. Elige acciones por pesos sin repetir la anterior, con pausas aleatorias de 8–20 segundos y un descanso mínimo de 60 segundos entre volteretas. Usa Web Animations para terminar una acción antes de iniciar otra y conserva la posición horizontal, limitada a ±18 unidades del SVG. Una reacción real tiene prioridad sobre el siguiente movimiento espontáneo; cuando llegan varias, conserva la de mayor importancia: evolución, nivel o tarea completada.
+
+`src/main.js` monta y dispone los controladores al cambiar la vista, conservando posición, pose y la celebración de mayor prioridad al refrescar el panel. `src/plan-loading.js` administra el retrato de la pantalla de espera y lo dispone al cerrar o terminar la solicitud. Cada controlador escucha visibilidad y movimiento reducido, pausa cuando la pestaña queda oculta y elimina sus animaciones, temporizadores y listeners al disponerlo. No registra eventos de clic, tacto ni cursor. Este comportamiento visual no escribe ni calcula XP: los eventos proceden de las respuestas existentes del servidor.
+
 ## Límites y decisiones
 
 No se migran hashes de contraseñas ni sesiones de MySQL a Supabase Auth. Los planes académicos y la mascota anteriores se guardan íntegros en los originales importados y se pueden descargar; no se convierten silenciosamente en nuevos planes o XP. Los hábitos futuros no se pueden marcar como realizados. Las metas y tareas se archivan/retiran, conservando historial.

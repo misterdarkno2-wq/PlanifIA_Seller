@@ -13,11 +13,20 @@
 
 ## Pruebas automatizadas locales
 
+### Lumi autónoma — 3 de octubre de 2026
+
+- `npm test`: 26 pruebas correctas, incluidas 13 del controlador de Lumi y las regresiones de XP y evolución en SQL.
+- `npm run test:ui`: correcto en Edge con vistas de escritorio y móvil de 390 × 844. Comprueba autonomía, ausencia de reacción al clic/cursor, continuidad, celebraciones, pausa de pestaña, limpieza y movimiento reducido.
+- Los límites se comprueban en 35 combinaciones: cinco etapas por siete acciones, incluida la celebración, con respiración máxima y posición lateral límite. Las volteretas se pliegan antes de girar; la etapa final usa saltos y giros más suaves para conservar el margen de su corona.
+- Capturas revisadas en `dist/qa/`, incluyendo `lumi-autonomous-mobile.png` y la pantalla de carga. Las pruebas de esta mejora utilizan respuestas simuladas de Auth, datos e IA; no generan planes reales ni modifican cuentas del servicio.
+
 `npm test`: ejecuta las migraciones completas en un PostgreSQL embebido de prueba. Las cuentas sintéticas A y B verifican privacidad y relaciones. Incluye estados de tareas, recompensas, reintentos antiguos, hábitos, propuestas e importación. La prueba de 20 niveles usa la curva de presentación, y la prueba SQL verifica la evolución final desde el saldo.
 
 `npm run test:ui`: las respuestas de Supabase Auth y del proveedor son fixtures de prueba, no conexiones externas. Verifica registro con confirmación, login/logout, revisión antes de guardar, edición de acciones, ajuste de pendientes, confirmación de meta lograda, hábitos, importación, error de guardado, recuperación desde un contexto de navegador distinto y móvil con movimiento reducido. Las capturas se generan bajo `dist/qa/`, fuera de Git.
 
-La prueba de interfaz también comprueba Lumi visible en la primera pantalla, saludo sin XP, animaciones y reducción de movimiento, carga de IA con respuesta diferida, bloqueo de doble clic y envío simultáneo, recuperación del formulario tras error, reintento y cierre con respuesta tardía. Genera capturas de Lumi y de la carga en escritorio y móvil; estos escenarios utilizan fixtures y no envían solicitudes al modelo real.
+La prueba de interfaz también comprueba Lumi visible en la primera pantalla, movimientos autónomos sin interacción, clic y cursor sin reacción, continuidad de posición, límites del retrato y celebraciones por tarea, nivel y evolución. Comprueba la pausa al ocultar la pestaña y una presentación tranquila con movimiento reducido. Verifica la carga de IA con respuesta diferida, bloqueo de doble clic y envío simultáneo, recuperación del formulario tras error, reintento y cierre con respuesta tardía. Genera capturas de Lumi y de la carga en escritorio y móvil; estos escenarios utilizan fixtures y no envían solicitudes al modelo real.
+
+`tests/pet-behavior.test.js` usa un reloj y animaciones controlados para verificar la elección variable de acciones, el descanso de las volteretas, los intervalos configurables, la continuidad de desplazamientos, la prioridad de celebraciones y la limpieza al desmontar. No depende de esperar minutos ni de una secuencia aleatoria concreta.
 
 `deno check`: comprueba el código de la función. `npm run build`: produce los archivos estáticos con configuración pública y rechaza claves privadas VITE\_.
 
