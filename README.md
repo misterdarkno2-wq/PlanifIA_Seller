@@ -4,7 +4,7 @@
 
 ## Repositorio y estado
 
-Este proyecto corresponde exclusivamente a `misterdarkno2-wq/PlanifIA_Seller`. Se inició desde su rama `main`, cuyo contenido era la licencia. La implementación se desarrolla en `codex/metas-supabase`. Se reutilizan el logo, el símbolo y la ilustración original de Lumi de PlanifIA.
+Este proyecto corresponde exclusivamente a `misterdarkno2-wq/PlanifIA_Seller`. Se inició desde su rama `main`, cuyo contenido era la licencia. La implementación se desarrolla en `codex/metas-supabase` y está integrada en `main`. La web está publicada en [GitHub Pages](https://misterdarkno2-wq.github.io/PlanifIA_Seller/). Se reutilizan el logo, el símbolo y la ilustración original de Lumi de PlanifIA.
 
 En esta instalación, Supabase está conectado al proyecto `hlnzxgpdxgadbdcqavcd`, las tres migraciones están aplicadas y `goal-plan` está desplegada. La configuración privada está en archivos excluidos de Git. El envío de correo para personas fuera del equipo requiere configurar SMTP; la confirmación de correo permanece habilitada. En otras instalaciones, la aplicación indica si falta configuración. Las pruebas con fixtures y las pruebas contra servicios reales se documentan por separado.
 

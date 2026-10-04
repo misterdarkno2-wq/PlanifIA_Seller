@@ -7,6 +7,8 @@
 - `PLANIFIA_RUN_LIVE=1 npm run test:live` pasó contra Supabase y Ollama reales: login/logout, dos usuarios aislados por RLS, rechazo de escritura directa de XP, ganancia/revocación/reintento, hábitos, propuesta sin guardado automático y aprobación que conserva completadas y retira pendientes.
 - Generación de la propuesta de validación: 79 segundos. El modelo de 27B se cargó en GPU según `/api/ps` (12,22 GB reportados para el modelo cargado); este dato no representa todo el consumo del escritorio.
 - Interfaz real comprobada en escritorio y móvil, recuperando los mismos datos desde dos contextos de navegador. Capturas en `dist/qa-live/`; sus cuentas temporales se eliminaron al terminar.
+- Publicación en GitHub Pages verificada por HTTPS, con archivos y configuración de Supabase correctos. CI y despliegue del commit `a864ccc` terminaron correctamente. Una segunda prueba real sobre la URL publicada pasó también, incluyendo login/logout en escritorio y móvil y una propuesta generada en 108 segundos.
+- Pruebas locales: 13 tests de Node, 8 de Edge Functions y comprobación de tipos correctos.
 - El envío de confirmaciones y recuperación de contraseña no queda validado por esta prueba: usa cuentas temporales confirmadas por la API administrativa. Falta configurar/verificar SMTP para personas ajenas al equipo de Supabase.
 
 ## Pruebas automatizadas locales
