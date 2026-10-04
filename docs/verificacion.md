@@ -1,5 +1,17 @@
 # Verificación y activación
 
+## Suscripciones Transbank — 4 de octubre de 2026
+
+- Implementación en `codex/suscripciones-transbank`, exclusivamente en `PlanifIA_Seller`. Catálogo editable: Gratis $0; Plus $990 inicial/$2.750 regular; Pro $1.990 inicial/$4.990 regular. Cuotas de metas y consumo de IA validadas en servidor.
+- `npm.cmd test`: 45 pruebas correctas. Incluyen 10 escenarios SQL de pagos y una integración que conecta las Edge Functions reales con las migraciones en PostgreSQL embebido; Transbank y Auth son sintéticos en esos escenarios.
+- `npm.cmd run test:edge`: 28 pruebas correctas; `check:edge` y compilación estática correctos. Se comprueban sesión, CORS, importe/orden, consentimiento, inscripciones sin activación, estados inciertos, reintentos y preservación de datos.
+- `test:ui` de la aplicación existente pasó. `test:billing-ui` pasó en escritorio y móvil, con formularios de Transbank interceptados: precio promocional y regular, consentimiento no premarcado, pagos manuales, cancelación, cambio de plan, cinco resultados, caducidad y limpieza. El montaje real también comprueba elección antes de login y retorno después de perder sesión. Capturas en `supabase/.temp/billing-qa/`, fuera de Git.
+- La API real de integración de Transbank respondió a creación y consulta de órdenes por $990 y $1.990, con estado `INITIALIZED` y validación TLS normal. No se enviaron tarjetas, no se confirmó ningún pago y no se realizaron cobros. Los pagos aprobados/rechazados y renovaciones se verifican con respuestas sintéticas; queda pendiente la certificación del comercio.
+- Las migraciones de pagos son `202610040001_billing.sql` y `202610040002_closed_renewals.sql`. La segunda cancela futuras renovaciones del ciclo al agotar rechazos confirmados o cancelar una orden antes de iniciar su cargo, habilitando la renovación manual y conservando el acceso ya pagado.
+- Ambas migraciones aplicadas en Supabase `hlnzxgpdxgadbdcqavcd`; `billing`, `billing-return`, `billing-renew` y `goal-plan` desplegadas. El ambiente está fijado en integración, con Webpay y Oneclick de prueba. Vault guarda el secreto y el cron está activo cada 15 minutos, independiente de los servicios del PC.
+- Verificación HTTPS contra las funciones desplegadas: catálogo 200 con precios exactos y CORS; gestión sin sesión 401; cron sin secreto 401 y autorizado 200 sin órdenes que procesar; retorno `approved=true` redirige a verificación pendiente sin activar nada. Roles del navegador sin permiso para ejecutar el RPC financiero. La sesión existente consultó Gratis y su consumo mensual real desde la nueva vista sin crear pagos.
+- Producción requiere contrato/códigos y claves Transbank por producto, habilitación Oneclick si se desea, certificación y cambio explícito de ambiente. Instrucciones en [suscripciones y Transbank](billing.md).
+
 ## Dominio principal — 4 de octubre de 2026
 
 - GitHub Pages asigna `planifia.cl` a `PlanifIA_Seller`, con certificado aprobado y HTTPS obligatorio. El repositorio anterior ya no tiene ese dominio. El DNS existente de Cloudflare apuntaba correctamente a GitHub y no necesitó cambios.

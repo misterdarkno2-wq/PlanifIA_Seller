@@ -19,7 +19,7 @@ export async function handleGoalPlan(req: Request) {
     Vary: "Origin",
     "Cache-Control": "no-store",
   };
-  if (!origin || !origins.includes(origin))
+  if (!origin || !origins.includes(origin)) {
     return json(
       {
         error: "Origen no autorizado. Configura ALLOWED_ORIGINS para esta web.",
@@ -27,16 +27,20 @@ export async function handleGoalPlan(req: Request) {
       403,
       {},
     );
-  if (req.method === "OPTIONS")
+  }
+  if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers });
-  if (req.method !== "POST")
+  }
+  if (req.method !== "POST") {
     return json({ error: "Método no permitido." }, 405, headers);
+  }
   try {
     const token = req.headers
       .get("authorization")
       ?.match(/^Bearer (\S+)$/i)?.[1];
-    if (!token)
+    if (!token) {
       return json({ error: "Inicia sesión para crear un plan." }, 401, headers);
+    }
     const url = Deno.env.get("SUPABASE_URL")!,
       anon = Deno.env.get("SUPABASE_ANON_KEY")!;
     const client = createClient(url, anon, {
@@ -47,12 +51,13 @@ export async function handleGoalPlan(req: Request) {
       data: { user },
       error: authError,
     } = await client.auth.getUser(token);
-    if (authError || !user)
+    if (authError || !user) {
       return json(
         { error: "Tu sesión terminó. Vuelve a iniciar sesión." },
         401,
         headers,
       );
+    }
     const apiKey = Deno.env.get("AI_API_KEY"),
       model = Deno.env.get("AI_MODEL"),
       base = Deno.env.get("AI_BASE_URL");
@@ -61,32 +66,38 @@ export async function handleGoalPlan(req: Request) {
       !model && "AI_MODEL",
       !base && "AI_BASE_URL",
     ].filter(Boolean);
-    if (missing.length)
+    if (missing.length) {
       return json(
         {
-          error: `Falta configurar ${missing.join(", ")} en los secretos de la función goal-plan.`,
+          error: `Falta configurar ${
+            missing.join(", ")
+          } en los secretos de la función goal-plan.`,
         },
         503,
         headers,
       );
+    }
     const baseUrl = new URL(base!);
-    if (baseUrl.protocol !== "https:" || baseUrl.username || baseUrl.password)
+    if (baseUrl.protocol !== "https:" || baseUrl.username || baseUrl.password) {
       throw new Error(
         "Configura AI_BASE_URL con una dirección HTTPS sin credenciales.",
       );
-    if (Number(req.headers.get("content-length")) > 20000)
+    }
+    if (Number(req.headers.get("content-length")) > 20000) {
       return json(
         { error: "La descripción es demasiado larga." },
         413,
         headers,
       );
+    }
     const raw = await req.text();
-    if (raw.length > 20000)
+    if (raw.length > 20000) {
       return json(
         { error: "La descripción es demasiado larga." },
         413,
         headers,
       );
+    }
     const input = JSON.parse(raw);
     if (
       typeof input.idea !== "string" ||
@@ -95,26 +106,28 @@ export async function handleGoalPlan(req: Request) {
       String(input.current_situation || "").length > 2000 ||
       String(input.outcome || "").length > 1000 ||
       String(input.reason || "").length > 1000
-    )
+    ) {
       return json(
         { error: "Describe tu meta en 3 a 2.000 caracteres." },
         422,
         headers,
       );
+    }
     const { data: profile, error: profileError } = await client
       .from("profiles")
       .select("*")
       .single();
-    if (profileError || !profile)
+    if (profileError || !profile) {
       throw new Error(
         "No pudimos cargar tu disponibilidad. Guarda tus ajustes primero.",
       );
+    }
     const weeklyMinutes = Number(input.weekly_minutes);
     if (
       !Number.isInteger(weeklyMinutes) ||
       weeklyMinutes < 30 ||
       weeklyMinutes > profile.weekly_minutes
-    )
+    ) {
       return json(
         {
           error:
@@ -123,6 +136,7 @@ export async function handleGoalPlan(req: Request) {
         422,
         headers,
       );
+    }
     const parts = new Intl.DateTimeFormat("en-CA", {
       timeZone: profile.timezone,
       year: "numeric",
@@ -136,12 +150,13 @@ export async function handleGoalPlan(req: Request) {
     if (
       targetDate &&
       (!/^\d{4}-\d{2}-\d{2}$/.test(targetDate) || targetDate < startDate)
-    )
+    ) {
       return json(
         { error: "La fecha objetivo debe ser hoy o posterior." },
         422,
         headers,
       );
+    }
     let goal = null;
     if (input.goal_id) {
       const r = await client
@@ -149,12 +164,13 @@ export async function handleGoalPlan(req: Request) {
         .select("*")
         .eq("id", input.goal_id)
         .single();
-      if (r.error)
+      if (r.error) {
         return json(
           { error: "No encontramos esa meta en tu cuenta." },
           404,
           headers,
         );
+      }
       goal = r.data;
     }
     const [taskResult, habitResult, goalResult] = await Promise.all([
@@ -162,10 +178,11 @@ export async function handleGoalPlan(req: Request) {
       client.from("habits").select("*"),
       client.from("goals").select("id,status"),
     ]);
-    if (taskResult.error || habitResult.error || goalResult.error)
+    if (taskResult.error || habitResult.error || goalResult.error) {
       throw new Error(
         "No pudimos consultar tu calendario. Inténtalo de nuevo.",
       );
+    }
     const active = new Set(
       goalResult.data.filter((g) => g.status === "active").map((g) => g.id),
     );
@@ -184,19 +201,18 @@ export async function handleGoalPlan(req: Request) {
       const date = new Date(startDate + "T12:00:00Z");
       date.setUTCDate(date.getUTCDate() + d);
       const day = date.toISOString().slice(0, 10);
-      const used =
-        tasks
-          .filter((t) => t.scheduled_date === day)
-          .reduce((sum, t) => sum + t.minutes, 0) +
+      const used = tasks
+        .filter((t) => t.scheduled_date === day)
+        .reduce((sum, t) => sum + t.minutes, 0) +
         habits
           .filter((h) => h.days.includes(date.getUTCDay()))
           .reduce((sum, h) => sum + h.minutes, 0);
       remainingDaily[day] = profile.available_days.includes(date.getUTCDay())
         ? Math.max(
-            0,
-            Math.ceil(profile.weekly_minutes / profile.available_days.length) -
-              used,
-          )
+          0,
+          Math.ceil(profile.weekly_minutes / profile.available_days.length) -
+            used,
+        )
         : 0;
       remainingWeekly[Math.floor(d / 7)] += used;
     }
@@ -210,18 +226,44 @@ export async function handleGoalPlan(req: Request) {
       p_user_id: user.id,
       p_limit: limit,
     });
-    if (reserved.error)
+    if (reserved.error) {
       throw new Error(
         "No pudimos comprobar el límite de uso. Revisa las migraciones de Supabase.",
       );
-    if (!reserved.data)
+    }
+    if (!reserved.data) {
       return json(
         {
-          error: `Llegaste al límite de ${limit} propuestas por día. Puedes seguir editando tus metas manualmente.`,
+          error:
+            `Llegaste al límite de ${limit} propuestas por día. Puedes seguir editando tus metas manualmente.`,
         },
         429,
         headers,
       );
+    }
+    const monthly = await admin.rpc("reserve_plan_ai", {
+      p_user_id: user.id,
+      p_kind: goal ? "adjustment" : "generation",
+    });
+    if (monthly.error) {
+      throw new Error("No pudimos comprobar el consumo mensual de tu plan.");
+    }
+    if (!monthly.data) {
+      const current = await client.rpc("billing_state");
+      const usage = current.data?.usage;
+      const activeLimit = !goal && usage &&
+        usage.active_goals >= usage.max_active_goals;
+      return json(
+        {
+          error: activeLimit
+            ? `Tu plan permite ${usage.max_active_goals} metas activas. Pausa una meta para crear otra; tu información y progreso se conservan.`
+            : "Llegaste al límite mensual de IA de tu plan. Consulta Mi suscripción para ver cuándo se reinicia. Puedes seguir editando tus metas manualmente.",
+          code: "plan_limit",
+        },
+        429,
+        headers,
+      );
+    }
     const proposal = await generateValidatedPlan({
       endpoint: base!.replace(/\/$/, "") + "/chat/completions",
       apiKey: apiKey!,
@@ -237,7 +279,7 @@ export async function handleGoalPlan(req: Request) {
         weeklyMinutes,
         remainingDaily,
         remainingWeekly: remainingWeekly.map((used) =>
-          Math.max(0, profile.weekly_minutes - used),
+          Math.max(0, profile.weekly_minutes - used)
         ),
         startDate,
         targetDate,
@@ -256,7 +298,7 @@ export async function handleGoalPlan(req: Request) {
         constraints: {
           remainingDaily,
           remainingWeekly: remainingWeekly.map((used) =>
-            Math.max(0, profile.weekly_minutes - used),
+            Math.max(0, profile.weekly_minutes - used)
           ),
           availableDays: profile.available_days,
         },
@@ -267,14 +309,16 @@ export async function handleGoalPlan(req: Request) {
       headers,
     );
   } catch (error) {
-    if (error instanceof PlanGenerationError)
+    if (error instanceof PlanGenerationError) {
       return json({ error: error.message }, error.status, headers);
-    const message =
-      error instanceof Error ? error.message : "No pudimos crear la propuesta.";
+    }
+    const message = error instanceof Error
+      ? error.message
+      : "No pudimos crear la propuesta.";
     if (
       error instanceof Error &&
       ["TimeoutError", "AbortError"].includes(error.name)
-    )
+    ) {
       return json(
         {
           error:
@@ -283,6 +327,7 @@ export async function handleGoalPlan(req: Request) {
         504,
         headers,
       );
+    }
     console.error(
       "goal-plan failed",
       error instanceof Error ? error.name : "unknown",

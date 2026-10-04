@@ -9,3 +9,12 @@ enable_confirmations = true
 
 [functions.goal-plan]
 verify_jwt = false
+
+[functions.billing]
+verify_jwt = false
+
+[functions.billing-return]
+verify_jwt = false
+
+[functions.billing-renew]
+verify_jwt = false

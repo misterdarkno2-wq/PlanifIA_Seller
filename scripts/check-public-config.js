@@ -3,7 +3,9 @@ const env = { ...loadEnv("production", process.cwd(), ""), ...process.env };
 for (const [key, value] of Object.entries(env))
   if (key.startsWith("VITE_") && value) {
     if (
-      /SECRET|PASSWORD|SERVICE_ROLE|AI_.*KEY|OPENAI|TOKEN/.test(key) ||
+      /SECRET|PASSWORD|SERVICE_ROLE|AI_.*KEY|OPENAI|TOKEN|TRANSBANK|BILLING_.*KEY/.test(
+        key,
+      ) ||
       value.startsWith("sb_secret_") ||
       value.startsWith("sk-")
     )

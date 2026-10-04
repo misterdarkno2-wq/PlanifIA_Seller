@@ -22,6 +22,13 @@ import { createPetBehavior } from "./pet-behavior.js";
 import { getPetMotionSettings } from "./pet-motion.js";
 import { petMotionControls, bindPetMotionControls } from "./pet-motion-ui.js";
 import { startPlanLoading } from "./plan-loading.js";
+import {
+  renderBilling,
+  mountBilling,
+  rememberBillingIntent,
+  consumeBillingIntent,
+} from "./billing.js";
+import { invokeBilling, loadBillingCatalog } from "./billing-cloud.js";
 import { validateProposal } from "../supabase/functions/_shared/plan.js";
 
 const app = document.querySelector("#app"),
@@ -47,6 +54,31 @@ let user = null,
 const petControllers = new Map();
 let petPose = null;
 let disposePetMotionControls = null;
+let disposeBilling = null;
+let paymentReturn = null;
+function mountBillingView() {
+  const root = $("[data-billing-root]");
+  if (!root || disposeBilling) return;
+  disposeBilling = mountBilling(root, {
+    user,
+    billing: invokeBilling,
+    loadCatalog: loadBillingCatalog,
+    onLogin: (planId) => {
+      rememberBillingIntent(planId);
+      location.hash = "login";
+    },
+    notify: toast,
+  });
+}
+function billingDestination() {
+  const planId = consumeBillingIntent();
+  if (paymentReturn) {
+    const route = paymentReturn;
+    paymentReturn = null;
+    return route;
+  }
+  return planId ? `subscription?plan=${planId}` : "today";
+}
 function disposePets() {
   for (const [svg, controller] of petControllers) {
     if (svg.closest("#pet")) petPose = controller.getState();
@@ -314,6 +346,7 @@ function shell(content) {
     ["tasks", "Acciones", "✓"],
     ["calendar", "Calendario", "▦"],
     ["habits", "Hábitos", "↻"],
+    ["subscription", "Mi plan", "◇"],
     ["settings", "Ajustes", "⚙"],
   ]
     .map(
@@ -325,6 +358,8 @@ function shell(content) {
     )}</nav><p>Tus metas, un plan claro<br>y un paso a la vez.</p></aside><div class="app-body"><header class="app-header"><span class="cloud-state">● Tu espacio en la nube</span><div><span>${e(state?.profile.name || user.email)}</span><button class="text-button" id="logout">Cerrar sesión</button></div></header><main id="main"><div class="error panel" id="page-error" role="alert" hidden><p></p><button id="retry-load">Volver a cargar</button></div>${content}</main></div></div>`;
 }
 function render() {
+  disposeBilling?.();
+  disposeBilling = null;
   disposePets();
   if (!user) {
     landing();
@@ -350,15 +385,36 @@ function render() {
         calendar: calendarPage,
         habits: habitsPage,
         settings: settingsPage,
+        plans: () => renderBilling({ view: "plans", user, escape: e }),
+        subscription: () =>
+          renderBilling({ view: "subscription", user, escape: e }),
       }[route] || dashboard
     )(),
   );
   bindShell();
   bindActions();
   mountPets();
+  mountBillingView();
 }
 function landing() {
-  app.innerHTML = `<header class="landing-header"><a href="#home">${logo()}</a><div><a href="#login">Iniciar sesión</a><a class="button" href="#register">Empezar</a></div></header><main id="main"><section class="hero"><div><p class="eyebrow">DALE FORMA A LO QUE TE IMPORTA</p><h1>Tus metas.<br>Un plan claro.<br><em>Un paso a la vez.</em></h1><p>Convierte lo que quieres lograr en acciones que caben en tu vida. La IA te ayuda a dividir el camino; tú eliges el ritmo.</p><div class="hero-actions"><a class="button" href="#register">Crear mi primera meta →</a><a href="#how">Cómo funciona</a></div><p class="fine">Para proyectos, aprendizaje, bienestar y todo lo que empieza con una idea.</p></div><div class="hero-example"><span class="example-label">UN EJEMPLO DE TU PRÓXIMO PASO</span><div class="example-goal"><span class="tag">Aprendizaje</span><h2>Hablar inglés con más confianza</h2><p>Un camino en acciones pequeñas.</p><div class="example-action"><span>✓</span><div><strong>Practicar una presentación de 2 minutos</strong><p>Hoy · 15 minutos · A mi ritmo</p></div></div></div><div class="hero-pet">${portrait(2)}<div><strong>Lumi crece contigo</strong><p>Cada acción completada suma experiencia.</p></div></div></div></section><section class="how" id="how"><p class="eyebrow">DEL «ALGÚN DÍA» AL SIGUIENTE PASO</p><h2>Una idea tiene por dónde empezar.</h2><div class="three-columns"><article><span>01</span><h3>Cuenta qué quieres lograr</h3><p>Tu punto de partida, el resultado que buscas y el tiempo que tienes.</p></article><article><span>02</span><h3>Revisa un plan a tu medida</h3><p>La IA propone hitos, prioridades y acciones. Puedes editarlos antes de guardar.</p></article><article><span>03</span><h3>Avanza y ajusta el camino</h3><p>Organiza tu calendario, registra lo que haces y cambia el plan cuando lo necesites.</p></article></div></section><section class="examples"><h2>Un lugar para distintas metas.</h2><div>${["Aprender un idioma", "Lanzar mi proyecto", "Preparar una carrera", "Crear un hábito de lectura"].map((t) => `<button class="secondary" data-example="${e(t)}">${e(t)} ↗</button>`).join("")}</div></section>${missing.length ? `<section class="setup-note" role="status"><h2>La conexión con la nube está pendiente.</h2><p>Falta configurar ${missing.map((x) => `<code>${x}</code>`).join(" y ")} y aplicar las migraciones de Supabase. El registro, tus datos y la IA se habilitarán al conectar el proyecto.</p></section>` : ""}<footer class="landing-footer">PlanifIA · Un paso posible vale más que un plan imposible.</footer></main>`;
+  const billingRoute = location.hash.slice(1).split("?")[0];
+  if (["plans", "subscription"].includes(billingRoute)) {
+    const paymentParams = new URLSearchParams(location.hash.split("?")[1]);
+    for (const key of ["order", "enrollment"]) {
+      const reference = paymentParams.get(key);
+      if (
+        billingRoute === "subscription" &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          reference || "",
+        )
+      )
+        paymentReturn = `subscription?${key}=${reference}`;
+    }
+    app.innerHTML = `<header class="landing-header"><a href="#home">${logo()}</a><div><a href="#home">Inicio</a><a class="button" href="#login">Iniciar sesión</a></div></header><main id="main">${renderBilling({ view: "plans", user, escape: e })}</main>`;
+    mountBillingView();
+    return;
+  }
+  app.innerHTML = `<header class="landing-header"><a href="#home">${logo()}</a><div><a href="#plans">Planes</a><a href="#login">Iniciar sesión</a><a class="button" href="#register">Empezar</a></div></header><main id="main"><section class="hero"><div><p class="eyebrow">DALE FORMA A LO QUE TE IMPORTA</p><h1>Tus metas.<br>Un plan claro.<br><em>Un paso a la vez.</em></h1><p>Convierte lo que quieres lograr en acciones que caben en tu vida. La IA te ayuda a dividir el camino; tú eliges el ritmo.</p><div class="hero-actions"><a class="button" href="#register">Crear mi primera meta →</a><a href="#how">Cómo funciona</a></div><p class="fine">Para proyectos, aprendizaje, bienestar y todo lo que empieza con una idea.</p></div><div class="hero-example"><span class="example-label">UN EJEMPLO DE TU PRÓXIMO PASO</span><div class="example-goal"><span class="tag">Aprendizaje</span><h2>Hablar inglés con más confianza</h2><p>Un camino en acciones pequeñas.</p><div class="example-action"><span>✓</span><div><strong>Practicar una presentación de 2 minutos</strong><p>Hoy · 15 minutos · A mi ritmo</p></div></div></div><div class="hero-pet">${portrait(2)}<div><strong>Lumi crece contigo</strong><p>Cada acción completada suma experiencia.</p></div></div></div></section><section class="how" id="how"><p class="eyebrow">DEL «ALGÚN DÍA» AL SIGUIENTE PASO</p><h2>Una idea tiene por dónde empezar.</h2><div class="three-columns"><article><span>01</span><h3>Cuenta qué quieres lograr</h3><p>Tu punto de partida, el resultado que buscas y el tiempo que tienes.</p></article><article><span>02</span><h3>Revisa un plan a tu medida</h3><p>La IA propone hitos, prioridades y acciones. Puedes editarlos antes de guardar.</p></article><article><span>03</span><h3>Avanza y ajusta el camino</h3><p>Organiza tu calendario, registra lo que haces y cambia el plan cuando lo necesites.</p></article></div></section><section class="examples"><h2>Un lugar para distintas metas.</h2><div>${["Aprender un idioma", "Lanzar mi proyecto", "Preparar una carrera", "Crear un hábito de lectura"].map((t) => `<button class="secondary" data-example="${e(t)}">${e(t)} ↗</button>`).join("")}</div></section>${missing.length ? `<section class="setup-note" role="status"><h2>La conexión con la nube está pendiente.</h2><p>Falta configurar ${missing.map((x) => `<code>${x}</code>`).join(" y ")} y aplicar las migraciones de Supabase. El registro, tus datos y la IA se habilitarán al conectar el proyecto.</p></section>` : ""}<footer class="landing-footer">PlanifIA · Un paso posible vale más que un plan imposible.</footer></main>`;
   document.querySelectorAll("[data-example]").forEach(
     (b) =>
       (b.onclick = () => {
@@ -417,9 +473,9 @@ function authModal(mode) {
           }),
         );
       closeModal();
-      location.hash = "today";
       const session = await checked(cloud.auth.getSession());
       user = session.session?.user;
+      location.hash = billingDestination();
       await refresh();
     });
   };
@@ -971,8 +1027,15 @@ window.addEventListener("hashchange", () => {
   }
   render();
 });
-window.addEventListener("pagehide", disposePets);
-window.addEventListener("pageshow", mountPets);
+window.addEventListener("pagehide", () => {
+  disposePets();
+  disposeBilling?.();
+  disposeBilling = null;
+});
+window.addEventListener("pageshow", () => {
+  mountPets();
+  mountBillingView();
+});
 render();
 if (cloud) {
   cloud.auth.onAuthStateChange((event, session) => {
@@ -998,6 +1061,8 @@ if (cloud) {
     .then((data) => {
       if (data.session) {
         user = data.session.user;
+        const selectedPlan = consumeBillingIntent();
+        if (selectedPlan) location.hash = `subscription?plan=${selectedPlan}`;
         refresh();
       }
     })

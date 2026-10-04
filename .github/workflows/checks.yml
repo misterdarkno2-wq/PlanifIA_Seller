@@ -17,4 +17,7 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run test:edge
+      - run: npm run check:edge
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:billing-ui
       - run: npm run build

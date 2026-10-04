@@ -9,8 +9,9 @@
     "preview": "vite preview --host 127.0.0.1",
     "test": "node --test tests/*.test.js",
     "test:ui": "node tests/ui.mjs",
+    "test:billing-ui": "node tests/billing-ui.mjs",
     "test:edge": "npx --yes deno test --allow-env --no-config --no-lock --node-modules-dir=none supabase/functions/",
-    "check:edge": "npx --yes deno check --no-config --no-lock --node-modules-dir=none supabase/functions/goal-plan/index.ts",
+    "check:edge": "npx --yes deno check --no-config --no-lock --node-modules-dir=none supabase/functions/goal-plan/index.ts supabase/functions/billing/index.ts supabase/functions/billing-return/index.ts supabase/functions/billing-renew/index.ts",
     "test:live": "node tests/live.mjs"
   },
   "dependencies": {

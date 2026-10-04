@@ -7,7 +7,8 @@ function assert(condition: unknown, message = "Assertion failed") {
 function setup() {
   const savedFetch = globalThis.fetch;
   let providerCalls = 0,
-    quota = true;
+    quota = true,
+    monthlyQuota = true;
   const keys = [
     "SUPABASE_URL",
     "SUPABASE_ANON_KEY",
@@ -19,38 +20,46 @@ function setup() {
     "ALLOWED_ORIGINS",
   ];
   const saved = new Map(keys.map((key) => [key, Deno.env.get(key)]));
-  for (const [key, value] of Object.entries({
-    SUPABASE_URL: "https://supabase.example.test",
-    SUPABASE_ANON_KEY: "test-only-public-key",
-    SUPABASE_SERVICE_ROLE_KEY: "test-only-private-key",
-    AI_BASE_URL: "https://ai.example.test/v1",
-    AI_API_KEY: "test-only-provider-key",
-    AI_MODEL: "fixture",
-    AI_DAILY_LIMIT: "2",
-    ALLOWED_ORIGINS: "https://web.example.test",
-  }))
+  for (
+    const [key, value] of Object.entries({
+      SUPABASE_URL: "https://supabase.example.test",
+      SUPABASE_ANON_KEY: "test-only-public-key",
+      SUPABASE_SERVICE_ROLE_KEY: "test-only-private-key",
+      AI_BASE_URL: "https://ai.example.test/v1",
+      AI_API_KEY: "test-only-provider-key",
+      AI_MODEL: "fixture",
+      AI_DAILY_LIMIT: "2",
+      ALLOWED_ORIGINS: "https://web.example.test",
+    })
+  ) {
     Deno.env.set(key, value);
+  }
   globalThis.fetch = async (input, options) => {
     const url = String(input);
     if (url.includes("/auth/v1/user")) {
       if (
         new Headers(options?.headers).get("authorization") !==
-        "Bearer test-valid-session"
-      )
+          "Bearer test-valid-session"
+      ) {
         return Response.json({ msg: "Session expired" }, { status: 401 });
+      }
       return Response.json({
         id: "11111111-1111-4111-8111-111111111111",
         email: "test@example.test",
         aud: "authenticated",
       });
     }
-    if (url.includes("/rest/v1/profiles"))
+    if (url.includes("/rest/v1/profiles")) {
       return Response.json({
         timezone: "America/Santiago",
         weekly_minutes: 700,
         available_days: [0, 1, 2, 3, 4, 5, 6],
       });
+    }
     if (url.includes("/rpc/reserve_ai_request")) return Response.json(quota);
+    if (url.includes("/rpc/reserve_plan_ai")) {
+      return Response.json(monthlyQuota);
+    }
     if (url.includes("/rest/v1/")) return Response.json([]);
     if (url.startsWith("https://ai.example.test")) {
       providerCalls++;
@@ -94,10 +103,14 @@ function setup() {
     denyQuota: () => {
       quota = false;
     },
+    denyMonthlyQuota: () => {
+      monthlyQuota = false;
+    },
     close: () => {
       globalThis.fetch = savedFetch;
-      for (const [key, value] of saved)
+      for (const [key, value] of saved) {
         value === undefined ? Deno.env.delete(key) : Deno.env.set(key, value);
+      }
     },
   };
 }
@@ -140,6 +153,18 @@ Deno.test(
     }
   },
 );
+Deno.test("Cuota mensual agotada impide llamar a la IA aunque quede cuota diaria", async () => {
+  const fixture = setup();
+  try {
+    fixture.denyMonthlyQuota();
+    const response = await handleGoalPlan(request());
+    assert(response.status === 429);
+    assert((await response.json()).code === "plan_limit");
+    assert(fixture.calls() === 0);
+  } finally {
+    fixture.close();
+  }
+});
 Deno.test(
   "Credencial ausente identifica el secreto y no simula un plan",
   async () => {

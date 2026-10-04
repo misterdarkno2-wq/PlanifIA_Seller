@@ -4,9 +4,9 @@
 
 ## Repositorio y estado
 
-Este proyecto corresponde exclusivamente a `misterdarkno2-wq/PlanifIA_Seller`. Se inició desde su rama `main`, cuyo contenido era la licencia. La implementación se desarrolla en `codex/metas-supabase` y está integrada en `main`. La web se publica en [planifia.cl](https://planifia.cl/) mediante GitHub Pages. La dirección anterior era [GitHub Pages Seller](https://misterdarkno2-wq.github.io/PlanifIA_Seller/); Pages la redirige al dominio personalizado. Se reutilizan el logo, el símbolo y la ilustración original de Lumi de PlanifIA.
+Este proyecto corresponde exclusivamente a `misterdarkno2-wq/PlanifIA_Seller`. La transformación inicial se desarrolló en `codex/metas-supabase`; las suscripciones se implementan en `codex/suscripciones-transbank`. La web se publica en [planifia.cl](https://planifia.cl/) mediante GitHub Pages. La dirección anterior era [GitHub Pages Seller](https://misterdarkno2-wq.github.io/PlanifIA_Seller/); Pages la redirige al dominio personalizado. Se reutilizan el logo, el símbolo y la ilustración original de Lumi de PlanifIA.
 
-En esta instalación, Supabase está conectado al proyecto `hlnzxgpdxgadbdcqavcd`, las tres migraciones están aplicadas y `goal-plan` está desplegada. La configuración privada está en archivos excluidos de Git. El envío de correo para personas fuera del equipo requiere configurar SMTP; la confirmación de correo permanece habilitada. En otras instalaciones, la aplicación indica si falta configuración. Las pruebas con fixtures y las pruebas contra servicios reales se documentan por separado.
+En esta instalación, Supabase está conectado al proyecto `hlnzxgpdxgadbdcqavcd`. La configuración privada está en archivos excluidos de Git. El estado de despliegue y las comprobaciones contra servicios reales se documentan en [verificación](docs/verificacion.md). El envío de correo para personas fuera del equipo requiere configurar SMTP; la confirmación de correo permanece habilitada. En otras instalaciones, la aplicación indica si falta configuración.
 
 ## Ejecutar en Windows
 
@@ -116,6 +116,24 @@ npm.cmd run build
 npm.cmd run preview
 ```
 
+## Suscripciones
+
+Desde **Planes** puedes comparar precios; **Mi plan** permite contratar, consultar el uso, revisar pagos y gestionar la próxima renovación.
+
+| Plan | Primer mes pagado | Desde el segundo mes | Metas activas | Generaciones IA/mes | Ajustes IA/mes |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Gratis | $0 | $0 | 3 | 3 | 1 |
+| Plus | $990 | $2.750 | 15 | 30 | 15 |
+| Pro | $1.990 | $4.990 | 50 | 100 | 50 |
+
+Todos los importes son CLP enteros. Los precios, beneficios y límites se editan en `public.plan_catalog`. Los tres planes conservan calendario, hábitos, Lumi y el historial de metas. Al superar el límite tras bajar de plan puedes consultar y editar tus datos; debes pausar alguna meta antes de activar otra. El consumo mensual reinicia el día 1 UTC y no se reinicia al cambiar de plan. Sigue existiendo el límite diario de protección de IA.
+
+La promoción se utiliza una vez por usuario, únicamente al confirmar su primer pago. **Webpay Plus** renueva manualmente; **Oneclick** permite cobros mensuales desde Supabase después de autorizar expresamente la renovación e inscribir un medio de pago. Inscribir la tarjeta no activa el plan: el servidor debe confirmar el cobro.
+
+Los períodos duran un mes calendario, conservan el día de origen cuando existe y se ajustan al último día en meses más cortos. Renovar antes del vencimiento añade el siguiente mes desde ese vencimiento. Cambiar de plan se aplica en la siguiente renovación, sin prorrateos. Cancelar los próximos cobros conserva el acceso pagado y no produce un reembolso automático.
+
+Los pagos se preparan en **integración**, con un aviso visible de prueba. Para cobrar realmente hacen falta el contrato, la habilitación y las claves de producción de Transbank. Consulta [configuración, migración, cron y producción](docs/billing.md). Las claves y las referencias privadas de pago permanecen en Supabase; GitHub Pages publica solamente la interfaz.
+
 ## Metas, planes y progreso
 
 - Estructura: **meta → hitos → acciones**. Las acciones pueden ser independientes. Las metas se editan, pausan, retoman, alcanzan y archivan. Puedes crear hitos manuales y vincularles acciones.
@@ -161,8 +179,9 @@ La búsqueda de datos locales revisa únicamente `planifia-tareas`, `planifia-ta
 ```powershell
 npm.cmd test
 npm.cmd run test:ui
+npm.cmd run test:billing-ui
 npm.cmd run test:edge
-npx.cmd --yes deno check --no-config --no-lock --node-modules-dir=none supabase/functions/goal-plan/index.ts
+npm.cmd run check:edge
 npm.cmd run build
 ```
 

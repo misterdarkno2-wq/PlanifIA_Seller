@@ -52,3 +52,24 @@ test("El control también revisa los archivos de entorno de producción", () => 
     rmSync(folder, { recursive: true, force: true });
   }
 });
+
+test("Transbank y el secreto de renovaciones quedan fuera de la web publicada", () => {
+  for (const key of [
+    "VITE_TRANSBANK_API_KEY",
+    "VITE_TRANSBANK_COMMERCE_CODE",
+    "VITE_BILLING_CRON_SECRET",
+  ]) {
+    const value = "private-payment-fixture";
+    const result = spawnSync(
+      process.execPath,
+      ["scripts/check-public-config.js"],
+      {
+        env: { ...process.env, [key]: value },
+        encoding: "utf8",
+      },
+    );
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /privada/);
+    assert.equal(result.stderr.includes(value), false);
+  }
+});
