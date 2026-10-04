@@ -1,5 +1,13 @@
 # Verificación y activación
 
+## Web con contratación desde Google Play — 4 de octubre de 2026
+
+- Aviso permanente en Planes y Mi suscripción. Plus y Pro llevan al aviso, sin crear cotizaciones, pagos ni inscripciones de tarjetas. La interfaz indica que la app está en preparación y no inventa un enlace de tienda.
+- Precios de referencia y beneficios del catálogo conservados; la campaña anterior de Transbank no se presenta como una oferta de Play. Los enlaces guardados de contratación tampoco abren pagos.
+- Conservadas la entrada al plan Gratis, consulta de plan y consumo, historial y verificación de órdenes anteriores. Se permite cancelar una autorización anterior, sin reanudarla ni cambiar su tarjeta.
+- `npm.cmd test`: 51 pruebas correctas; compilación correcta. Las pruebas de interfaz cubren capacidades de servidor en integración, producción y deshabilitadas, autenticación, retornos antiguos, errores, desmontaje y ausencia de llamadas de compra. Las capturas de escritorio y móvil se guardan fuera de Git en `dist/qa/google-play-*.png`.
+- Este cambio sólo actualiza la web y su documentación: Google Play Billing y la sincronización con Supabase todavía no están implementados. Las funciones y registros del backend anterior permanecen disponibles.
+
 ## Oferta de bienvenida — 4 de octubre de 2026
 
 - Campaña de siete días exactos, con cierre fijo del servidor; la cuenta atrás no se reinicia al recargar ni al modificar la hora del dispositivo. Banner, descuentos, precios regulares y ahorros revisados en escritorio y móvil.

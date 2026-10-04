@@ -1,6 +1,16 @@
-# Suscripciones y Transbank
+# Suscripciones
 
-La web de GitHub Pages solo muestra precios y abre el formulario alojado en Transbank. Supabase Auth identifica al usuario; PostgreSQL calcula importes, promociones, períodos, límites y permisos. Las funciones `billing`, `billing-return` y `billing-renew` realizan operaciones de pago desde el servidor. El catálogo editable es `public.plan_catalog`.
+## Web: contratación desde Google Play
+
+La web de PlanifIA muestra el mensaje «Las suscripciones se contratan desde la app de Google Play» en Planes y Mi suscripción. No ofrece formularios, enlaces ni botones para contratar, renovar, cambiar de plan o registrar tarjetas mediante Webpay u Oneclick. Los enlaces guardados con `?plan=plus` o `?plan=pro` muestran el aviso y no crean una cotización. El plan Gratis conserva su recorrido de registro e inicio de sesión.
+
+La app de Google Play todavía está en preparación: no se publica un enlace de tienda hasta contar con una ficha real. Los precios de la web son referencias del catálogo, no ofertas confirmadas de Google Play; la campaña anterior de Transbank deja de anunciarse en la interfaz. Este cambio no implementa Google Play Billing ni sincroniza compras de Play con Supabase.
+
+Se conservan la consulta de beneficios, consumo e historial, la verificación de órdenes anteriores y la posibilidad de cancelar una renovación automática anterior. La web no puede reanudar esa autorización ni cambiar su tarjeta. No se completan inscripciones de tarjetas desde esta interfaz. El servidor mantiene los registros y funciones anteriores; retirar los controles de la web no deshabilita por sí solo sus endpoints ni cancela autorizaciones existentes.
+
+## Backend anterior: Transbank
+
+Supabase Auth identifica al usuario; PostgreSQL calcula importes, promociones, períodos, límites y permisos. Las funciones `billing`, `billing-return` y `billing-renew` conservan las operaciones de pago anteriores desde el servidor. El catálogo editable es `public.plan_catalog`. Las siguientes secciones documentan ese backend, que la web ya no utiliza para iniciar compras.
 
 ## Ambiente de integración
 
@@ -42,7 +52,7 @@ La promoción pertenece al primer período mensual pagado del usuario: Plus $990
 
 ### Oferta de bienvenida de 7 días
 
-La migración `202610040003_welcome_campaign.sql` fija una campaña de siete días desde su primera aplicación en la base. Abrir la web, recargar, desplegar código o cambiar la hora del teléfono no reinicia la oferta. La pantalla calcula el porcentaje y el ahorro desde el catálogo: Plus 64% ($1.760) y Pro 60% ($3.000) durante el primer mes, con el precio de renovación siempre visible. La cuenta atrás usa la hora del servidor y la fecha de cierre se muestra en hora de Chile.
+La migración `202610040003_welcome_campaign.sql` fija una campaña de siete días desde su primera aplicación en la base. Abrir la web, recargar, desplegar código o cambiar la hora del teléfono no reinicia la oferta. El backend conserva los importes Plus $990 y Pro $1.990 durante el primer período elegible; la web no anuncia esta campaña como una oferta de Google Play.
 
 Las fechas y la activación se administran en `private.billing_campaign`, desde el editor SQL de Supabase con acceso administrativo. Consulta pública segura de las fechas actuales:
 

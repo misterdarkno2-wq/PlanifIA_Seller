@@ -146,43 +146,18 @@ const paid = (channel = "oneclick") => ({
     adjustments: 2,
   },
 });
-const defaultQuote = (body, state) => {
-  const plan = state.plans.find((p) => p.id === body.plan_id);
-  return {
-    quote: {
-      plan_id: plan.id,
-      amount_clp:
-        body.for_change || !state.promotion_available
-          ? plan.price_clp
-          : plan.first_month_clp,
-      promotion_applied: !body.for_change && state.promotion_available,
-      regular_price_clp: plan.price_clp,
-      period_start:
-        state.subscription?.paid_until ||
-        state.subscription?.period_end ||
-        periodStart,
-      period_end: state.subscription ? "2030-03-31T15:00:00Z" : periodEnd,
-      channel: body.channel || "oneclick",
-      next_amount_clp: plan.price_clp,
-      next_date: state.subscription ? "2030-03-31T15:00:00Z" : periodEnd,
-      recurring_consent_required: (body.channel || "oneclick") === "oneclick",
-    },
-    capabilities,
-  };
-};
 const html = ({
   user = true,
   view = "subscription",
 }) => `<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Prueba de suscripciones PlanifIA</title><div id="fixture" style="max-width:1220px;margin:auto;padding:28px 18px"></div><script type="module">
   import '/src/style.css';
-  import {renderBilling,mountBilling,consumeBillingIntent,validatePaymentRedirect,paymentResult} from '/src/billing.js';
+  import {renderBilling,mountBilling,consumeBillingIntent,paymentResult} from '/src/billing.js';
   const root=document.querySelector('#fixture'),user=${user ? '{id:"fixture-user"}' : "null"};
   root.innerHTML=renderBilling({view:${JSON.stringify(view)},user});
   const call=async(action,payload={})=>{const response=await fetch('/fixture-billing-api',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action,...payload})});const data=await response.json();if(!response.ok)throw new Error(data.error);return data;};
   window.fixtureNotifications=[];
   window.fixtureDispose=mountBilling(root,{user,billing:call,loadCatalog:()=>call('catalog'),onLogin:()=>{location.hash='login'},notify:(message)=>window.fixtureNotifications.push(message)});
   window.consumeFixtureIntent=consumeBillingIntent;
-  window.validateFixtureRedirect=validatePaymentRedirect;
   window.fixturePaymentResult=paymentResult;
 </script></html>`;
 
@@ -202,12 +177,8 @@ async function fixture({
     viewport: { width: 1366, height: 1024 },
   });
   page.on("pageerror", (error) => errors.push(error.message));
-  if (clock)
-    await page.clock.install(
-      typeof clock === "string" ? { time: new Date(clock) } : {},
-    );
   const calls = [];
-  let current = structuredClone(state);
+  const current = structuredClone(state);
   await page.route("**/billing-fixture", (route) =>
     route.fulfill({ contentType: "text/html", body: html({ user, view }) }),
   );
@@ -233,50 +204,13 @@ async function fixture({
         return;
       }
       result = current;
-    } else if (body.action === "quote") result = defaultQuote(body, current);
-    else if (body.action === "verify") result = verified;
+    } else if (body.action === "verify") result = verified;
     else if (body.action === "cancel") {
       current.subscription.auto_renew = false;
       current.subscription.cancel_at_period_end = true;
       result = current;
-    } else if (body.action === "resume") {
-      assert.equal(body.recurring_consent, true);
-      current.subscription.auto_renew = true;
-      current.subscription.cancel_at_period_end = false;
-      result = current;
-    } else if (body.action === "change_plan") {
-      current.subscription.next_plan_id = body.plan_id;
-      current.subscription.next_plan = catalog.find(
-        (p) => p.id === body.plan_id,
-      );
-      current.subscription.next_amount =
-        current.subscription.next_plan.price_clp;
-      result = current;
-    } else if (body.action === "checkout") {
-      assert.equal(Object.hasOwn(body, "amount"), false);
-      assert.equal(Object.hasOwn(body, "amount_clp"), false);
-      const price = defaultQuote(body, current).quote.amount_clp;
-      if (body.expected_amount_clp !== price) {
-        await route.fulfill({
-          status: 409,
-          json: {
-            error:
-              "El precio cambió al terminar la oferta. Vuelve a revisar el resumen antes de pagar.",
-          },
-        });
-        return;
-      }
-      result = {
-        order_id: orderId,
-        channel: body.channel,
-        environment: "integration",
-        redirect: {
-          url: "https://webpay3gint.transbank.cl/webpayserver/init",
-          field: body.channel === "oneclick" ? "TBK_TOKEN" : "token_ws",
-          token: "fixture-only-token",
-        },
-      };
-    } else throw new Error(`Acción de fixture no prevista: ${body.action}`);
+    } else
+      throw new Error(`La web no debe solicitar esta acción: ${body.action}`);
     await route.fulfill({ json: result });
   });
   await page.goto(`${origin}/billing-fixture${hash}`);
@@ -292,11 +226,6 @@ async function fixture({
   return {
     page,
     calls,
-    setVerified: (result) => (verified = result),
-    setPromotion: (promotion, available) => {
-      current.promotion = promotion;
-      current.promotion_available = available;
-    },
   };
 }
 const noOverflow = async (page) =>
@@ -387,7 +316,6 @@ async function mainFixture(hash = "") {
           promotion_available: true,
         };
       else if (body.action === "state") result = initial();
-      else if (body.action === "quote") result = defaultQuote(body, initial());
       else if (body.action === "verify") {
         assert.equal(body.order_id, orderId);
         assert.equal(request.headers().authorization, `Bearer ${token}`);
@@ -435,90 +363,55 @@ try {
     channel: process.platform === "win32" ? "msedge" : undefined,
     headless: true,
   });
-
-  // Catálogo público: precio inicial, posterior, límites y solo beneficios existentes.
-  {
-    const { page, calls } = await fixture({ user: false, view: "plans" });
-    assert.match(
-      await page.locator('[data-plan-card="plus"]').innerText(),
-      /Primer mes por \$990; luego \$2\.750 al mes/,
-    );
-    assert.match(
-      await page.locator('[data-plan-card="pro"]').innerText(),
-      /Primer mes por \$1\.990; luego \$4\.990 al mes/,
-    );
-    assert.match(
-      await page.locator(".billing-environment").innerText(),
-      /pagos de prueba/,
-    );
-    await page.locator("[data-billing-offer]").waitFor();
-    assert.match(
-      await page.locator("[data-billing-offer]").innerText(),
-      /SOLO 7 DÍAS/,
-    );
-    assert.match(
-      await page
-        .locator('[data-plan-card="plus"] .billing-discount')
-        .innerText(),
-      /64\s*%/,
-    );
-    assert.match(
-      await page
-        .locator('[data-plan-card="pro"] .billing-discount')
-        .innerText(),
-      /60\s*%/,
-    );
+  const noPurchase = (calls) =>
     assert.equal(
-      await page
-        .locator('[data-plan-card="plus"] .billing-regular-price del')
-        .innerText(),
-      "$2.750",
-    );
-    assert.equal(
-      await page
-        .locator('[data-plan-card="pro"] .billing-regular-price del')
-        .innerText(),
-      "$4.990",
-    );
-    assert.match(
-      await page
-        .locator('[data-plan-card="plus"] .billing-savings')
-        .innerText(),
-      /1\.760/,
-    );
-    assert.match(
-      await page.locator('[data-plan-card="pro"] .billing-savings').innerText(),
-      /3\.000/,
-    );
-    await capture(page, "billing-plans-desktop");
-    await page.setViewportSize({ width: 390, height: 844 });
-    await capture(page, "billing-plans-mobile");
-    await page
-      .getByRole("button", { name: "Elegir Plus", exact: true })
-      .click();
-    assert.equal(new URL(page.url()).hash, "#login");
-    assert.equal(
-      await page.evaluate(() => window.consumeFixtureIntent()),
-      "plus",
-    );
-    assert.equal(
-      await page.evaluate(() => window.consumeFixtureIntent()),
-      null,
-    );
-    assert.equal(
-      calls.some((call) => call.action === "checkout"),
+      calls.some((call) =>
+        ["quote", "checkout", "resume", "update_card", "change_plan"].includes(
+          call.action,
+        ),
+      ),
       false,
-      "Elegir un plan público no crea un pago sin iniciar sesión",
+      "La web no debe iniciar contrataciones ni autorizaciones de cobro",
     );
-    await page.close();
-  }
+  const noPaymentControls = async (page) => {
+    assert.equal(
+      await page
+        .locator(
+          '[data-billing-checkout], [data-billing-channel], [data-billing-consent-action], [data-confirm-change], [data-billing-action="renew"], [data-billing-action="resume"], [data-billing-action="update-card"]',
+        )
+        .count(),
+      0,
+    );
+    assert.doesNotMatch(
+      await page.locator("[data-billing-root]").innerText(),
+      /Webpay|Oneclick|Transbank|pagos de prueba|Inscribir y pagar/i,
+    );
+    assert.equal(
+      await page.locator('a[href*="play.google.com/store/apps"]').count(),
+      0,
+      "No inventar un enlace para una app aún no publicada",
+    );
+    await noOverflow(page);
+  };
 
-  // La promoción consumida no muestra una oferta personal que ya no se puede contratar.
-  {
-    const { page } = await fixture({ view: "plans", state: paid() });
-    assert.equal(await page.locator("[data-billing-offer]").count(), 0);
-    assert.equal(await page.locator(".billing-discount").count(), 0);
-    assert.equal(await page.locator(".billing-regular-price del").count(), 0);
+  // Las capacidades antiguas del servidor nunca vuelven a habilitar pagos en la web.
+  for (const environment of ["integration", "production", "disabled"]) {
+    const state = initial();
+    state.capabilities.environment = environment;
+    const { page, calls } = await fixture({
+      user: false,
+      view: "plans",
+      state,
+    });
+    await page.locator("[data-google-play-notice]").waitFor();
+    assert.match(
+      await page.locator("[data-google-play-notice]").innerText(),
+      /Las suscripciones se contratan desde la app de Google Play/,
+    );
+    assert.match(
+      await page.locator("[data-google-play-notice]").innerText(),
+      /en preparación/,
+    );
     assert.equal(
       await page
         .locator('[data-plan-card="plus"] .billing-price strong')
@@ -531,463 +424,216 @@ try {
         .innerText(),
       "$4.990",
     );
-    await page.close();
-  }
-
-  // Los porcentajes y ahorros se derivan del catálogo editable, no del nombre del plan.
-  {
-    const state = initial();
-    state.plans = structuredClone(catalog);
-    state.plans[1].price_clp = 3000;
-    state.plans[1].first_month_clp = 1500;
-    const { page } = await fixture({ view: "plans", state });
     assert.match(
-      await page
-        .locator('[data-plan-card="plus"] .billing-discount')
-        .innerText(),
-      /50\s*%/,
+      await page.locator('[data-plan-card="plus"]').innerText(),
+      /Precio de referencia/,
     );
     assert.equal(
-      await page
-        .locator('[data-plan-card="plus"] .billing-regular-price del')
-        .innerText(),
-      "$3.000",
+      await page.locator("[data-billing-offer]").count(),
+      0,
+      "La campaña de Transbank no se anuncia como una oferta activa de Play",
     );
-    assert.match(
-      await page
-        .locator('[data-plan-card="plus"] .billing-savings')
-        .innerText(),
-      /1\.500/,
-    );
-    await page.close();
-  }
-
-  // Fechas futuras y vencidas del servidor invalidan la oferta incluso ante un flag desactualizado.
-  for (const window of ["future", "closed"]) {
-    const state = initial();
-    state.promotion = {
-      ...campaign,
-      active: true,
-      server_now:
-        window === "future" ? "2030-01-30T15:00:00Z" : "2030-02-08T15:00:00Z",
-    };
-    const { page } = await fixture({
-      user: false,
-      view: "plans",
-      state,
-      clock: "2020-01-01T00:00:00Z",
-    });
-    assert.equal(await page.locator("[data-billing-offer]").count(), 0);
-    assert.equal(await page.locator(".billing-discount").count(), 0);
-    assert.equal(
-      await page
-        .locator('[data-plan-card="plus"] .billing-price strong')
-        .innerText(),
-      "$2.750",
-    );
-    if (window === "closed")
-      assert.match(
-        await page.locator(".billing-offer-closed").innerText(),
-        /La oferta de bienvenida terminó/,
+    for (const id of ["plus", "pro"]) {
+      await page.locator(`[data-google-play-plan="${id}"]`).click();
+      assert.equal(
+        await page.evaluate(() => document.activeElement.id),
+        "google-play-title",
       );
-    else assert.equal(await page.locator(".billing-offer-closed").count(), 0);
+      assert.equal(new URL(page.url()).hash, "");
+      assert.equal(
+        await page.evaluate(() => window.consumeFixtureIntent()),
+        null,
+      );
+    }
+    await noPaymentControls(page);
+    noPurchase(calls);
+    if (environment === "integration") {
+      await capture(page, "google-play-plans-desktop");
+      await page.setViewportSize({ width: 390, height: 844 });
+      await noPaymentControls(page);
+      await capture(page, "google-play-plans-mobile");
+    }
     await page.close();
   }
 
-  // La cuenta atrás usa la hora del servidor y se actualiza al cerrar una campaña con la página abierta.
+  // La opción gratuita conserva su recorrido y no lleva a una compra.
   {
-    const state = initial();
-    state.promotion = { ...campaign, ends_at: "2030-01-31T15:00:05Z" };
-    const { page, calls, setPromotion } = await fixture({
-      view: "plans",
-      state,
-      clock: "2020-01-01T00:00:00Z",
-    });
-    await page.locator("[data-billing-offer]").waitFor();
-    assert.equal(
-      Number(await page.locator("[data-offer-days]").innerText()),
-      0,
-    );
-    assert.equal(
-      Number(await page.locator("[data-offer-hours]").innerText()),
-      0,
-    );
-    const remainingMinutes = Number(
-      await page.locator("[data-offer-minutes]").innerText(),
-    );
-    assert.ok(
-      remainingMinutes >= 0 && remainingMinutes <= 1,
-      "Una campaña que cierra en cinco segundos muestra menos de un minuto restante, incluso con la fecha del dispositivo equivocada",
-    );
+    const { page, calls } = await fixture({ user: false, view: "plans" });
     await page
-      .getByRole("button", { name: "Elegir Plus", exact: true })
+      .getByRole("button", { name: "Empezar gratis", exact: true })
       .click();
-    await page.locator('[data-billing-checkout="plus"]').waitFor();
-    await page.locator('[name="recurring-consent"]').check();
-    setPromotion(
-      { ...state.promotion, server_now: "2030-01-31T15:00:16Z", active: false },
-      false,
-    );
-    await page.clock.fastForward(16000);
-    await page.locator(".billing-offer-closed").waitFor();
-    assert.equal(await page.locator("[data-billing-offer]").count(), 0);
-    assert.equal(await page.locator(".billing-discount").count(), 0);
+    assert.equal(new URL(page.url()).hash, "#login");
     assert.equal(
-      await page
-        .locator('[data-plan-card="plus"] .billing-price strong')
-        .innerText(),
-      "$2.750",
+      await page.evaluate(() => window.consumeFixtureIntent()),
+      "free",
     );
     assert.equal(
-      await page.locator('[name="recurring-consent"]').isChecked(),
-      true,
-      "Cerrar la oferta no debe borrar la revisión ni el consentimiento sin terminar",
+      await page.evaluate(() => window.consumeFixtureIntent()),
+      null,
     );
-    assert.match(await page.locator(".billing-review").innerText(), /\$990/);
-    await page.getByRole("button", { name: /Inscribir y pagar/ }).click();
-    await page.getByRole("alert").waitFor();
-    assert.match(
-      await page.getByRole("alert").innerText(),
-      /precio cambió al terminar la oferta/,
-    );
-    assert.equal(
-      calls.find((call) => call.action === "checkout").expected_amount_clp,
-      990,
-      "Una cotización caducada no autoriza el precio regular sin una revisión nueva",
-    );
-    assert.equal(new URL(page.url()).hostname, "127.0.0.1");
+    noPurchase(calls);
     await page.close();
   }
-
-  // Quote del servidor + consentimiento explícito + formulario POST correcto.
   {
     const { page, calls } = await fixture({ view: "plans" });
-    await page.getByRole("button", { name: "Elegir Pro", exact: true }).click();
-    await page.locator("[data-billing-checkout]").waitFor();
-    assert.match(await page.locator(".billing-review").innerText(), /\$1\.990/);
-    assert.match(await page.locator(".billing-review").innerText(), /\$4\.990/);
-    assert.equal(
-      await page.locator('[name="recurring-consent"]').isChecked(),
-      false,
-    );
-    await page.getByRole("button", { name: /Inscribir y pagar/ }).click();
-    assert.equal(
-      calls.filter((call) => call.action === "checkout").length,
-      0,
-      "Sin consentimiento no se contrata renovación automática",
-    );
-    await capture(page, "billing-checkout-oneclick-desktop");
-    await page.locator('[name="recurring-consent"]').check();
-    let providerPost;
-    await page.route("https://webpay3gint.transbank.cl/**", async (route) => {
-      providerPost = {
-        method: route.request().method(),
-        data: new URLSearchParams(route.request().postData()),
-      };
-      await route.fulfill({
-        contentType: "text/html",
-        body: "<h1>Formulario de prueba interceptado</h1>",
-      });
+    await page
+      .getByRole("button", { name: "Continuar con Gratis", exact: true })
+      .click();
+    assert.equal(new URL(page.url()).hash, "#today");
+    noPurchase(calls);
+    await page.close();
+  }
+
+  // Enlaces guardados y un botón antiguo inyectado no permiten cotizar ni pagar.
+  for (const id of ["plus", "pro"]) {
+    const { page, calls } = await fixture({ hash: `#subscription?plan=${id}` });
+    await page.locator("#google-play-title:focus").waitFor();
+    await page.evaluate(() => {
+      const root = document.querySelector("[data-billing-root]");
+      for (const data of [
+        { billingPlan: "plus" },
+        { billingAction: "renew" },
+        { billingAction: "resume" },
+        { billingAction: "update-card" },
+        { confirmChange: "pro" },
+      ]) {
+        const button = document.createElement("button");
+        Object.assign(button.dataset, data);
+        root.append(button);
+        button.click();
+        button.remove();
+      }
     });
-    await page.getByRole("button", { name: /Inscribir y pagar/ }).click();
-    await page
-      .getByRole("heading", { name: "Formulario de prueba interceptado" })
-      .waitFor();
-    assert.equal(providerPost.method, "POST");
-    assert.equal(providerPost.data.get("TBK_TOKEN"), "fixture-only-token");
-    const checkout = calls.find((call) => call.action === "checkout");
-    assert.equal(checkout.recurring_consent, true);
-    assert.equal(checkout.plan_id, "pro");
-    assert.match(checkout.request_id, /^[0-9a-f-]{36}$/);
+    await noPaymentControls(page);
+    noPurchase(calls);
+    assert.equal(await page.locator("[data-billing-review]").innerText(), "");
     await page.close();
   }
 
-  // Webpay paga un mes y nunca promete cobros automáticos.
-  {
-    const { page } = await fixture({ view: "plans" });
-    await page
-      .getByRole("button", { name: "Elegir Plus", exact: true })
-      .click();
-    await page.locator("[data-billing-channel]").selectOption("webpay");
-    await page.getByRole("button", { name: /Ir a Webpay Plus/ }).waitFor();
-    assert.equal(await page.locator('[name="recurring-consent"]').count(), 0);
-    assert.match(
-      await page.locator(".billing-review").innerText(),
-      /renovación manual/,
-    );
-    await page.setViewportSize({ width: 390, height: 844 });
-    await capture(page, "billing-checkout-webpay-mobile");
-    await page.close();
-  }
-
-  // Mi suscripción: cancelación al final del período y cambio al siguiente sin cobrar.
-  {
-    const { page, calls } = await fixture({ state: paid() });
-    assert.match(
-      await page.locator(".billing-subscription").innerText(),
-      /\$990/,
-    );
-    assert.match(
-      await page.locator(".billing-subscription").innerText(),
-      /\$2\.750/,
-    );
-    await capture(page, "billing-subscription-desktop");
-    await page.setViewportSize({ width: 390, height: 844 });
-    await capture(page, "billing-subscription-mobile");
-    await page
-      .getByRole("button", { name: "Cancelar futuros cobros", exact: true })
-      .click();
-    assert.match(
-      await page.locator(".billing-review").innerText(),
-      /no devuelve automáticamente/,
-    );
-    await page
-      .getByRole("button", { name: "Confirmar cancelación de futuros cobros" })
-      .click();
-    await page
-      .getByRole("button", { name: "Autorizar renovación automática" })
-      .waitFor();
-    assert.match(
-      await page.locator(".billing-subscription").innerText(),
-      /Conservas el acceso/,
-    );
+  // Consultas del plan, consumo e historial, sin renovación Webpay ni alta de tarjetas.
+  for (const channel of ["webpay", "oneclick"]) {
+    const { page, calls } = await fixture({ state: paid(channel) });
     assert.equal(
       await page.locator(".billing-subscription h2").innerText(),
       "Plus",
     );
-    await page
-      .getByRole("button", { name: "Autorizar renovación automática" })
-      .click();
-    assert.equal(
-      await page.locator('[name="recurring-consent"]').isChecked(),
-      false,
-    );
-    await page.locator('[name="recurring-consent"]').check();
-    await page
-      .getByRole("button", { name: "Autorizar próximos cobros" })
-      .click();
-    await page
-      .getByRole("button", { name: "Cancelar futuros cobros", exact: true })
-      .waitFor();
-    await page
-      .getByRole("button", { name: "Cambiar plan para el siguiente período" })
-      .click();
-    await page.getByRole("button", { name: "Elegir Pro", exact: true }).click();
-    await page
-      .getByRole("button", { name: "Aplicar en la próxima renovación" })
-      .waitFor();
-    assert.equal(
-      calls.findLast((call) => call.action === "quote").for_change,
-      true,
-    );
-    assert.match(await page.locator(".billing-review").innerText(), /\$4\.990/);
-    await page
-      .getByRole("button", { name: "Aplicar en la próxima renovación" })
-      .click();
-    await page.locator(".billing-subscription .notice").waitFor();
-    assert.equal(
-      await page.locator(".billing-subscription h2").innerText(),
-      "Plus",
-    );
-    assert.equal(
-      calls.some((call) => call.action === "checkout"),
-      false,
-      "Cambiar plan y cancelar no deben crear cargos",
-    );
+    assert.equal(await page.locator(".billing-history tbody tr").count(), 1);
     assert.match(
-      await page.locator(".billing-subscription .notice").innerText(),
-      /Pro por \$4\.990/,
+      await page.locator(".billing-usage").innerText(),
+      /10\s*\/\s*15/,
     );
+    await noPaymentControls(page);
+    await capture(page, `google-play-subscription-${channel}-desktop`);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await capture(page, `google-play-subscription-${channel}-mobile`);
+    if (channel === "oneclick") {
+      // Retirar una autorización anterior sigue siendo posible. No crea nuevos cobros.
+      await page
+        .getByRole("button", { name: "Cancelar futuros cobros", exact: true })
+        .click();
+      await page
+        .getByRole("button", {
+          name: "Confirmar cancelación de futuros cobros",
+          exact: true,
+        })
+        .click();
+      await page
+        .getByText("Activo · sin cobros automáticos", { exact: true })
+        .waitFor();
+      assert.equal(calls.filter((call) => call.action === "cancel").length, 1);
+      assert.equal(await page.locator(".billing-history tbody tr").count(), 1);
+      assert.equal(
+        await page.locator(".billing-subscription h2").innerText(),
+        "Plus",
+      );
+    } else
+      assert.equal(
+        await page.locator('[data-billing-action="cancel"]').count(),
+        0,
+      );
+    noPurchase(calls);
     await page.close();
   }
 
-  // Resultados exclusivamente confirmados por el servidor; se ignora status de la URL.
-  for (const status of [
-    "approved",
-    "rejected",
-    "cancelled",
-    "abandoned",
-    "unknown",
+  // Resultados de pagos anteriores: sólo la respuesta del servidor decide el estado.
+  for (const [status, title] of [
+    ["approved", "Pago aprobado"],
+    ["rejected", "El pago fue rechazado"],
+    ["cancelled", "Pago cancelado"],
+    ["abandoned", "El pago no se completó"],
+    ["unknown", "Estamos verificando el resultado"],
   ]) {
-    const resultState = status === "approved" ? paid() : initial();
     const { page, calls } = await fixture({
       hash: `#subscription?order=${orderId}&status=approved`,
-      state: resultState,
-      verified: {
-        order: { id: orderId, plan_id: "plus", amount: 990, status },
-      },
+      verified: { order: { id: orderId, status, amount: 990 } },
     });
-    await page.locator(".billing-result").waitFor();
-    const expected = {
-      approved: "Pago aprobado",
-      rejected: "El pago fue rechazado",
-      cancelled: "Pago cancelado",
-      abandoned: "El pago no se completó",
-      unknown: "Estamos verificando el resultado",
-    }[status];
-    assert.equal(
-      await page.locator(".billing-result h2").innerText(),
-      expected,
-    );
-    assert.equal(
-      await page.locator(".billing-subscription h2").innerText(),
-      status === "approved" ? "Plus" : "Gratis",
-    );
-    assert.equal(
-      calls.some((call) => call.action === "checkout"),
-      false,
-    );
-    if (status === "unknown") {
-      await page.setViewportSize({ width: 390, height: 844 });
-      await capture(page, "billing-pending-mobile");
-      const prior = calls.filter((call) => call.action === "verify").length;
-      await page.evaluate(() => window.fixtureDispose());
-      await page.waitForTimeout(2800);
+    await page.getByRole("heading", { name: title, exact: true }).waitFor();
+    if (status !== "approved")
       assert.equal(
-        calls.filter((call) => call.action === "verify").length,
-        prior,
-        "Desmontar limpia el temporizador de verificación",
+        await page
+          .getByRole("heading", { name: "Pago aprobado", exact: true })
+          .count(),
+        0,
       );
-    }
-    await page.close();
-  }
-
-  // La consulta automática tiene un límite, incluso si el estado sigue incierto.
-  {
-    const { page, calls } = await fixture({
-      hash: `#subscription?order=${orderId}`,
-      clock: true,
-    });
-    await page.locator(".billing-result").waitFor();
-    for (let count = 1; count < 5; count++) {
-      const received = page.waitForResponse(
-        (response) =>
-          response.url().endsWith("/fixture-billing-api") &&
-          response.request().postDataJSON().action === "state",
-      );
-      await page.clock.fastForward(2600);
-      await received;
-      await page.evaluate(
-        () => new Promise((resolve) => requestAnimationFrame(() => resolve())),
-      );
-    }
-    await page
-      .getByText("La confirmación está tardando.", { exact: false })
-      .waitFor();
-    await page.clock.fastForward(30000);
     assert.equal(
-      calls.filter((call) => call.action === "verify").length,
-      5,
-      "Se detiene después de cinco consultas automáticas",
+      await page.locator(".billing-subscription h2").innerText(),
+      "Gratis",
+    );
+    await noPaymentControls(page);
+    noPurchase(calls);
+    await page.evaluate(() => window.fixtureDispose());
+    const count = calls.length;
+    await page.waitForTimeout(2700);
+    assert.equal(
+      calls.length,
+      count,
+      "Desmontar la vista cancela la consulta automática",
     );
     await page.close();
   }
-
-  // Una inscripción pendiente se puede recuperar sin el enlace de retorno.
   {
-    const pending = initial();
-    pending.pending_enrollment = {
-      id: enrollmentId,
-      status: "pending",
-      purpose: "checkout",
-    };
+    const state = initial();
+    state.pending_order = { id: orderId, status: "pending" };
     const { page, calls } = await fixture({
-      state: pending,
-      verified: {
-        enrollment: {
-          id: enrollmentId,
-          status: "pending",
-          purpose: "checkout",
-        },
-      },
+      state,
+      verified: { order: { id: orderId, status: "rejected" } },
     });
     await page
-      .getByRole("button", {
-        name: "Consultar inscripción pendiente",
-        exact: true,
-      })
+      .getByRole("button", { name: "Consultar pago pendiente", exact: true })
       .click();
-    await page.locator(".billing-result").waitFor();
-    assert.equal(
-      calls.find((call) => call.action === "verify").enrollment_id,
-      enrollmentId,
-    );
-    assert.equal(
-      await page.locator(".billing-subscription h2").innerText(),
-      "Gratis",
-    );
-    assert.equal(
-      calls.some((call) => call.action === "checkout"),
-      false,
-    );
-    await page.close();
-  }
-
-  // La inscripción de Oneclick nunca presenta un pago como aprobado.
-  {
-    const { page } = await fixture({
-      hash: `#subscription?enrollment=${enrollmentId}`,
-      verified: {
-        enrollment: {
-          id: enrollmentId,
-          status: "enrolled",
-          purpose: "update_card",
-        },
-      },
-    });
     await page
-      .getByRole("heading", { name: "Medio de pago inscrito" })
+      .getByRole("heading", { name: "El pago fue rechazado", exact: true })
       .waitFor();
     assert.equal(
-      await page.locator(".billing-subscription h2").innerText(),
-      "Gratis",
+      calls.some((call) => call.action === "verify"),
+      true,
     );
-    assert.equal(
-      await page
-        .getByRole("heading", { name: "Pago aprobado", exact: true })
-        .count(),
-      0,
-    );
-    const rejected = await page.evaluate(() => {
-      const invalid = [
-        { url: "https://evil.example/pay", field: "token_ws", token: "fake" },
-        {
-          url: "http://webpay3gint.transbank.cl/pay",
-          field: "token_ws",
-          token: "fake",
-        },
-        {
-          url: "https://webpay3g.transbank.cl/pay",
-          field: "token_ws",
-          token: "fake",
-        },
-        {
-          url: "https://webpay3gint.transbank.cl/pay",
-          field: "amount",
-          token: "fake",
-        },
-      ];
-      return invalid.map((redirect) => {
-        try {
-          window.validateFixtureRedirect(redirect, "integration");
-          return false;
-        } catch {
-          return true;
-        }
-      });
+    noPurchase(calls);
+    await page.close();
+  }
+  {
+    const state = initial();
+    state.pending_enrollment = { id: enrollmentId, status: "pending" };
+    const { page, calls } = await fixture({
+      state,
+      hash: `#subscription?enrollment=${enrollmentId}`,
     });
-    assert.deepEqual(rejected, [true, true, true, true]);
+    assert.equal(
+      calls.some((call) => call.action === "verify"),
+      false,
+      "No completar inscripciones de tarjetas desde la web",
+    );
+    await noPaymentControls(page);
     await page.close();
   }
 
-  // Vencimiento y conservación de datos por encima del plan gratuito.
+  // Vencimiento, protección de datos y errores de red.
   {
-    const expired = paid("webpay");
-    expired.effective_plan = catalog[0];
-    expired.subscription.access_active = false;
-    expired.subscription.effective_status = "expired";
-    expired.usage.active_goals = 10;
-    const { page } = await fixture({ state: expired });
+    const state = paid("webpay");
+    state.effective_plan = catalog[0];
+    state.subscription.access_active = false;
+    state.subscription.effective_status = "expired";
+    const { page } = await fixture({ state });
     assert.match(
       await page.locator(".billing-subscription").innerText(),
       /Período vencido · acceso Gratis/,
@@ -997,48 +643,48 @@ try {
       /Tu información sigue disponible/,
     );
     assert.equal(await page.locator(".billing-history tbody tr").count(), 1);
+    await noPaymentControls(page);
     await page.close();
   }
-
-  // Fallo de configuración: error claro y acción de volver a consultar.
   {
-    const { page } = await fixture({ failState: true });
+    const { page, calls } = await fixture({ failState: true });
     await page
       .getByRole("button", { name: "Volver a consultar", exact: true })
-      .waitFor();
+      .click();
+    await page.getByRole("alert").waitFor();
     assert.match(
       await page.getByRole("alert").innerText(),
       /conexión está en preparación/,
     );
+    assert.equal(
+      await page.locator("[data-google-play-notice]").isVisible(),
+      true,
+    );
+    await noPaymentControls(page);
+    noPurchase(calls);
     await page.close();
   }
 
-  // Montaje real de main.js: intención pública → Auth → resumen del servidor.
+  // Montaje real de main.js: planes públicos, inicio de sesión, Mi plan y retorno antiguo.
   {
     const { page, calls } = await mainFixture("#plans");
+    await page.locator('[data-google-play-plan="plus"]').click();
+    assert.equal(new URL(page.url()).hash, "#plans");
     await page
-      .getByRole("button", { name: "Elegir Plus", exact: true })
+      .getByRole("button", { name: "Empezar gratis", exact: true })
       .click();
     await page.waitForURL(/#login$/);
     await loginMain(page);
-    await page.waitForURL(/#subscription\?plan=plus$/);
-    await page.locator('[data-billing-checkout="plus"]').waitFor();
-    assert.match(await page.locator(".billing-review").innerText(), /\$990/);
-    assert.match(await page.locator(".billing-review").innerText(), /\$2\.750/);
-    await capture(page, "billing-main-checkout-desktop");
-    await page.setViewportSize({ width: 390, height: 844 });
+    await page.waitForURL(/#today$/);
     await page.getByRole("link", { name: "Mi plan", exact: true }).click();
-    await page.waitForURL(/#subscription$/);
     await page.locator(".billing-subscription").waitFor();
-    await capture(page, "billing-main-subscription-mobile");
-    assert.equal(
-      calls.some((call) => call.action === "checkout"),
-      false,
-    );
+    await noPaymentControls(page);
+    await capture(page, "google-play-main-subscription-desktop");
+    await page.setViewportSize({ width: 390, height: 844 });
+    await capture(page, "google-play-main-subscription-mobile");
+    noPurchase(calls);
     await page.close();
   }
-
-  // Retorno con sesión caducada: el login conserva la referencia y verifica el propio pago.
   {
     const { page, calls } = await mainFixture(
       `#subscription?order=${orderId}&status=approved`,
@@ -1048,56 +694,24 @@ try {
       .first()
       .click();
     await loginMain(page);
-    await page.waitForURL(new RegExp(`#subscription\\?order=${orderId}$`));
     await page
-      .getByRole("heading", { name: "El pago fue rechazado" })
+      .getByRole("heading", { name: "El pago fue rechazado", exact: true })
       .waitFor();
-    assert.equal(
-      await page.locator(".billing-subscription h2").innerText(),
-      "Gratis",
-    );
     assert.equal(
       calls.find((call) => call.action === "verify").order_id,
       orderId,
     );
-    assert.equal(
-      calls.some((call) => call.action === "checkout"),
-      false,
-    );
-    await page.close();
-  }
-
-  // Fechas de reintentos y fin de gracia proceden del servidor.
-  {
-    const state = paid();
-    state.subscription.status = "past_due";
-    state.subscription.effective_status = "expired";
-    state.subscription.access_active = false;
-    state.subscription.next_retry_at = "2030-03-01T15:00:00Z";
-    state.subscription.renewal_grace_until = "2030-03-03T15:00:00Z";
-    state.effective_plan = catalog[0];
-    const { page } = await fixture({ state });
-    assert.match(
-      await page.locator(".billing-subscription").innerText(),
-      /Renovación pendiente/,
-    );
-    assert.match(
-      await page.locator(".billing-subscription .notice").innerText(),
-      /próximo intento autorizado/,
-    );
-    assert.match(
-      await page.locator(".billing-subscription .notice").innerText(),
-      /Los reintentos terminan/,
-    );
+    await noPaymentControls(page);
+    noPurchase(calls);
     await page.close();
   }
   assert.deepEqual(
     errors,
     [],
-    "Las pantallas de suscripción no deben producir errores de JavaScript",
+    "Sin errores JavaScript en las vistas de planes",
   );
   console.log(
-    `Billing UI: catálogo, consentimiento, POST Transbank, Webpay manual, cancelación, cambios, 5 resultados, inscripción, vencimiento y errores correctos. ${captures.length} capturas desktop/móvil; sin errores JS ni desbordamiento.`,
+    `Billing UI: aviso Google Play, sin compras web, Gratis, plan/consumo/historial, cancelación anterior, retornos y errores. ${captures.length} capturas escritorio/móvil; sin desbordamiento ni errores JS.`,
   );
 } finally {
   await browser?.close();

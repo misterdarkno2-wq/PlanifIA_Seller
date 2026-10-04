@@ -118,21 +118,19 @@ npm.cmd run preview
 
 ## Suscripciones
 
-Desde **Planes** puedes comparar precios; **Mi plan** permite contratar, consultar el uso, revisar pagos y gestionar la próxima renovación.
+Desde **Planes** puedes comparar beneficios y precios de referencia. **Mi plan** permite consultar tu período vigente, uso e historial. La web informa que **las suscripciones se contratan desde la app de Google Play** y no inicia compras, renovaciones ni inscripciones de tarjetas con Transbank.
 
-| Plan | Primer mes pagado | Desde el segundo mes | Metas activas | Generaciones IA/mes | Ajustes IA/mes |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Gratis | $0 | $0 | 3 | 3 | 1 |
-| Plus | $990 | $2.750 | 15 | 30 | 15 |
-| Pro | $1.990 | $4.990 | 50 | 100 | 50 |
+La app de Google Play está en preparación; el enlace se añadirá cuando exista una publicación real. Los pagos de Google Play todavía requieren integrar Billing en Android y validar/sincronizar compras desde el servidor. Los precios y ofertas definitivos se confirmarán en la app; la web no anuncia como vigente la campaña anterior de Transbank.
 
-Todos los importes son CLP enteros. Los precios, beneficios y límites se editan en `public.plan_catalog`. Los tres planes conservan calendario, hábitos, Lumi y el historial de metas. Al superar el límite tras bajar de plan puedes consultar y editar tus datos; debes pausar alguna meta antes de activar otra. El consumo mensual reinicia el día 1 UTC y no se reinicia al cambiar de plan. Sigue existiendo el límite diario de protección de IA.
+| Plan   | Referencia mensual CLP | Metas activas | Generaciones IA/mes | Ajustes IA/mes |
+| ------ | ---------------------: | ------------: | ------------------: | -------------: |
+| Gratis |                     $0 |             3 |                   3 |              1 |
+| Plus   |                 $2.750 |            15 |                  30 |             15 |
+| Pro    |                 $4.990 |            50 |                 100 |             50 |
 
-La oferta de bienvenida dura **7 días** desde su activación en la base: **64% de descuento en Plus** y **60% en Pro** durante el primer mes. La pantalla muestra la fecha de cierre y una cuenta atrás basada en la hora del servidor. Fuera de la campaña se aplica el precio regular. La bienvenida se utiliza una vez por usuario; un pago previo a precio regular también agota el derecho. **Webpay Plus** renueva manualmente; **Oneclick** permite cobros mensuales desde Supabase después de autorizar expresamente la renovación e inscribir un medio de pago. Inscribir la tarjeta no activa el plan: el servidor debe confirmar el cobro.
+Los beneficios y límites se editan en `public.plan_catalog`. Los tres planes conservan calendario, hábitos, Lumi y el historial de metas. Al superar el límite tras bajar de plan puedes consultar y editar tus datos; debes pausar alguna meta antes de activar otra. El consumo mensual reinicia el día 1 UTC y no se reinicia al cambiar de plan. Sigue existiendo el límite diario de protección de IA.
 
-Los períodos duran un mes calendario, conservan el día de origen cuando existe y se ajustan al último día en meses más cortos. Renovar antes del vencimiento añade el siguiente mes desde ese vencimiento. Cambiar de plan se aplica en la siguiente renovación, sin prorrateos. Cancelar los próximos cobros conserva el acceso pagado y no produce un reembolso automático.
-
-Los pagos se preparan en **integración**, con un aviso visible de prueba. Para cobrar realmente hacen falta el contrato, la habilitación y las claves de producción de Transbank. Consulta [configuración, migración, cron y producción](docs/billing.md). Las claves y las referencias privadas de pago permanecen en Supabase; GitHub Pages publica solamente la interfaz.
+Se conserva la consulta de órdenes anteriores y la cancelación de futuros cobros de renovaciones ya autorizadas, manteniendo el acceso pagado. El backend de Transbank permanece en integración para los registros y pruebas existentes. Retirar los controles de la web no cancela automáticamente las autorizaciones ni deshabilita sus endpoints. Consulta [el estado de los pagos y el backend anterior](docs/billing.md).
 
 ## Metas, planes y progreso
 
