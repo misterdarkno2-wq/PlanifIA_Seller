@@ -1,5 +1,14 @@
 # Verificación y activación
 
+## Oferta de bienvenida — 4 de octubre de 2026
+
+- Campaña de siete días exactos, con cierre fijo del servidor; la cuenta atrás no se reinicia al recargar ni al modificar la hora del dispositivo. Banner, descuentos, precios regulares y ahorros revisados en escritorio y móvil.
+- `npm.cmd test`: 51 pruebas correctas. Seis escenarios nuevos de campaña cubren permisos, fechas, primer pago a precio regular, reservas antes del cierre, Oneclick congelado, duplicados y conservación de la elegibilidad tras rechazo. La integración con handlers reales y PostgreSQL prueba catálogo anónimo y rechazos de cotizaciones caducadas antes de llamar a Transbank.
+- `npm.cmd run test:edge`: 29 pruebas correctas; comprobación de tipos y compilación correctas. Contratar exige el importe revisado; valores ausentes o malformados se rechazan antes de reservar o inscribir.
+- `test:billing-ui` correcto: 64%/60% y ahorro calculados desde precios editables, oferta usada/futura/cerrada, reloj incorrecto del dispositivo, cierre con el resumen abierto sin borrar el consentimiento y rechazo del importe anterior sin abrir el proveedor. Nueve capturas en escritorio y móvil, sin errores JavaScript ni desbordamiento.
+- Migración `202610040003_welcome_campaign.sql` aplicada y función `billing` actualizada en Supabase. Catálogo real 200 con origen autorizado y campaña del 4 de octubre de 2026 a las 21:39 UTC al 11 de octubre a las 21:39 UTC (18:39 de Chile). Contratación sin sesión rechazada con 401. La sesión local recuperó la campaña y los precios desde la nube.
+- El ambiente permanece en integración. Las pruebas de pagos usan fixtures y no realizan cargos reales. Configuración editable y límites descritos en [suscripciones y Transbank](billing.md).
+
 ## Suscripciones Transbank — 4 de octubre de 2026
 
 - Implementación en `codex/suscripciones-transbank`, exclusivamente en `PlanifIA_Seller`. Catálogo editable: Gratis $0; Plus $990 inicial/$2.750 regular; Pro $1.990 inicial/$4.990 regular. Cuotas de metas y consumo de IA validadas en servidor.

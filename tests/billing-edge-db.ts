@@ -168,6 +168,12 @@ globalThis.fetch = async (input, options) => {
   return Response.json(transaction);
 };
 async function billing(action: string, payload: any = {}, user = "a") {
+  // Modela el resumen que el usuario revisa antes de autorizar cada contratación.
+  if (action === "checkout" && payload.expected_amount_clp === undefined) {
+    const quote = await billing("quote", payload, user);
+    assert(quote.status === 200, "Fixture needs a valid reviewed quote");
+    payload = { ...payload, expected_amount_clp: quote.data.quote.amount_clp };
+  }
   const result = await handleBilling(
     new Request("https://supabase.example.test/functions/v1/billing", {
       method: "POST",
@@ -198,6 +204,72 @@ const cron = () =>
       },
     }),
   );
+
+const publicCatalogResponse = await handleBilling(
+  new Request(
+    "https://supabase.example.test/functions/v1/billing",
+    {
+      method: "POST",
+      headers: {
+        Origin: "https://planifia.cl",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ action: "catalog" }),
+    },
+  ),
+);
+const publicCatalog = await publicCatalogResponse.json();
+assert(
+  publicCatalogResponse.status === 200 && publicCatalog.promotion.active,
+  "Anonymous catalog receives the real campaign through the public RPC",
+);
+assert(
+  Date.parse(publicCatalog.promotion.ends_at) -
+      Date.parse(publicCatalog.promotion.starts_at) === 7 * 86400000,
+  "Published offer is seven days long and fixed by the database",
+);
+const staleQuote = await billing("quote", {
+  plan_id: "plus",
+  channel: "webpay",
+}, "b");
+assert(
+  staleQuote.data.quote.amount_clp === 990,
+  "Quote before campaign closes",
+);
+await adminSql(
+  "update private.billing_campaign set starts_at=now()-interval '7 days',ends_at=now()-interval '1 second' where id='welcome'",
+);
+const createsBeforeExpiry = checkoutCreates;
+const staleCheckout = await billing("checkout", {
+  plan_id: "plus",
+  channel: "webpay",
+  expected_amount_clp: 990,
+}, "b");
+assert(
+  staleCheckout.status === 409 && checkoutCreates === createsBeforeExpiry,
+  "Expired Webpay quote is rejected before calling Transbank",
+);
+Deno.env.set("TRANSBANK_ONECLICK_ENABLED", "true");
+const staleEnrollment = await billing("checkout", {
+  plan_id: "plus",
+  channel: "oneclick",
+  recurring_consent: true,
+  expected_amount_clp: 990,
+}, "b");
+assert(
+  staleEnrollment.status === 409 && inscriptions.size === 0,
+  "Expired Oneclick quote is rejected before inscription",
+);
+assert(
+  (await adminSql("select count(*)::integer n from public.payment_orders"))[0]
+    .n === 0,
+  "Rejected stale quote leaves no payment order",
+);
+await adminSql(
+  "update private.billing_campaign set starts_at=$1,ends_at=$2 where id='welcome'",
+  [publicCatalog.promotion.starts_at, publicCatalog.promotion.ends_at],
+);
+Deno.env.set("TRANSBANK_ONECLICK_ENABLED", "false");
 
 // Webpay: first promotional payment, duplicate callback and data isolation.
 let checkout = await billing("checkout", {

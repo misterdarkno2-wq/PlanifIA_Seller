@@ -82,6 +82,9 @@ function setup() {
     methodActive = true,
     confirmed = 0,
     declined = false;
+  const adminPayloads: Array<
+    { action: string; payload: Record<string, unknown> }
+  > = [];
   globalThis.fetch = async (input, options) => {
     const url = String(input), method = options?.method || "GET";
     if (url.includes("/auth/v1/user")) {
@@ -102,6 +105,14 @@ function setup() {
         first_month_clp: 990,
       }]);
     }
+    if (url.includes("/rpc/billing_promotion")) {
+      return Response.json({
+        starts_at: "2030-01-01T00:00:00Z",
+        ends_at: "2030-01-08T00:00:00Z",
+        server_now: "2030-01-02T00:00:00Z",
+        active: true,
+      });
+    }
     if (url.includes("/rpc/billing_state")) {
       return Response.json({
         plans: [],
@@ -118,6 +129,7 @@ function setup() {
       const { p_action: action, p_payload: p } = JSON.parse(
         String(options?.body),
       );
+      adminPayloads.push({ action, payload: p });
       assert(
         p.environment === "integration",
         "Every operation must include its server environment",
@@ -269,6 +281,7 @@ function setup() {
     posts: () => providerPosts,
     gets: () => providerGets,
     confirmed: () => confirmed,
+    actions: () => adminPayloads,
     setUnknown: () => {
       unknown = true;
     },
@@ -302,7 +315,11 @@ const request = (
       "Content-Type": "application/json",
       ...(token ? { Authorization: "Bearer " + token } : {}),
     },
-    body: JSON.stringify({ action, ...body }),
+    body: JSON.stringify({
+      action,
+      ...(action === "checkout" ? { expected_amount_clp: 990 } : {}),
+      ...body,
+    }),
   });
 const callback = (data: Record<string, string>) =>
   new Request("https://supabase.example.test/functions/v1/billing-return", {
@@ -323,7 +340,10 @@ Deno.test("Billing auth, CORS and public integration catalog", async () => {
     );
     const catalog = await handleBilling(request("catalog", {}, null));
     equal(catalog.status, 200);
-    assert((await catalog.json()).capabilities.simulation);
+    const publicCatalog = await catalog.json();
+    assert(publicCatalog.capabilities.simulation);
+    equal(publicCatalog.promotion_available, true);
+    equal(publicCatalog.promotion.ends_at, "2030-01-08T00:00:00Z");
     equal(f.posts(), 0);
   } finally {
     f.close();
@@ -344,6 +364,11 @@ Deno.test("Checkout ignores browser amounts and returns the saved provider token
     equal(body.order_id, ORDER);
     equal(body.redirect.field, "token_ws");
     equal(f.order.amount, 990);
+    equal(
+      f.actions().find((operation) => operation.action === "create_order")
+        ?.payload.expected_amount_clp,
+      990,
+    );
     equal(f.confirmed(), 0);
     const state = await handleBilling(request("state"));
     assert(!(await state.text()).includes("fixture-private-reference"));
@@ -483,6 +508,11 @@ Deno.test("Oneclick requires explicit recurring consent before enrollment", asyn
     );
     equal(ok.status, 200);
     equal((await ok.json()).redirect.field, "TBK_TOKEN");
+    equal(
+      f.actions().find((operation) => operation.action === "enroll_create")
+        ?.payload.expected_amount_clp,
+      990,
+    );
     equal(f.confirmed(), 0);
   } finally {
     f.close();
@@ -652,6 +682,41 @@ Deno.test("Resume requires fresh consent and unknown checkout cannot reopen a fo
       409,
     );
     equal(f.posts(), 0);
+  } finally {
+    f.close();
+  }
+});
+Deno.test("Checkout rejects missing or malformed accepted prices before creating an order or enrollment", async () => {
+  const f = setup();
+  try {
+    for (const enabled of ["false", "true"]) {
+      Deno.env.set("TRANSBANK_ONECLICK_ENABLED", enabled);
+      for (
+        const amount of [
+          undefined,
+          null,
+          "990",
+          0,
+          -1,
+          990.5,
+          Number.MAX_SAFE_INTEGER + 1,
+        ]
+      ) {
+        equal(
+          (await handleBilling(
+            request("checkout", {
+              plan_id: "plus",
+              recurring_consent: true,
+              expected_amount_clp: amount,
+            }),
+          )).status,
+          422,
+        );
+      }
+    }
+    equal(f.actions().length, 0);
+    equal(f.posts(), 0);
+    equal(f.gets(), 0);
   } finally {
     f.close();
   }

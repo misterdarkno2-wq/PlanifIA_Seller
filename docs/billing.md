@@ -40,6 +40,20 @@ El retorno admite GET y POST y busca el token en registros privados. Verifica mo
 
 La promoción pertenece al primer período mensual pagado del usuario: Plus $990 y luego $2.750; Pro $1.990 y luego $4.990. Un rechazo no consume la promoción. La confirmación del primer pago y el uso promocional se guardan en una misma transacción bajo bloqueo. Cambiar de plan, cancelar o volver no recupera la promoción. Integración y producción mantienen registros y medios separados.
 
+### Oferta de bienvenida de 7 días
+
+La migración `202610040003_welcome_campaign.sql` fija una campaña de siete días desde su primera aplicación en la base. Abrir la web, recargar, desplegar código o cambiar la hora del teléfono no reinicia la oferta. La pantalla calcula el porcentaje y el ahorro desde el catálogo: Plus 64% ($1.760) y Pro 60% ($3.000) durante el primer mes, con el precio de renovación siempre visible. La cuenta atrás usa la hora del servidor y la fecha de cierre se muestra en hora de Chile.
+
+Las fechas y la activación se administran en `private.billing_campaign`, desde el editor SQL de Supabase con acceso administrativo. Consulta pública segura de las fechas actuales:
+
+```sql
+select public.billing_promotion();
+```
+
+Para cerrar la campaña antes de su fecha, ejecuta `update private.billing_campaign set enabled=false where id='welcome';`. Para una nueva ventana, modifica explícitamente `starts_at`, `ends_at` y `enabled`; usa fechas con zona horaria. No se reabre automáticamente. Los precios se modifican en `public.plan_catalog`, no en el JavaScript.
+
+El servidor exige una campaña activa y que la cuenta no haya tenido ningún período pagado, incluso a precio regular. Fuera de la ventana se aplican los precios regulares. Una cotización anterior no autoriza un precio superior: el navegador envía `expected_amount_clp` y el servidor compara ese importe con su cálculo bajo bloqueo, antes de crear el pago o inscribir. No utiliza ese campo para fijar el precio. Una orden ya creada o una inscripción Oneclick aceptada conservan su importe al terminar la campaña; la inscripción sigue sin activar el plan hasta confirmar el cobro. Una bienvenida consumida por otra compra bloquea la inscripción antigua, en lugar de sustituirla por un cobro mayor.
+
 Los meses se calculan en UTC con el día inicial como ancla. Si un mes no tiene ese día, se usa su último día; por ejemplo, 31 de enero → 28/29 de febrero → 31 de marzo. La renovación anticipada empieza desde el vencimiento vigente y conserva los días pagados. El cambio de plan se aplica en el siguiente período, sin prorrateo. Cancelar futuros cobros mantiene acceso hasta vencer y no devuelve pagos anteriores. Los datos, tareas y XP permanecen conservados al vencer o bajar de plan.
 
 El consumo de IA reinicia el primer día de cada mes UTC. Generación y ajuste tienen contadores distintos. Una solicitud validada que se envía a la IA consume una unidad, incluso si el proveedor falla; las solicitudes bloqueadas no llaman al modelo. El límite diario existente sigue funcionando como protección adicional.

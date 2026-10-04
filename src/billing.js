@@ -1,4 +1,5 @@
 import "./billing.css";
+import { campaignStatus, discountFor, remainingTime } from "./billing-offer.js";
 
 const escapeText = (value) =>
   String(value ?? "").replace(
@@ -208,22 +209,129 @@ function environmentBadge(capabilities, escape) {
   return `<p class="billing-provider muted">${escape("El precio y la modalidad de renovación se confirman antes de pagar.")}</p>`;
 }
 
-function cards(state, user, escape) {
+function offerBanner(state, escape, campaign) {
+  const percent = Math.max(
+    0,
+    ...state.plans.map((plan) => discountFor(plan).percent),
+  );
+  if (!campaign.active || !percent) return "";
+  const time = remainingTime(campaign.remaining);
+  const deadline = new Intl.DateTimeFormat("es-CL", {
+    day: "numeric",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "America/Santiago",
+  }).format(new Date(campaign.ends));
+  return `<section class="billing-offer" data-billing-offer aria-label="Oferta de bienvenida" aria-live="off">
+    <div class="billing-offer-copy"><p class="billing-offer-eyebrow"><span aria-hidden="true">✦</span> OFERTA DE BIENVENIDA · SOLO ${escape(
+      campaign.durationDays,
+    )} DÍAS</p><h2>Tus metas merecen<br>un impulso.</h2><p>Estrena Plus o Pro con hasta <strong>${percent}% de descuento</strong> en tu primer mes.</p><span class="billing-offer-deadline">Hasta el ${escape(
+      deadline,
+    )} (hora de Chile).</span></div>
+    <div class="billing-offer-highlight"><div class="billing-offer-stamp"><span>HASTA</span><strong>${percent}<small>%</small></strong><span>DE DESCUENTO</span></div><div class="billing-countdown"><p>La oferta termina en</p><div class="billing-countdown-units"><div><strong data-offer-days>${time.days}</strong><span>días</span></div><span aria-hidden="true">:</span><div><strong data-offer-hours>${time.hours}</strong><span>horas</span></div><span aria-hidden="true">:</span><div><strong data-offer-minutes>${time.minutes}</strong><span>min</span></div></div></div></div>
+  </section>`;
+}
+
+function cards(state, user, escape, now) {
   const current =
     typeof state.effective_plan === "string"
       ? state.effective_plan
       : state.effective_plan?.id;
-  return `<div class="billing-plans">${state.plans
+  const campaign = campaignStatus(state, now);
+  return `<div data-billing-plan-options>${offerBanner(
+    state,
+    escape,
+    campaign,
+  )}${
+    campaign.expired
+      ? '<p class="notice billing-offer-closed">La oferta de bienvenida terminó. Estos son los precios vigentes.</p>'
+      : ""
+  }<div class="billing-plans">${state.plans
     .map((plan) => {
       const id = planId(plan),
         paid = regularPrice(plan) > 0;
-      const available = state.promotion_available !== false;
+      const discount = discountFor(plan);
+      const available = campaign.active && discount.percent > 0;
+      const used =
+        state.promotion_available === false && state.promotion?.active === true;
       const count = limits(plan);
-      return `<article class="billing-plan panel ${id === "plus" ? "billing-plan-featured" : ""}" data-plan-card="${escape(id)}"><div class="billing-plan-top"><h2>${escape(plan.name)}</h2>${current === id && user ? '<span class="tag">Tu plan actual</span>' : id === "plus" ? '<span class="tag">Más espacio para tus metas</span>' : ""}</div><p class="billing-price"><strong>${money(paid && available ? promoPrice(plan) : regularPrice(plan))}</strong><span>${paid && available ? "el primer mes" : paid ? "al mes" : "siempre"}</span></p><p class="billing-price-note">${paid ? `Primer mes por ${money(promoPrice(plan))}; luego ${money(regularPrice(plan))} al mes` : "Tu punto de partida, sin un medio de pago."}</p>${paid && !available ? '<p class="fine">Tu promoción inicial ya se utilizó. Se aplica el precio regular.</p>' : ""}<ul class="billing-benefits"><li><strong>${escape(count.goals)}</strong> metas activas</li><li><strong>${escape(count.generations)}</strong> generaciones con IA al mes</li><li><strong>${escape(count.adjustments)}</strong> ${Number(count.adjustments) === 1 ? "ajuste" : "ajustes"} con IA al mes</li>${(Array.isArray(plan.benefits) ? plan.benefits : []).map((benefit) => `<li>${escape(benefit)}</li>`).join("")}</ul><button class="${id === "plus" ? "" : "secondary"}" data-billing-plan="${escape(id)}">${current === id && user ? "Consultar mi plan" : paid ? `Elegir ${escape(plan.name)}` : user ? "Elegir Gratis" : "Empezar gratis"}</button></article>`;
+      return `<article class="billing-plan panel ${
+        id === "plus" ? "billing-plan-featured" : ""
+      } ${available ? "billing-plan-offer" : ""}" data-plan-card="${escape(
+        id,
+      )}">
+        <div class="billing-plan-top"><h2>${escape(plan.name)}</h2>${
+          current === id && user
+            ? '<span class="tag">Tu plan actual</span>'
+            : id === "plus"
+              ? '<span class="tag">Más espacio para tus metas</span>'
+              : ""
+        }</div>
+        <div class="billing-plan-pricing">${
+          available
+            ? `<div class="billing-price-before"><span class="billing-regular-price">Precio regular <del>${money(
+                regularPrice(plan),
+              )}</del></span><span class="billing-discount">−${discount.percent}%</span></div>`
+            : `<p class="billing-price-before billing-price-label">${
+                paid ? "Tu plan, mes a mes" : "Empieza a tu ritmo"
+              }</p>`
+        }
+        <p class="billing-price"><strong>${money(
+          available ? promoPrice(plan) : regularPrice(plan),
+        )}</strong><span>${
+          available ? "el primer mes" : paid ? "al mes" : "siempre"
+        }</span></p>
+        <p class="billing-price-note">${
+          available
+            ? `Primer mes por ${money(promoPrice(plan))}; luego ${money(
+                regularPrice(plan),
+              )} al mes`
+            : paid
+              ? `${money(
+                  regularPrice(plan),
+                )} al mes, renovación según la modalidad que elijas.`
+              : "Tu punto de partida, sin un medio de pago."
+        }</p>
+        ${
+          available
+            ? `<p class="billing-savings">Ahorras <strong>${money(
+                discount.savings,
+              )}</strong> en tu primer mes</p>`
+            : paid && used
+              ? '<p class="fine">Tu promoción inicial ya se utilizó. Se aplica el precio regular.</p>'
+              : ""
+        }</div>
+        <ul class="billing-benefits"><li><strong>${escape(
+          count.goals,
+        )}</strong> metas activas</li><li><strong>${escape(
+          count.generations,
+        )}</strong> generaciones con IA al mes</li><li><strong>${escape(
+          count.adjustments,
+        )}</strong> ${
+          Number(count.adjustments) === 1 ? "ajuste" : "ajustes"
+        } con IA al mes</li>${(Array.isArray(plan.benefits)
+          ? plan.benefits
+          : []
+        )
+          .map((benefit) => `<li>${escape(benefit)}</li>`)
+          .join("")}</ul>
+        <button class="${
+          id === "plus" || (available && id === "pro") ? "" : "secondary"
+        }" data-billing-plan="${escape(id)}">${
+          current === id && user
+            ? "Consultar mi plan"
+            : paid
+              ? `Elegir ${escape(plan.name)}`
+              : user
+                ? "Elegir Gratis"
+                : "Empezar gratis"
+        }</button>
+      </article>`;
     })
     .join(
       "",
-    )}</div><p class="billing-promo-rule fine">La promoción corresponde únicamente al primer período pagado de tu cuenta, tanto en Plus como en Pro. Cancelar, volver a contratar o cambiar de plan no la renueva.</p>`;
+    )}</div><p class="billing-promo-rule fine">Descuento disponible al contratar durante la campaña, únicamente para el primer período pagado de tu cuenta, tanto en Plus como en Pro. Cancelar, volver a contratar o cambiar de plan no lo renueva. Precios en pesos chilenos (CLP).</p></div>`;
 }
 
 function usageView(state, escape) {
@@ -315,6 +423,8 @@ export function mountBilling(
     quote,
     outcome = null,
     pollTimer = null,
+    offerTimer = null,
+    offerClock = null,
     pollCount = 0,
     requestId = null,
     selectionVersion = 0;
@@ -344,6 +454,33 @@ export function mountBilling(
     alert.textContent = errorMessage(error);
   };
   const clearError = () => host.querySelector("[data-billing-error]")?.remove();
+  const campaignNow = () =>
+    offerClock
+      ? offerClock.time + performance.now() - offerClock.receivedAt
+      : Date.now();
+  const updateOffer = () => {
+    clearTimeout(offerTimer);
+    if (disposed || !state || document.hidden) return;
+    const campaign = campaignStatus(state, campaignNow());
+    const banner = host.querySelector("[data-billing-offer]");
+    if (banner && !campaign.active) {
+      const options = host.querySelector("[data-billing-plan-options]");
+      if (options) {
+        options.outerHTML = cards(state, user, escape, campaignNow());
+      }
+    } else if (banner) {
+      const time = remainingTime(campaign.remaining);
+      for (const unit of ["days", "hours", "minutes"]) {
+        banner.querySelector(`[data-offer-${unit}]`).textContent = time[unit];
+      }
+    }
+    if (campaign.active && banner) {
+      offerTimer = setTimeout(
+        updateOffer,
+        Math.min(15_000, campaign.remaining),
+      );
+    }
+  };
   const call = async (action, payload = {}) => {
     if (typeof billing !== "function")
       throw new Error("La conexión con los pagos todavía no está configurada.");
@@ -351,7 +488,8 @@ export function mountBilling(
   };
   const paint = () => {
     if (disposed || !state) return;
-    body.innerHTML = `${environmentBadge(state.capabilities, escape)}${outcome ? resultMarkup(outcome, escape, pollCount >= 5) : ""}${state.pending_order && (!outcome || outcome.type === "enrollment") ? `<section class="notice billing-pending"><strong>Hay una operación pendiente de confirmación.</strong><p>Consulta su resultado antes de iniciar otro pago.</p><button class="secondary" data-verify-order="${escape(state.pending_order.id)}">Consultar pago pendiente</button></section>` : ""}${state.pending_enrollment && !outcome ? `<section class="notice billing-pending"><strong>Hay una inscripción del medio de pago pendiente.</strong><p>Inscribir una tarjeta no activa el plan. Consulta el estado antes de volver a inscribirla.</p><button class="secondary" data-verify-enrollment="${escape(state.pending_enrollment.id)}">Consultar inscripción pendiente</button></section>` : ""}${view === "subscription" && user ? subscriptionView(state, escape) : ""}${view !== "subscription" || !user ? cards(state, user, escape) : '<section class="billing-change-options" data-change-options hidden><h2>Plan para tu próximo período</h2><p class="muted">El cambio se aplica en la siguiente renovación. Tu período ya pagado y tus datos se conservan.</p>' + cards(state, user, escape) + "</section>"}<div data-billing-review></div>`;
+    body.innerHTML = `${environmentBadge(state.capabilities, escape)}${outcome ? resultMarkup(outcome, escape, pollCount >= 5) : ""}${state.pending_order && (!outcome || outcome.type === "enrollment") ? `<section class="notice billing-pending"><strong>Hay una operación pendiente de confirmación.</strong><p>Consulta su resultado antes de iniciar otro pago.</p><button class="secondary" data-verify-order="${escape(state.pending_order.id)}">Consultar pago pendiente</button></section>` : ""}${state.pending_enrollment && !outcome ? `<section class="notice billing-pending"><strong>Hay una inscripción del medio de pago pendiente.</strong><p>Inscribir una tarjeta no activa el plan. Consulta el estado antes de volver a inscribirla.</p><button class="secondary" data-verify-enrollment="${escape(state.pending_enrollment.id)}">Consultar inscripción pendiente</button></section>` : ""}${view === "subscription" && user ? subscriptionView(state, escape) : ""}${view !== "subscription" || !user ? cards(state, user, escape, campaignNow()) : '<section class="billing-change-options" data-change-options hidden><h2>Plan para tu próximo período</h2><p class="muted">El cambio se aplica en la siguiente renovación. Tu período ya pagado y tus datos se conservan.</p>' + cards(state, user, escape, campaignNow()) + "</section>"}<div data-billing-review></div>`;
+    updateOffer();
   };
   const refresh = async () => {
     const next = user ? await call("state") : await loadCatalog?.();
@@ -361,6 +499,10 @@ export function mountBilling(
       throw new Error(
         "No pudimos consultar los planes. Vuelve a intentarlo en unos momentos.",
       );
+    const serverTime = Date.parse(state.promotion?.server_now);
+    offerClock = Number.isFinite(serverTime)
+      ? { time: serverTime, receivedAt: performance.now() }
+      : null;
     paint();
   };
   const review = (html) => {
@@ -638,6 +780,7 @@ export function mountBilling(
         const response = await call("checkout", {
           plan_id: form.dataset.billingCheckout,
           channel: quote.channel,
+          expected_amount_clp: quote.amount_clp,
           recurring_consent: consent,
           request_id: requestId,
         });
@@ -658,6 +801,7 @@ export function mountBilling(
   host.addEventListener("click", onClick);
   host.addEventListener("change", onChange);
   host.addEventListener("submit", onSubmit);
+  document.addEventListener("visibilitychange", updateOffer);
   void refresh()
     .then(async () => {
       if (disposed || !user) return;
@@ -675,8 +819,10 @@ export function mountBilling(
     disposed = true;
     selectionVersion++;
     clearTimeout(pollTimer);
+    clearTimeout(offerTimer);
     host.removeEventListener("click", onClick);
     host.removeEventListener("change", onChange);
     host.removeEventListener("submit", onSubmit);
+    document.removeEventListener("visibilitychange", updateOffer);
   };
 }

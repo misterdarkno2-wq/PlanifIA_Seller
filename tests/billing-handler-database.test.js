@@ -27,6 +27,7 @@ test(
         "202610030003_manual_actions.sql",
         "202610040001_billing.sql",
         "202610040002_closed_renewals.sql",
+        "202610040003_welcome_campaign.sql",
       ])
         await db.exec(
           await readFile(
@@ -102,6 +103,9 @@ test(
               ).rows[0].result;
             else if (path === "/rest/v1/rpc/billing_state")
               data = (await db.query("select public.billing_state() result"))
+                .rows[0].result;
+            else if (path === "/rest/v1/rpc/billing_promotion")
+              data = (await db.query("select public.billing_promotion() result"))
                 .rows[0].result;
             else if (path === "/rest/v1/rpc/manage_subscription")
               data = (

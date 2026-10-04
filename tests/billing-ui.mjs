@@ -74,6 +74,12 @@ const capabilities = {
 };
 const periodStart = "2030-01-31T15:00:00Z",
   periodEnd = "2030-02-28T15:00:00Z";
+const campaign = {
+  starts_at: periodStart,
+  ends_at: "2030-02-07T15:00:00Z",
+  server_now: periodStart,
+  active: true,
+};
 const orderId = "12000000-0000-4000-8000-000000000012";
 const enrollmentId = "22000000-0000-4000-8000-000000000022";
 const initial = () => ({
@@ -81,6 +87,7 @@ const initial = () => ({
   effective_plan: catalog[0],
   subscription: null,
   promotion_available: true,
+  promotion: { ...campaign },
   payments: [],
   pending_order: null,
   usage: {
@@ -140,7 +147,7 @@ const paid = (channel = "oneclick") => ({
   },
 });
 const defaultQuote = (body, state) => {
-  const plan = catalog.find((p) => p.id === body.plan_id);
+  const plan = state.plans.find((p) => p.id === body.plan_id);
   return {
     quote: {
       plan_id: plan.id,
@@ -195,7 +202,10 @@ async function fixture({
     viewport: { width: 1366, height: 1024 },
   });
   page.on("pageerror", (error) => errors.push(error.message));
-  if (clock) await page.clock.install();
+  if (clock)
+    await page.clock.install(
+      typeof clock === "string" ? { time: new Date(clock) } : {},
+    );
   const calls = [];
   let current = structuredClone(state);
   await page.route("**/billing-fixture", (route) =>
@@ -205,7 +215,13 @@ async function fixture({
     const body = route.request().postDataJSON();
     calls.push(body);
     let result;
-    if (body.action === "catalog") result = { plans: catalog, capabilities };
+    if (body.action === "catalog")
+      result = {
+        plans: current.plans,
+        capabilities,
+        promotion: current.promotion,
+        promotion_available: current.promotion_available,
+      };
     else if (body.action === "state") {
       if (failState) {
         await route.fulfill({
@@ -239,6 +255,17 @@ async function fixture({
     } else if (body.action === "checkout") {
       assert.equal(Object.hasOwn(body, "amount"), false);
       assert.equal(Object.hasOwn(body, "amount_clp"), false);
+      const price = defaultQuote(body, current).quote.amount_clp;
+      if (body.expected_amount_clp !== price) {
+        await route.fulfill({
+          status: 409,
+          json: {
+            error:
+              "El precio cambió al terminar la oferta. Vuelve a revisar el resumen antes de pagar.",
+          },
+        });
+        return;
+      }
       result = {
         order_id: orderId,
         channel: body.channel,
@@ -262,7 +289,15 @@ async function fixture({
           : ".billing-plans",
     )
     .waitFor({ state: "visible" });
-  return { page, calls, setVerified: (result) => (verified = result) };
+  return {
+    page,
+    calls,
+    setVerified: (result) => (verified = result),
+    setPromotion: (promotion, available) => {
+      current.promotion = promotion;
+      current.promotion_available = available;
+    },
+  };
 }
 const noOverflow = async (page) =>
   assert.equal(
@@ -344,7 +379,13 @@ async function mainFixture(hash = "") {
     else if (url.pathname === "/functions/v1/billing") {
       const body = request.postDataJSON();
       calls.push(body);
-      if (body.action === "catalog") result = { plans: catalog, capabilities };
+      if (body.action === "catalog")
+        result = {
+          plans: catalog,
+          capabilities,
+          promotion: { ...campaign },
+          promotion_available: true,
+        };
       else if (body.action === "state") result = initial();
       else if (body.action === "quote") result = defaultQuote(body, initial());
       else if (body.action === "verify") {
@@ -410,6 +451,45 @@ try {
       await page.locator(".billing-environment").innerText(),
       /pagos de prueba/,
     );
+    await page.locator("[data-billing-offer]").waitFor();
+    assert.match(
+      await page.locator("[data-billing-offer]").innerText(),
+      /SOLO 7 DÍAS/,
+    );
+    assert.match(
+      await page
+        .locator('[data-plan-card="plus"] .billing-discount')
+        .innerText(),
+      /64\s*%/,
+    );
+    assert.match(
+      await page
+        .locator('[data-plan-card="pro"] .billing-discount')
+        .innerText(),
+      /60\s*%/,
+    );
+    assert.equal(
+      await page
+        .locator('[data-plan-card="plus"] .billing-regular-price del')
+        .innerText(),
+      "$2.750",
+    );
+    assert.equal(
+      await page
+        .locator('[data-plan-card="pro"] .billing-regular-price del')
+        .innerText(),
+      "$4.990",
+    );
+    assert.match(
+      await page
+        .locator('[data-plan-card="plus"] .billing-savings')
+        .innerText(),
+      /1\.760/,
+    );
+    assert.match(
+      await page.locator('[data-plan-card="pro"] .billing-savings').innerText(),
+      /3\.000/,
+    );
     await capture(page, "billing-plans-desktop");
     await page.setViewportSize({ width: 390, height: 844 });
     await capture(page, "billing-plans-mobile");
@@ -430,6 +510,152 @@ try {
       false,
       "Elegir un plan público no crea un pago sin iniciar sesión",
     );
+    await page.close();
+  }
+
+  // La promoción consumida no muestra una oferta personal que ya no se puede contratar.
+  {
+    const { page } = await fixture({ view: "plans", state: paid() });
+    assert.equal(await page.locator("[data-billing-offer]").count(), 0);
+    assert.equal(await page.locator(".billing-discount").count(), 0);
+    assert.equal(await page.locator(".billing-regular-price del").count(), 0);
+    assert.equal(
+      await page
+        .locator('[data-plan-card="plus"] .billing-price strong')
+        .innerText(),
+      "$2.750",
+    );
+    assert.equal(
+      await page
+        .locator('[data-plan-card="pro"] .billing-price strong')
+        .innerText(),
+      "$4.990",
+    );
+    await page.close();
+  }
+
+  // Los porcentajes y ahorros se derivan del catálogo editable, no del nombre del plan.
+  {
+    const state = initial();
+    state.plans = structuredClone(catalog);
+    state.plans[1].price_clp = 3000;
+    state.plans[1].first_month_clp = 1500;
+    const { page } = await fixture({ view: "plans", state });
+    assert.match(
+      await page
+        .locator('[data-plan-card="plus"] .billing-discount')
+        .innerText(),
+      /50\s*%/,
+    );
+    assert.equal(
+      await page
+        .locator('[data-plan-card="plus"] .billing-regular-price del')
+        .innerText(),
+      "$3.000",
+    );
+    assert.match(
+      await page
+        .locator('[data-plan-card="plus"] .billing-savings')
+        .innerText(),
+      /1\.500/,
+    );
+    await page.close();
+  }
+
+  // Fechas futuras y vencidas del servidor invalidan la oferta incluso ante un flag desactualizado.
+  for (const window of ["future", "closed"]) {
+    const state = initial();
+    state.promotion = {
+      ...campaign,
+      active: true,
+      server_now:
+        window === "future" ? "2030-01-30T15:00:00Z" : "2030-02-08T15:00:00Z",
+    };
+    const { page } = await fixture({
+      user: false,
+      view: "plans",
+      state,
+      clock: "2020-01-01T00:00:00Z",
+    });
+    assert.equal(await page.locator("[data-billing-offer]").count(), 0);
+    assert.equal(await page.locator(".billing-discount").count(), 0);
+    assert.equal(
+      await page
+        .locator('[data-plan-card="plus"] .billing-price strong')
+        .innerText(),
+      "$2.750",
+    );
+    if (window === "closed")
+      assert.match(
+        await page.locator(".billing-offer-closed").innerText(),
+        /La oferta de bienvenida terminó/,
+      );
+    else assert.equal(await page.locator(".billing-offer-closed").count(), 0);
+    await page.close();
+  }
+
+  // La cuenta atrás usa la hora del servidor y se actualiza al cerrar una campaña con la página abierta.
+  {
+    const state = initial();
+    state.promotion = { ...campaign, ends_at: "2030-01-31T15:00:05Z" };
+    const { page, calls, setPromotion } = await fixture({
+      view: "plans",
+      state,
+      clock: "2020-01-01T00:00:00Z",
+    });
+    await page.locator("[data-billing-offer]").waitFor();
+    assert.equal(
+      Number(await page.locator("[data-offer-days]").innerText()),
+      0,
+    );
+    assert.equal(
+      Number(await page.locator("[data-offer-hours]").innerText()),
+      0,
+    );
+    const remainingMinutes = Number(
+      await page.locator("[data-offer-minutes]").innerText(),
+    );
+    assert.ok(
+      remainingMinutes >= 0 && remainingMinutes <= 1,
+      "Una campaña que cierra en cinco segundos muestra menos de un minuto restante, incluso con la fecha del dispositivo equivocada",
+    );
+    await page
+      .getByRole("button", { name: "Elegir Plus", exact: true })
+      .click();
+    await page.locator('[data-billing-checkout="plus"]').waitFor();
+    await page.locator('[name="recurring-consent"]').check();
+    setPromotion(
+      { ...state.promotion, server_now: "2030-01-31T15:00:16Z", active: false },
+      false,
+    );
+    await page.clock.fastForward(16000);
+    await page.locator(".billing-offer-closed").waitFor();
+    assert.equal(await page.locator("[data-billing-offer]").count(), 0);
+    assert.equal(await page.locator(".billing-discount").count(), 0);
+    assert.equal(
+      await page
+        .locator('[data-plan-card="plus"] .billing-price strong')
+        .innerText(),
+      "$2.750",
+    );
+    assert.equal(
+      await page.locator('[name="recurring-consent"]').isChecked(),
+      true,
+      "Cerrar la oferta no debe borrar la revisión ni el consentimiento sin terminar",
+    );
+    assert.match(await page.locator(".billing-review").innerText(), /\$990/);
+    await page.getByRole("button", { name: /Inscribir y pagar/ }).click();
+    await page.getByRole("alert").waitFor();
+    assert.match(
+      await page.getByRole("alert").innerText(),
+      /precio cambió al terminar la oferta/,
+    );
+    assert.equal(
+      calls.find((call) => call.action === "checkout").expected_amount_clp,
+      990,
+      "Una cotización caducada no autoriza el precio regular sin una revisión nueva",
+    );
+    assert.equal(new URL(page.url()).hostname, "127.0.0.1");
     await page.close();
   }
 

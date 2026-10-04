@@ -52,15 +52,19 @@ export async function handleBilling(req: Request) {
       ?.[1];
     const { user: client, admin } = billingClients(token);
     if (input.action === "catalog") {
-      const result = await client.from("plan_catalog").select("*").eq(
-        "enabled",
-        true,
-      ).order("position");
-      if (result.error) {
+      const [result, campaign] = await Promise.all([
+        client.from("plan_catalog").select("*").eq("enabled", true).order(
+          "position",
+        ),
+        client.rpc("billing_promotion"),
+      ]);
+      if (result.error || campaign.error) {
         throw new BillingError("No pudimos cargar los planes.", 503);
       }
       return Response.json({
         plans: result.data,
+        promotion: campaign.data,
+        promotion_available: campaign.data?.active === true,
         capabilities: payment.config.capabilities,
       }, { headers });
     }
@@ -117,6 +121,18 @@ export async function handleBilling(req: Request) {
       }
       result = response.data;
     } else if (input.action === "checkout" || input.action === "update_card") {
+      if (
+        input.action === "checkout" &&
+        (!Number.isSafeInteger(input.expected_amount_clp) ||
+          input.expected_amount_clp <= 0)
+      ) {
+        throw new BillingError(
+          "Actualiza la página y vuelve a consultar el precio antes de pagar.",
+        );
+      }
+      const expectedAmount = input.action !== "checkout"
+        ? {}
+        : { expected_amount_clp: input.expected_amount_clp };
       const channel = input.action === "update_card"
         ? channelFor(payment, "oneclick")
         : channelFor(payment, input.channel);
@@ -132,6 +148,7 @@ export async function handleBilling(req: Request) {
           plan_id: input.plan_id || null,
           purpose: input.action === "update_card" ? "update_card" : "checkout",
           recurring_consent: true,
+          ...expectedAmount,
         });
         if (["unknown", "processing"].includes(enrollment.status)) {
           throw new BillingError(
@@ -190,6 +207,7 @@ export async function handleBilling(req: Request) {
           user_id: user.id,
           plan_id: input.plan_id,
           channel,
+          ...expectedAmount,
           ...(input.request_id
             ? { request_id: validateUuid(input.request_id) }
             : {}),
