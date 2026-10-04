@@ -50,6 +50,8 @@ Usa dos cuentas de prueba que te pertenezcan, A y B. Conserva primero una export
 - [ ] Descargar el original desde Ajustes y compararlo con el archivo previo.
 - [ ] Inspeccionar las tablas con RLS y permisos de roles; intentar escribir directamente en pets/xp_rewards: debe rechazarse.
 - [ ] Confirmar que al agotar AI_DAILY_LIMIT la función devuelve 429 y sigue disponible la creación manual.
-- [ ] Abrir GitHub Pages en móvil; comprobar teclado, diálogo, retorno de Auth, calendario y reducción de movimiento.
+- [ ] Abrir `https://planifia.cl/` en móvil; comprobar teclado, diálogo, retorno de Auth, calendario y reducción de movimiento.
+- [ ] Comprobar HTTPS del dominio principal y `www.planifia.cl`, carga de assets desde `/assets/` y redirección de la dirección anterior de GitHub Pages.
+- [ ] Comprobar que Auth use `https://planifia.cl/` como Site URL y que `goal-plan` acepte los orígenes `https://planifia.cl` y `https://www.planifia.cl`.
 
 La lista necesita el proyecto real y no debe marcarse completada a partir de respuestas simuladas. Las instrucciones exactas están en el README.

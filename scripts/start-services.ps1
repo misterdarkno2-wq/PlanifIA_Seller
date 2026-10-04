@@ -10,7 +10,7 @@ $gatewayEnvPath = Join-Path $repoPath '.env.gateway.local'
 $tunnelConfigPath = Join-Path $repoPath '.cloudflared\planifia-seller-ia.yml'
 $tunnelCredentialsPath = Join-Path $repoPath '.cloudflared\planifia-seller-ia.json'
 $vitePath = Join-Path $repoPath 'node_modules\vite\bin\vite.js'
-$publishedUrl = 'https://misterdarkno2-wq.github.io/PlanifIA_Seller/'
+$publishedUrl = 'https://planifia.cl/'
 
 function Find-Executable {
     param([string]$Name, [string[]]$Fallbacks)

@@ -4,7 +4,7 @@
 
 ## Repositorio y estado
 
-Este proyecto corresponde exclusivamente a `misterdarkno2-wq/PlanifIA_Seller`. Se inició desde su rama `main`, cuyo contenido era la licencia. La implementación se desarrolla en `codex/metas-supabase` y está integrada en `main`. La web está publicada en [GitHub Pages](https://misterdarkno2-wq.github.io/PlanifIA_Seller/). Se reutilizan el logo, el símbolo y la ilustración original de Lumi de PlanifIA.
+Este proyecto corresponde exclusivamente a `misterdarkno2-wq/PlanifIA_Seller`. Se inició desde su rama `main`, cuyo contenido era la licencia. La implementación se desarrolla en `codex/metas-supabase` y está integrada en `main`. La web se publica en [planifia.cl](https://planifia.cl/) mediante GitHub Pages. La dirección anterior era [GitHub Pages Seller](https://misterdarkno2-wq.github.io/PlanifIA_Seller/); Pages la redirige al dominio personalizado. Se reutilizan el logo, el símbolo y la ilustración original de Lumi de PlanifIA.
 
 En esta instalación, Supabase está conectado al proyecto `hlnzxgpdxgadbdcqavcd`, las tres migraciones están aplicadas y `goal-plan` está desplegada. La configuración privada está en archivos excluidos de Git. El envío de correo para personas fuera del equipo requiere configurar SMTP; la confirmación de correo permanece habilitada. En otras instalaciones, la aplicación indica si falta configuración. Las pruebas con fixtures y las pruebas contra servicios reales se documentan por separado.
 
@@ -43,7 +43,7 @@ Usa la clave **publishable** (`sb_publishable_…`) o la clave legacy **anon**. 
 ## Preparar Supabase
 
 1. Crea un proyecto en Supabase y copia su URL y clave pública a `.env.local`.
-2. En **Authentication → URL Configuration**, configura Site URL como `https://misterdarkno2-wq.github.io/PlanifIA_Seller/`. Añade esa URL exacta y `http://127.0.0.1:5173/` a Redirect URLs. Si usas un dominio propio, configura su URL exacta. Para recuperación de contraseña, autoriza también el retorno con `#reset` si tu configuración exige la URL completa.
+2. En **Authentication → URL Configuration**, configura Site URL como `https://planifia.cl/`. Autoriza los retornos exactos `https://planifia.cl/`, `https://planifia.cl/#reset`, `https://www.planifia.cl/`, `https://www.planifia.cl/#reset` y las direcciones locales de `supabase/config.toml`. Se conservan también los retornos de la URL anterior de GitHub Pages para enlaces existentes. El archivo documenta la configuración; comprueba que coincida con los ajustes del proyecto en la nube.
 3. Mantén la confirmación de correo habilitada y configura el envío de correo de producción según las indicaciones de Supabase. La interfaz indica cuándo falta confirmar una cuenta.
 4. Ejecuta las migraciones y despliega la función:
 
@@ -68,7 +68,7 @@ AI_BASE_URL=https://ia-seller.planifia.cl/v1
 AI_API_KEY=SECRETO_DEL_ADAPTADOR
 AI_MODEL=hf.co/unsloth/Qwen3.8-27B-GGUF:UD-IQ3_S
 AI_DAILY_LIMIT=8
-ALLOWED_ORIGINS=https://misterdarkno2-wq.github.io,http://127.0.0.1:5173,http://localhost:5173
+ALLOWED_ORIGINS=https://planifia.cl,https://www.planifia.cl,https://misterdarkno2-wq.github.io,http://127.0.0.1:5173,http://localhost:5173
 ```
 
 `AI_MODEL` debe admitir `response_format: json_schema` en su endpoint. La integración utiliza `/chat/completions`, JSON estructurado y validación adicional. Puedes usar otro proveedor con esa API y HTTPS. El consumo puede tener coste; el límite cuenta intentos, incluidos los que falla el proveedor, por usuario y día UTC. El límite se aplica de forma atómica en PostgreSQL.
@@ -105,11 +105,11 @@ El SMTP predeterminado de Supabase sólo envía a las direcciones del equipo. Pa
 ## Publicar en GitHub Pages
 
 1. En este repositorio, crea las variables de Actions `VITE_SUPABASE_URL` y `VITE_SUPABASE_PUBLISHABLE_KEY`, ambas públicas.
-2. En **Settings → Pages → Source**, selecciona **GitHub Actions**.
+2. En **Settings → Pages → Source**, selecciona **GitHub Actions**. Configura **Custom domain** como `planifia.cl` y habilita **Enforce HTTPS** cuando esté listo el certificado.
 3. Integra la rama de implementación en `main` cuando hayas revisado los cambios y configurado Supabase. El workflow publica únicamente `dist`.
-4. Abre `https://misterdarkno2-wq.github.io/PlanifIA_Seller/`.
+4. Abre `https://planifia.cl/`.
 
-La navegación utiliza fragmentos (`#today`, `#goals`, etc.), por lo que recargar una vista funciona en alojamiento estático. Las rutas de assets son relativas a la base. Para dominio propio, cambia `VITE_BASE_PATH` del workflow a `/`, configura el dominio en Pages y actualiza los retornos de Auth y `ALLOWED_ORIGINS`. Este repositorio no cambia el dominio del PlanifIA anterior.
+La navegación utiliza fragmentos (`#today`, `#goals`, etc.), por lo que recargar una vista funciona en alojamiento estático. El workflow compila con `VITE_BASE_PATH=/` y Vite copia `public/CNAME` al artefacto. El dominio principal sirve esta aplicación Seller; `api.planifia.cl` conserva el backend anterior para exportar datos, y `ia-seller.planifia.cl` sirve el adaptador de IA. Los retornos de Auth y `ALLOWED_ORIGINS` deben incluir el dominio principal en Supabase.
 
 ```powershell
 npm.cmd run build
@@ -178,4 +178,4 @@ npm.cmd run test:live
 Remove-Item Env:PLANIFIA_RUN_LIVE
 ```
 
-Para comprobar el sitio publicado, establece antes `PLANIFIA_LIVE_WEB_URL=https://misterdarkno2-wq.github.io/PlanifIA_Seller/`. Este test no verifica entrega de emails: sus cuentas de validación se confirman por la API administrativa.
+Para comprobar el sitio publicado, establece antes `PLANIFIA_LIVE_WEB_URL=https://planifia.cl/`. Este test no verifica entrega de emails: sus cuentas de validación se confirman por la API administrativa.

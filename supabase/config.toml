@@ -1,8 +1,8 @@
 project_id = "planifia-seller"
 
 [auth]
-site_url = "https://misterdarkno2-wq.github.io/PlanifIA_Seller/"
-additional_redirect_urls = ["http://127.0.0.1:5173/", "http://127.0.0.1:5173/#reset", "http://localhost:5173/", "http://localhost:5173/#reset", "https://misterdarkno2-wq.github.io/PlanifIA_Seller/", "https://misterdarkno2-wq.github.io/PlanifIA_Seller/#reset"]
+site_url = "https://planifia.cl/"
+additional_redirect_urls = ["https://planifia.cl/", "https://planifia.cl/#reset", "https://www.planifia.cl/", "https://www.planifia.cl/#reset", "http://127.0.0.1:5173/", "http://127.0.0.1:5173/#reset", "http://localhost:5173/", "http://localhost:5173/#reset", "https://misterdarkno2-wq.github.io/PlanifIA_Seller/", "https://misterdarkno2-wq.github.io/PlanifIA_Seller/#reset"]
 
 [auth.email]
 enable_confirmations = true
