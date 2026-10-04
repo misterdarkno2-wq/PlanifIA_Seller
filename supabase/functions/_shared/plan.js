@@ -136,15 +136,19 @@ export function validateProposal(
       const week = Math.floor(t.day_offset / 7);
       weeks[week] = (weeks[week] || 0) + t.minutes;
       days[iso] = (days[iso] || 0) + t.minutes;
-      if (
-        weeks[week] >
-          Math.min(weeklyMinutes, remainingWeekly[week] ?? weeklyMinutes) ||
-        days[iso] >
-          (remainingDaily[iso] ??
-            Math.ceil(weeklyMinutes / availableDays.length))
-      )
+      const weekLimit = Math.min(
+        weeklyMinutes,
+        remainingWeekly[week] ?? weeklyMinutes,
+      );
+      const dayLimit =
+        remainingDaily[iso] ?? Math.ceil(weeklyMinutes / availableDays.length);
+      if (weeks[week] > weekLimit)
         throw new Error(
-          "La propuesta supera el tiempo disponible. Reduce el alcance o ajusta tu disponibilidad.",
+          `La semana ${week + 1} suma ${weeks[week]} minutos y supera el tiempo disponible de ${weekLimit}. Reduce las acciones o sus duraciones.`,
+        );
+      if (days[iso] > dayLimit)
+        throw new Error(
+          `El día ${iso} suma ${days[iso]} minutos y supera el tiempo disponible de ${dayLimit}. Reparte las acciones en otros días disponibles.`,
         );
     }
   }

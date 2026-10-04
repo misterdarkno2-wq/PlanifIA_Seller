@@ -17,7 +17,7 @@ export const cloud = missing.length
       global: {
         fetch: async (url, options = {}) => {
           const timeout = AbortSignal.timeout(
-            String(url).includes("/functions/") ? 75000 : 25000,
+            String(url).includes("/functions/") ? 140000 : 25000,
           );
           return fetch(url, {
             ...options,

@@ -2,7 +2,9 @@ node_modules/
 dist/
 .env*
 !.env.example
+!.env.gateway.example
 !supabase/functions/.env.example
+.cloudflared/
 supabase/.temp/
 supabase/.branches/
 exports/

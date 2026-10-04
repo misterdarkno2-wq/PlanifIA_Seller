@@ -4,6 +4,12 @@ El repositorio destino solo tenía `LICENSE` en el commit `b1e3316`. El PlanifIA
 
 La aplicación nueva se compila con Vite y `@supabase/supabase-js`. La persistencia principal está en PostgreSQL. El almacenamiento del navegador solo guarda la sesión de Supabase; nunca el saldo de XP o la única copia de las metas. Las vistas se recuperan al iniciar sesión o recargar. Una confirmación de escritura se muestra después de la respuesta del servidor. Si falla la carga siguiente, la vista indica que debe reintentarse.
 
+## Servicios conectados
+
+La instalación usa Supabase `hlnzxgpdxgadbdcqavcd` y la Edge Function `goal-plan`. Para la IA, un túnel independiente sirve `https://ia-seller.planifia.cl/v1`, con autenticación Bearer y un adaptador local en `127.0.0.1:8012`. El adaptador llama exclusivamente al Ollama local en `127.0.0.1:11434` con el modelo de 27B fijado en la configuración privada. No se publican las rutas de administración de Ollama.
+
+El generador centraliza el presupuesto efectivo de cada semana y día; valida la respuesta y permite una corrección dentro del mismo límite total de tiempo. La propuesta queda sin guardar hasta su aprobación. Las cuentas y datos están en la nube; generar con esta instalación de Ollama necesita el PC y sus servicios activos.
+
 ## Tablas
 
 | Tabla                | Relación / finalidad                   | Acceso del navegador                  |

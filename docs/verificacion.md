@@ -1,5 +1,14 @@
 # Verificación y activación
 
+## Comprobación real de esta instalación — 3 de octubre de 2026
+
+- Proyecto Supabase `hlnzxgpdxgadbdcqavcd` inicialmente vacío: tres migraciones aplicadas, con historial de migraciones, URLs de Auth configuradas y confirmación de correo habilitada.
+- Función `goal-plan` desplegada y conectada mediante HTTPS al adaptador autenticado de Ollama. Sin Bearer, el adaptador devuelve 401; no expone las rutas de administración de modelos.
+- `PLANIFIA_RUN_LIVE=1 npm run test:live` pasó contra Supabase y Ollama reales: login/logout, dos usuarios aislados por RLS, rechazo de escritura directa de XP, ganancia/revocación/reintento, hábitos, propuesta sin guardado automático y aprobación que conserva completadas y retira pendientes.
+- Generación de la propuesta de validación: 79 segundos. El modelo de 27B se cargó en GPU según `/api/ps` (12,22 GB reportados para el modelo cargado); este dato no representa todo el consumo del escritorio.
+- Interfaz real comprobada en escritorio y móvil, recuperando los mismos datos desde dos contextos de navegador. Capturas en `dist/qa-live/`; sus cuentas temporales se eliminaron al terminar.
+- El envío de confirmaciones y recuperación de contraseña no queda validado por esta prueba: usa cuentas temporales confirmadas por la API administrativa. Falta configurar/verificar SMTP para personas ajenas al equipo de Supabase.
+
 ## Pruebas automatizadas locales
 
 `npm test`: ejecuta las migraciones completas en un PostgreSQL embebido de prueba. Las cuentas sintéticas A y B verifican privacidad y relaciones. Incluye estados de tareas, recompensas, reintentos antiguos, hábitos, propuestas e importación. La prueba de 20 niveles usa la curva de presentación, y la prueba SQL verifica la evolución final desde el saldo.

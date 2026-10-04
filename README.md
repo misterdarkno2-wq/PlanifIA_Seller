@@ -6,16 +6,27 @@
 
 Este proyecto corresponde exclusivamente a `misterdarkno2-wq/PlanifIA_Seller`. Se inició desde su rama `main`, cuyo contenido era la licencia. La implementación se desarrolla en `codex/metas-supabase`. Se reutilizan el logo, el símbolo y la ilustración original de Lumi de PlanifIA.
 
-La configuración de Supabase está pendiente. Al ejecutar sin ella, la aplicación muestra los valores que faltan. El registro, la persistencia y la IA requieren un proyecto real, las migraciones y los secretos de la función. Los tests de interfaz usan respuestas de prueba identificadas como fixtures; no son una integración de IA real.
+En esta instalación, Supabase está conectado al proyecto `hlnzxgpdxgadbdcqavcd`, las tres migraciones están aplicadas y `goal-plan` está desplegada. La configuración privada está en archivos excluidos de Git. El envío de correo para personas fuera del equipo requiere configurar SMTP; la confirmación de correo permanece habilitada. En otras instalaciones, la aplicación indica si falta configuración. Las pruebas con fixtures y las pruebas contra servicios reales se documentan por separado.
 
 ## Ejecutar en Windows
 
 Necesitas Node.js 22.12 o posterior.
 
+En este PC, la configuración ya está guardada. Para iniciar los servicios y abrir la interfaz local:
+
+```powershell
+cd C:\Users\Admin\Downloads\PlanifIA_Seller
+powershell -ExecutionPolicy RemoteSigned -File .\scripts\start-services.ps1 -LocalWeb
+```
+
+Abre `http://127.0.0.1:5173/`. No necesitas `supabase init`, `supabase start` ni Docker para usar el proyecto en la nube.
+
+### Instalar en otro PC
+
 ```powershell
 cd C:\Users\Admin\Downloads\PlanifIA_Seller
 npm.cmd ci
-Copy-Item .env.example .env.local
+if (-not (Test-Path .env.local)) { Copy-Item .env.example .env.local }
 notepad .env.local
 npm.cmd run dev
 ```
@@ -53,9 +64,9 @@ Revisa `db push` antes de confirmar si utilizas un proyecto con tablas previas. 
 Completa en el archivo privado `supabase/functions/.env.local`:
 
 ```dotenv
-AI_BASE_URL=https://openrouter.ai/api/v1
-AI_API_KEY=CLAVE_DEL_PROVEEDOR
-AI_MODEL=IDENTIFICADOR_DE_UN_MODELO_COMPATIBLE
+AI_BASE_URL=https://ia-seller.planifia.cl/v1
+AI_API_KEY=SECRETO_DEL_ADAPTADOR
+AI_MODEL=hf.co/unsloth/Qwen3.8-27B-GGUF:UD-IQ3_S
 AI_DAILY_LIMIT=8
 ALLOWED_ORIGINS=https://misterdarkno2-wq.github.io,http://127.0.0.1:5173,http://localhost:5173
 ```
@@ -66,7 +77,30 @@ Supabase proporciona `SUPABASE_URL`, `SUPABASE_ANON_KEY` y `SUPABASE_SERVICE_ROL
 
 La función valida el JWT con `auth.getUser()` antes de consultar datos o llamar a la IA. `verify_jwt=false` en `config.toml` permite que esta comprobación soporte las claves actuales de Supabase; **no elimina la comprobación de sesión en el código**. Los orígenes permitidos deben ser orígenes completos, sin rutas. Si falta una credencial, la función devuelve exactamente qué secreto falta.
 
-El Ollama que corre en `localhost` del PC no es accesible desde Supabase. Para reutilizarlo necesitarías una pasarela HTTPS autenticada que exponga una API compatible con JSON estructurado y gestione sus permisos. Este proyecto no publica automáticamente Ollama ni sus puertos.
+### Ollama conectado en este PC
+
+La función llama a `https://ia-seller.planifia.cl/v1`, servido por un túnel separado `planifia-seller-ia`. El adaptador `scripts/ollama-gateway.js` exige un secreto Bearer, escucha solamente en `127.0.0.1:8012` y admite únicamente la generación de propuestas. Ollama sigue en `127.0.0.1:11434`; sus rutas de modelos no se publican.
+
+El modelo instalado es `hf.co/unsloth/Qwen3.8-27B-GGUF:UD-IQ3_S`. El adaptador desactiva el pensamiento extendido para esta tarea, limita contexto/salida y permite una generación simultánea. Si está ocupado devuelve un error que permite reintentar. Los secretos de `.env.gateway.local` y `supabase/functions/.env.local` no entran en Git ni en la web.
+
+La función valida cada propuesta y, si excede la disponibilidad, solicita una corrección una vez. Los dos intentos comparten un máximo de 125 segundos; no se guarda nada hasta la aprobación del usuario. Una solicitud de la aplicación consume una cuota diaria, aunque haga esa corrección.
+
+Después de encender este PC:
+
+```powershell
+cd C:\Users\Admin\Downloads\PlanifIA_Seller
+powershell -ExecutionPolicy RemoteSigned -File .\scripts\start-services.ps1
+```
+
+El script inicia Ollama, adaptador y túnel en segundo plano y reutiliza los procesos correctos si ya están abiertos. Para abrir también la interfaz local, añade `-LocalWeb`; la web queda en `http://127.0.0.1:5173/`. Los registros se guardan en archivos `.log` de la carpeta.
+
+GitHub Pages y los datos de Supabase permanecen disponibles con el PC apagado. La generación con este Ollama requiere que el PC esté encendido y esos servicios estén activos. En otro PC debes configurar `.env.gateway.local` y sus credenciales de túnel; el script indica los archivos faltantes y no los descarga del repositorio.
+
+Puedes sustituir el adaptador por un proveedor de IA compatible con HTTPS, `/chat/completions` y JSON Schema, configurando únicamente los secretos de la función. Por ejemplo, `AI_BASE_URL=https://openrouter.ai/api/v1` con su clave y un modelo compatible.
+
+### Correo de registro y recuperación
+
+El SMTP predeterminado de Supabase sólo envía a las direcciones del equipo. Para aceptar registros de otras personas necesitas SMTP propio; consulta [Supabase SMTP](https://supabase.com/docs/guides/auth/auth-smtp). Para Resend, verifica un dominio de envío y configura el proyecto según [la guía de Resend](https://resend.com/docs/send-with-supabase-smtp). Conserva la clave SMTP fuera de Git y mantén la confirmación de correo habilitada.
 
 ## Publicar en GitHub Pages
 
@@ -124,6 +158,18 @@ npx.cmd --yes deno check --no-config --no-lock --node-modules-dir=none supabase/
 npm.cmd run build
 ```
 
-Los tests de SQL ejecutan las migraciones en PostgreSQL embebido mediante PGlite: RLS entre dos usuarios, rechazo de escritura de XP, recompensas base/anticipadas/tardías, revocación, idempotencia, hábitos, conflictos de versión, rollback de planes e importación. Las tres pruebas de Edge Functions comprueban JWT ausente/vencido, origen, secretos y cuota, con Auth/proveedor sintéticos. Los tests de dominio cubren los veinte niveles y los límites del plan. Los tests de interfaz usan fixtures de Auth/IA y generan capturas de escritorio y móvil en `dist/qa`; requieren Microsoft Edge instalado.
+Los tests de SQL ejecutan las migraciones en PostgreSQL embebido mediante PGlite: RLS entre dos usuarios, rechazo de escritura de XP, recompensas base/anticipadas/tardías, revocación, idempotencia, hábitos, conflictos de versión, rollback de planes e importación. Las pruebas de Edge Functions comprueban JWT ausente/vencido, origen, secretos, cuota y corrección de propuestas sin ampliar el tiempo máximo, con Auth/proveedor sintéticos. Las del adaptador comprueban autenticación, límites, concurrencia, modelo fijo y timeout. Los tests de dominio cubren los veinte niveles y los límites del plan. Los tests de interfaz usan fixtures de Auth/IA y generan capturas de escritorio y móvil en `dist/qa`; requieren Microsoft Edge instalado.
 
 Después de conectar un proyecto real, completa las comprobaciones en [la lista de aceptación](docs/verificacion.md). La conexión real a Supabase, correos, IA externa y dominio publicado requiere tus cuentas y no queda validada solo con los tests locales.
+
+## Prueba real bajo autorización explícita
+
+`tests/live.mjs` no usa fixtures: crea dos cuentas temporales en el proyecto configurado, comprueba RLS, XP, hábitos, generación/aprobación real con Ollama e inicio/cierre de sesión en escritorio y móvil; elimina exclusivamente esas cuentas al terminar. Necesita la CLI autorizada y Microsoft Edge. Las claves administrativas se leen en memoria y no se guardan en el archivo ni en las capturas.
+
+```powershell
+$env:PLANIFIA_RUN_LIVE="1"
+npm.cmd run test:live
+Remove-Item Env:PLANIFIA_RUN_LIVE
+```
+
+Para comprobar el sitio publicado, establece antes `PLANIFIA_LIVE_WEB_URL=https://misterdarkno2-wq.github.io/PlanifIA_Seller/`. Este test no verifica entrega de emails: sus cuentas de validación se confirman por la API administrativa.

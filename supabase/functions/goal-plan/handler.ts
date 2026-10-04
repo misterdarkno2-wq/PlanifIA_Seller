@@ -1,5 +1,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2.58.0";
-import { PLAN_SCHEMA, SYSTEM, validateProposal } from "../_shared/plan.js";
+import {
+  generateValidatedPlan,
+  PlanGenerationError,
+} from "../_shared/generate-plan.ts";
 
 const json = (data: unknown, status: number, headers: HeadersInit) =>
   Response.json(data, { status, headers });
@@ -219,73 +222,18 @@ export async function handleGoalPlan(req: Request) {
         429,
         headers,
       );
-    const response = await fetch(
-      base!.replace(/\/$/, "") + "/chat/completions",
-      {
-        method: "POST",
-        signal: AbortSignal.timeout(60000),
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model,
-          temperature: 0.3,
-          max_tokens: 6000,
-          response_format: {
-            type: "json_schema",
-            json_schema: {
-              name: "goal_plan",
-              strict: true,
-              schema: PLAN_SCHEMA,
-            },
-          },
-          messages: [
-            { role: "system", content: SYSTEM },
-            {
-              role: "user",
-              content: JSON.stringify({
-                ...input,
-                current_goal: goal,
-                completed_actions: tasks.filter(
-                  (t) => t.goal_id === goal?.id && t.status === "completed",
-                ),
-                startDate,
-                remainingDaily,
-                remainingWeekly: remainingWeekly.map((used) =>
-                  Math.max(0, profile.weekly_minutes - used),
-                ),
-                availableDays: profile.available_days,
-              }),
-            },
-          ],
-        }),
+    const proposal = await generateValidatedPlan({
+      endpoint: base!.replace(/\/$/, "") + "/chat/completions",
+      apiKey: apiKey!,
+      model: model!,
+      requestData: {
+        ...input,
+        current_goal: goal,
+        completed_actions: tasks.filter(
+          (t) => t.goal_id === goal?.id && t.status === "completed",
+        ),
       },
-    );
-    if (!response.ok) {
-      console.error("AI provider status", response.status);
-      return json(
-        {
-          error:
-            "El proveedor de IA rechazó la solicitud. Revisa AI_MODEL, el saldo y el soporte de JSON estructurado.",
-        },
-        502,
-        headers,
-      );
-    }
-    const result = await response.json();
-    if (result.choices?.[0]?.finish_reason !== "stop")
-      return json(
-        {
-          error:
-            "La IA no terminó la propuesta. Inténtalo con una meta más acotada.",
-        },
-        502,
-        headers,
-      );
-    const proposal = validateProposal(
-      JSON.parse(result.choices[0].message.content),
-      {
+      limits: {
         weeklyMinutes,
         remainingDaily,
         remainingWeekly: remainingWeekly.map((used) =>
@@ -295,7 +243,7 @@ export async function handleGoalPlan(req: Request) {
         targetDate,
         availableDays: profile.available_days,
       },
-    );
+    });
     return json(
       {
         proposal: {
@@ -319,6 +267,8 @@ export async function handleGoalPlan(req: Request) {
       headers,
     );
   } catch (error) {
+    if (error instanceof PlanGenerationError)
+      return json({ error: error.message }, error.status, headers);
     const message =
       error instanceof Error ? error.message : "No pudimos crear la propuesta.";
     if (
