@@ -19,6 +19,8 @@ import {
 } from "./domain.js";
 import { portrait } from "./pet-art.js";
 import { createPetBehavior } from "./pet-behavior.js";
+import { getPetMotionSettings } from "./pet-motion.js";
+import { petMotionControls, bindPetMotionControls } from "./pet-motion-ui.js";
 import { startPlanLoading } from "./plan-loading.js";
 import { validateProposal } from "../supabase/functions/_shared/plan.js";
 
@@ -44,30 +46,34 @@ let user = null,
   dialog;
 const petControllers = new Map();
 let petPose = null;
+let disposePetMotionControls = null;
 function disposePets() {
   for (const [svg, controller] of petControllers) {
     if (svg.closest("#pet")) petPose = controller.getState();
     controller.dispose();
   }
   petControllers.clear();
+  disposePetMotionControls?.();
+  disposePetMotionControls = null;
 }
 function mountPets() {
+  disposePetMotionControls ||= bindPetMotionControls(app);
   for (const svg of app.querySelectorAll(".lumi-art")) {
     if (petControllers.has(svg)) continue;
     const previous = svg.closest("#pet") ? petPose : null;
     petControllers.set(
       svg,
-      createPetBehavior(
-        svg,
-        previous
+      createPetBehavior(svg, {
+        motionQuery: getPetMotionSettings(),
+        ...(previous
           ? {
               initialPosition: previous.position,
               initialPose: previous.pose,
               initialReaction: previous.resumeReaction,
               lastFlipAt: previous.lastFlipAt,
             }
-          : {},
-      ),
+          : {}),
+      }),
     );
   }
 }
@@ -183,7 +189,7 @@ function closeModal() {
 const alert = () => '<p class="error" role="alert" hidden></p>';
 function petCard() {
   const p = state.pet;
-  return `<aside class="pet-card featured" id="pet" aria-labelledby="pet-name"><div class="pet-portrait">${portrait(p.stage)}</div><div class="pet-info"><p class="eyebrow">TU COMPAÑERA DE CADA PASO</p><div class="pet-title"><h2 id="pet-name">${e(p.name)}</h2><span class="pet-level">Nivel ${p.level}</span></div><p class="pet-stage">${STAGES[p.stage - 1]} · ${p.total_xp} XP</p><progress aria-label="Experiencia de Lumi" value="${p.next_xp === null ? 1 : p.level_xp}" max="${p.next_xp ?? 1}"></progress><p class="pet-xp-label">${p.next_xp === null ? "Evolución final alcanzada" : `${p.level_xp} / ${p.next_xp} XP para el siguiente nivel`}</p><p class="pet-message">Un paso pequeño también es avanzar. Estoy contigo.</p></div></aside>`;
+  return `<aside class="pet-card featured" id="pet" aria-labelledby="pet-name"><div class="pet-portrait">${portrait(p.stage)}</div><div class="pet-info"><p class="eyebrow">TU COMPAÑERA DE CADA PASO</p><div class="pet-title"><h2 id="pet-name">${e(p.name)}</h2><span class="pet-level">Nivel ${p.level}</span></div><p class="pet-stage">${STAGES[p.stage - 1]} · ${p.total_xp} XP</p><progress aria-label="Experiencia de Lumi" value="${p.next_xp === null ? 1 : p.level_xp}" max="${p.next_xp ?? 1}"></progress><p class="pet-xp-label">${p.next_xp === null ? "Evolución final alcanzada" : `${p.level_xp} / ${p.next_xp} XP para el siguiente nivel`}</p><p class="pet-message">Un paso pequeño también es avanzar. Estoy contigo.</p>${petMotionControls()}</div></aside>`;
 }
 function celebrate(result, before) {
   const p = result.pet;
@@ -294,7 +300,7 @@ function daysInputs(selected, prefix = "days") {
 }
 function settingsPage() {
   const p = state.profile;
-  return `<div class="page-heading"><div><h1>Tu ritmo y tus datos</h1><p class="muted">Los cambios se guardan en tu cuenta y se recuperan en otros dispositivos.</p></div></div><div class="settings-grid"><section class="panel"><h2>Disponibilidad</h2><form id="profile-form"><label>Tu nombre<input name="name" value="${e(p.name)}" maxlength="80" required></label><label>Zona horaria<input name="timezone" value="${e(p.timezone)}" required placeholder="America/Santiago"></label><label>Minutos totales por semana<input name="minutes" type="number" min="30" max="3360" value="${p.weekly_minutes}" required></label>${daysInputs(p.available_days)}<p class="muted">La IA reparte este tiempo entre tus días disponibles, contando acciones y hábitos existentes.</p>${alert()}<button>Guardar disponibilidad</button></form></section><section class="panel"><h2>Conservar lo que ya hiciste</h2><p>Importa un archivo JSON de PlanifIA anterior. Verás el destino y el contenido antes de confirmar.</p><label class="file-label">Seleccionar exportación<input type="file" id="import-file" accept="application/json,.json"></label><button class="secondary" id="import-local">Buscar tareas guardadas en este navegador</button><p class="muted">Los archivos originales se conservan. Repetir la importación no crea actividades duplicadas. La XP histórica se conserva en el respaldo original, sin asignar recompensas nuevas.</p><h3>Importaciones guardadas</h3>${state.imports.map((i) => `<p>${e(i.source)} <button class="text-button" data-export-import="${i.id}">Descargar original</button></p>`).join("") || '<p class="muted">Todavía no hay importaciones.</p>'}<button class="secondary" id="export-data">Exportar mis datos</button></section></div>`;
+  return `<div class="page-heading"><div><h1>Tu ritmo y tus datos</h1><p class="muted">Los cambios se guardan en tu cuenta y se recuperan en otros dispositivos.</p></div></div><div class="settings-grid"><section class="panel pet-motion-panel"><h2>Lumi a tu ritmo</h2><p>Elige cómo te acompaña mientras organizas tus metas.</p>${petMotionControls()}</section><section class="panel"><h2>Disponibilidad</h2><form id="profile-form"><label>Tu nombre<input name="name" value="${e(p.name)}" maxlength="80" required></label><label>Zona horaria<input name="timezone" value="${e(p.timezone)}" required placeholder="America/Santiago"></label><label>Minutos totales por semana<input name="minutes" type="number" min="30" max="3360" value="${p.weekly_minutes}" required></label>${daysInputs(p.available_days)}<p class="muted">La IA reparte este tiempo entre tus días disponibles, contando acciones y hábitos existentes.</p>${alert()}<button>Guardar disponibilidad</button></form></section><section class="panel"><h2>Conservar lo que ya hiciste</h2><p>Importa un archivo JSON de PlanifIA anterior. Verás el destino y el contenido antes de confirmar.</p><label class="file-label">Seleccionar exportación<input type="file" id="import-file" accept="application/json,.json"></label><button class="secondary" id="import-local">Buscar tareas guardadas en este navegador</button><p class="muted">Los archivos originales se conservan. Repetir la importación no crea actividades duplicadas. La XP histórica se conserva en el respaldo original, sin asignar recompensas nuevas.</p><h3>Importaciones guardadas</h3>${state.imports.map((i) => `<p>${e(i.source)} <button class="text-button" data-export-import="${i.id}">Descargar original</button></p>`).join("") || '<p class="muted">Todavía no hay importaciones.</p>'}<button class="secondary" id="export-data">Exportar mis datos</button></section></div>`;
 }
 function shell(content) {
   const tab = location.hash.slice(1).split("?")[0] || "today";

@@ -1,5 +1,13 @@
 # Verificación y activación
 
+## Dominio principal — 4 de octubre de 2026
+
+- GitHub Pages asigna `planifia.cl` a `PlanifIA_Seller`, con certificado aprobado y HTTPS obligatorio. El repositorio anterior ya no tiene ese dominio. El DNS existente de Cloudflare apuntaba correctamente a GitHub y no necesitó cambios.
+- `https://planifia.cl/` sirve la nueva interfaz y sus assets desde `/assets/`; `www.planifia.cl`, HTTP y la URL anterior de Seller redirigen al dominio principal. Despliegue `bbca677` y pruebas de CI correctos.
+- Site URL y retornos de Auth aplicados a Supabase, conservando localhost y la URL anterior. Los orígenes principal y `www` de `goal-plan` responden OPTIONS 204; una solicitud sin sesión devuelve 401 con CORS correcto.
+- Login real, recuperación de sesión y datos tras recargar, y logout persistente comprobados en escritorio de 1440 × 1050 y móvil de 390 × 844. La cuenta y su perfil temporales se eliminaron; no se enviaron correos ni se generó un plan de IA en esta comprobación.
+- Landing, formulario de acceso y recuperación revisados sin errores JavaScript, overflow ni solicitudes a la API anterior. Capturas privadas de validación en `supabase/.temp/domain-qa/`, fuera de Git.
+
 ## Comprobación real de esta instalación — 3 de octubre de 2026
 
 - Proyecto Supabase `hlnzxgpdxgadbdcqavcd` inicialmente vacío: tres migraciones aplicadas, con historial de migraciones, URLs de Auth configuradas y confirmación de correo habilitada.
@@ -12,6 +20,13 @@
 - El envío de confirmaciones y recuperación de contraseña no queda validado por esta prueba: usa cuentas temporales confirmadas por la API administrativa. Falta configurar/verificar SMTP para personas ajenas al equipo de Supabase.
 
 ## Pruebas automatizadas locales
+
+### Preferencia de animaciones de Lumi — 4 de octubre de 2026
+
+- `npm test`: 33 pruebas correctas; siete nuevas comprueban los tres modos, persistencia, cambios del sistema, sincronización entre pestañas, almacenamiento bloqueado y limpieza.
+- `npm run test:ui`: correcto en escritorio y móvil. Con reducir movimiento activado, Según dispositivo mantiene a Lumi tranquila y Animadas recupera respiración, parpadeo y acciones espontáneas. Recargar conserva la elección; Tranquilas detiene las animaciones incluso sin reducir movimiento. El selector de Ajustes y el de espera de IA se sincronizan sin reemplazar formularios.
+- El resto de la pantalla de IA mantiene su movimiento reducido al elegir Animadas. Se conservan las 35 combinaciones de límites, ausencia de reacción al clic/cursor y celebraciones por XP, nivel y evolución.
+- En el navegador local del usuario se activó Animadas con su autorización. Se comprobó que el dispositivo seguía indicando reducir movimiento, mientras Lumi respiraba y se desplazaba automáticamente. Captura de evidencia en `dist/qa/lumi-animadas-usuario.jpg`, fuera de Git.
 
 ### Lumi autónoma — 3 de octubre de 2026
 

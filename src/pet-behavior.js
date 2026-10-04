@@ -373,6 +373,8 @@ export function createPetBehavior(svg, options = {}) {
   }
   function motionChange() {
     if (disposed) return;
+    svg.dataset.lumiMotion = motion.mode || "auto";
+    if (reduced === motion.matches) return;
     reduced = motion.matches;
     clearTimer();
     if (reduced) {
@@ -428,6 +430,7 @@ export function createPetBehavior(svg, options = {}) {
     motion.removeEventListener("change", motionChange);
   }
   place(x);
+  svg.dataset.lumiMotion = motion.mode || "auto";
   setState("idle");
   svg.classList.toggle("lumi-paused", paused);
   doc.addEventListener("visibilitychange", visibility);

@@ -380,6 +380,7 @@ try {
     );
     assert.equal(await card.getByRole("button").count(), 0);
     assert.equal(await card.locator("[data-greet-pet]").count(), 0);
+    assert.equal(await card.getByLabel("Animaciones de Lumi").count(), 1);
   }
   const petSvg = "#pet .lumi-art";
   async function pauseClock(p) {
@@ -1041,6 +1042,90 @@ try {
     "La mascota permanece tranquila con movimiento reducido",
   );
   await phone.clock.resume();
+  const phoneMotion = () =>
+    phone.locator("#pet").getByLabel("Animaciones de Lumi");
+  assert.equal(await phoneMotion().inputValue(), "auto");
+  assert.equal(
+    await phone.evaluate(
+      () => matchMedia("(prefers-reduced-motion: reduce)").matches,
+    ),
+    true,
+  );
+  await phoneMotion().selectOption("animated");
+  assert.equal(
+    await phone.locator(petSvg).getAttribute("data-lumi-motion"),
+    "animated",
+  );
+  for (const part of [".lumi-body", ".lumi-eyes"])
+    assert.notEqual(
+      await phone
+        .locator(`#pet ${part}`)
+        .evaluate((el) => getComputedStyle(el).animationName),
+      "none",
+      "La elección Animadas recupera respiración y parpadeo aunque el dispositivo reduzca movimiento",
+    );
+  await autonomousLumi(phone, { cycles: 2 });
+  await phone.reload();
+  await phone.getByRole("heading", { name: /Un paso a la vez, Ana/ }).waitFor();
+  assert.equal(
+    await phoneMotion().inputValue(),
+    "animated",
+    "La elección persiste al recargar",
+  );
+  assert.notEqual(
+    await phone
+      .locator("#pet .lumi-body")
+      .evaluate((el) => getComputedStyle(el).animationName),
+    "none",
+  );
+  await phoneMotion().selectOption("calm");
+  await pauseClock(phone);
+  await phone.clock.fastForward(60000);
+  assert.equal(await lumiState(phone), "idle");
+  assert.equal(
+    await phone
+      .locator(petSvg)
+      .evaluate((svg) => svg.getAnimations({ subtree: true }).length),
+    0,
+    "Tranquilas detiene tanto las acciones espontáneas como las animaciones de las partes",
+  );
+  await phone.emulateMedia({ reducedMotion: "no-preference" });
+  assert.equal(
+    await phone
+      .locator(petSvg)
+      .evaluate((svg) => svg.getAnimations({ subtree: true }).length),
+    0,
+    "Tranquilas conserva la calma aunque el sistema permita animaciones",
+  );
+  await phoneMotion().selectOption("auto");
+  assert.notEqual(
+    await phone
+      .locator("#pet .lumi-body")
+      .evaluate((el) => getComputedStyle(el).animationName),
+    "none",
+  );
+  await phone.emulateMedia({ reducedMotion: "reduce" });
+  await phone.waitForFunction(() => {
+    const svg = document.querySelector("#pet .lumi-art");
+    return (
+      svg.dataset.lumiMotion === "auto" &&
+      svg.getAnimations({ subtree: true }).length === 0
+    );
+  });
+  await phone.clock.resume();
+  await phone.getByRole("link", { name: "Ajustes", exact: true }).click();
+  const settingsMotion = phone
+    .locator(".pet-motion-panel")
+    .getByLabel("Animaciones de Lumi");
+  assert.equal(await settingsMotion.inputValue(), "auto");
+  await settingsMotion.selectOption("animated");
+  await phone.getByRole("link", { name: "Hoy", exact: true }).click();
+  assert.equal(
+    await phoneMotion().inputValue(),
+    "animated",
+    "El selector de Ajustes comparte la elección con el retrato",
+  );
+  await phoneMotion().selectOption("auto");
   await phone
     .getByRole("button", { name: "+ Crear una meta", exact: true })
     .click();
@@ -1073,6 +1158,58 @@ try {
     path: "dist/qa/loading-mobile.png",
     fullPage: false,
   });
+  const loaderMotion = phone
+    .locator(".ai-loading")
+    .getByLabel("Animaciones de Lumi");
+  assert.equal(await loaderMotion.inputValue(), "auto");
+  await loaderMotion.selectOption("animated");
+  assert.equal(
+    await phoneMotion().inputValue(),
+    "animated",
+    "La carga sincroniza el selector del retrato sin reconstruirlo",
+  );
+  for (const part of [".lumi-body", ".lumi-eyes"])
+    assert.notEqual(
+      await phone
+        .locator(`.ai-loading ${part}`)
+        .evaluate((el) => getComputedStyle(el).animationName),
+      "none",
+    );
+  assert.equal(
+    await phone
+      .locator(".ai-loading-track")
+      .evaluate((el) => getComputedStyle(el).animationName),
+    "none",
+    "Animar Lumi no anula la reducción de movimiento de los otros adornos",
+  );
+  await pauseClock(phone);
+  await phone.clock.fastForward(21000);
+  assert.ok(
+    ["walk", "look", "jump", "stretch", "turn", "flip"].includes(
+      await lumiState(phone, ".ai-loading"),
+    ),
+    "La Lumi de la carga también actúa autónomamente con la elección Animadas",
+  );
+  await finishLumi(phone, ".ai-loading");
+  await loaderMotion.selectOption("calm");
+  assert.equal(await phoneMotion().inputValue(), "calm");
+  assert.equal(
+    await phone
+      .locator(".ai-loading .lumi-art")
+      .evaluate((svg) => svg.getAnimations({ subtree: true }).length),
+    0,
+  );
+  await loaderMotion.selectOption("auto");
+  assert.equal(await phoneMotion().inputValue(), "auto");
+  await phone.clock.fastForward(60000);
+  assert.equal(
+    await phone
+      .locator(".ai-loading")
+      .evaluate((loader) => loader.getAnimations({ subtree: true }).length),
+    0,
+    "Volver a Según dispositivo mantiene tranquila toda la pantalla de carga",
+  );
+  await phone.clock.resume();
   mobilePlan.release();
   await mobilePlan.done;
   await phone
@@ -1126,7 +1263,7 @@ try {
   await phone.clock.resume();
   assert.deepEqual(errors, []);
   console.log(
-    "UI fixtures: registro, login/logout, Lumi autónoma sin clic/hover, movimientos dentro del retrato, pausa de pestaña y desmontaje, XP/nivel/evolución, propuesta editable, carga IA, doble clic, error/reintento, cierre seguro, ajustes, acciones, hábitos, importación, segundo dispositivo, responsive y movimiento reducido: OK",
+    "UI fixtures: registro, login/logout, Lumi autónoma sin clic/hover, movimientos dentro del retrato, pausa de pestaña y desmontaje, XP/nivel/evolución, propuesta editable, carga IA, doble clic, error/reintento, cierre seguro, ajustes, acciones, hábitos, importación, segundo dispositivo, responsive, movimiento reducido y preferencia de Lumi persistente y sincronizada: OK",
   );
 } finally {
   if (browser) await browser.close();

@@ -1242,9 +1242,9 @@ code {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  *:not(.lumi-art):not(.lumi-art *),
+  *:not(.lumi-art):not(.lumi-art *)::before,
+  *:not(.lumi-art):not(.lumi-art *)::after {
     animation: none !important;
     transition: none !important;
     scroll-behavior: auto !important;
