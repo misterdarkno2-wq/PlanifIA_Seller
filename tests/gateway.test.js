@@ -84,10 +84,14 @@ test("El adaptador exige secreto y no permite escuchar fuera de loopback", async
     /OLLAMA_NUM_CTX/,
   );
   let calls = 0;
-  const f = await fixture(t, async () => {
-    calls++;
-    return success();
-  });
+  const f = await fixture(
+    t,
+    async () => {
+      calls++;
+      return success();
+    },
+    { timeoutMs: 1000 },
+  );
   assert.throws(() => f.server.listen(8012, "0.0.0.0"), /siempre 127/);
   for (const authorization of ["", "Bearer wrong", `Bearer ${secret}wrong`]) {
     const r = await f.call(request(), { Authorization: authorization });
@@ -310,5 +314,55 @@ test("El timeout aborta Ollama y libera la plaza para reintentar", async (t) => 
   const first = await f.call();
   assert.equal(first.status, 504);
   assert.equal(aborted, true);
+  assert.equal((await f.call()).status, 200);
+});
+
+test("La concurrencia se configura explícitamente y nunca sobrepasa sus plazas", async (t) => {
+  assert.equal(
+    gatewayConfig({ GATEWAY_SECRET: secret, OLLAMA_MODEL: model }).concurrency,
+    1,
+  );
+  let release,
+    entered = 0;
+  const pending = new Promise((resolve) => (release = resolve));
+  const f = await fixture(
+    t,
+    async () => {
+      entered++;
+      await pending;
+      return success();
+    },
+    { concurrency: 2, timeoutMs: 1000 },
+  );
+  const first = f.call(),
+    second = f.call();
+  for (let i = 0; i < 100 && entered < 2; i++)
+    await new Promise((r) => setTimeout(r, 5));
+  const third = await f.call();
+  assert.equal(third.status, 429);
+  assert.equal(entered, 2);
+  release();
+  assert.equal((await first).status, 200);
+  assert.equal((await second).status, 200);
+});
+
+test("Un proveedor que ignora abort mantiene la plaza hasta terminar, sin duplicar GPU tras timeout", async (t) => {
+  let release,
+    calls = 0;
+  const pending = new Promise((resolve) => (release = resolve));
+  const f = await fixture(
+    t,
+    async () => {
+      calls++;
+      if (calls === 1) await pending;
+      return success();
+    },
+    { timeoutMs: 1000 },
+  );
+  assert.equal((await f.call()).status, 504);
+  assert.equal((await f.call()).status, 429);
+  assert.equal(calls, 1);
+  release();
+  await new Promise((r) => setTimeout(r, 10));
   assert.equal((await f.call()).status, 200);
 });

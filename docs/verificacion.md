@@ -106,3 +106,16 @@ Usa dos cuentas de prueba que te pertenezcan, A y B. Conserva primero una export
 - [ ] Comprobar que Auth use `https://planifia.cl/` como Site URL y que `goal-plan` acepte los orígenes `https://planifia.cl` y `https://www.planifia.cl`.
 
 La lista necesita el proyecto real y no debe marcarse completada a partir de respuestas simuladas. Las instrucciones exactas están en el README.
+
+## Lumi y cola persistente — 4 de octubre de 2026
+
+- Rama de implementación: `codex/lumi-cola-ia`, a partir de `9ef050e` del repositorio Seller.
+- La migración `202610050001_ai_queue.sql` se aplicó al Supabase real `hlnzxgpdxgadbdcqavcd`; `goal-plan` se desplegó con el contrato HTTP 202.
+- El trabajador arrancó en este PC con el adaptador, autenticación privada y concurrencia uno; Ollama sigue en loopback.
+- **GPU real**: una cuenta temporal autenticada solicitó un hito con una acción. La propuesta fue validada y terminó en aproximadamente 40 segundos, al primer intento. Repetir exactamente la solicitud devolvió el mismo trabajo. Enviar `priority=999` y `plan_id=pro` no alteró el plan Gratis efectivo. La cuenta y sus datos temporales se eliminaron al terminar. 
+- **SQL real embebido / servicios simulados**: pruebas de planes aprobados, prioridad/FIFO/antigüedad, límite global, cuotas atómicas, identificadores idempotentes, RLS entre cuentas, concesiones caducadas, cancelación y reintentos acotados. Las suscripciones de prueba y el proveedor son fixtures; no se hicieron cobros.
+- **Navegador de escritorio y móvil con nube/GPU simuladas**: saludo opcional por sesión, ánimo transitorio, audio sintetizado original mediante Web Audio, silenciamiento/cierre/navegación, mensajes locales por progreso, escritura progresiva/accesible, preferencias, movimiento reducido para el habla, recuperación de cola tras recargar, revisión y cancelación. Capturas ignoradas por Git en `dist/qa/companion-*.png` y `queue-*.png`.
+- La autonomía de Lumi y sus veinte niveles, XP y evoluciones se conservan en sus pruebas existentes. El oído humano en un teléfono físico y una compra real Google Play no se han probado; Google Play Billing sigue pendiente de integración.
+- Configuración y comando de arranque: [Lumi y cola de IA](lumi-cola-ia.md).
+
+Resultado final de la suite local de la cola y conversación: **63 pruebas Node aprobadas**, **29 pruebas Edge aprobadas**, comprobación de tipos y compilación pública correctas. Las suites de UI general, conversación/cola y pagos se verificaron por separado; no hubo pagos ni uso de cuentas reales en ellas.

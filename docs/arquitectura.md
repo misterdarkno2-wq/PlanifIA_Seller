@@ -2,7 +2,7 @@
 
 El repositorio destino solo tenía `LICENSE` en el commit `b1e3316`. El PlanifIA consultado usa FastAPI/PyMySQL, sesiones almacenadas en MySQL, frontend JavaScript, mascota SVG y un planificador Ollama. Se reutilizan la identidad y el arte original; el servidor anterior sigue siendo un origen de exportación, con una cuenta autenticada elegida por la persona.
 
-La aplicación nueva se compila con Vite y `@supabase/supabase-js`. La persistencia principal está en PostgreSQL. El almacenamiento del navegador solo guarda la sesión de Supabase; nunca el saldo de XP o la única copia de las metas. Las vistas se recuperan al iniciar sesión o recargar. Una confirmación de escritura se muestra después de la respuesta del servidor. Si falla la carga siguiente, la vista indica que debe reintentarse.
+La aplicación nueva se compila con Vite y `@supabase/supabase-js`. La persistencia principal está en PostgreSQL. El almacenamiento del navegador guarda la sesión de Supabase, las preferencias de Lumi e identificadores de solicitudes; nunca el saldo de XP o la única copia de las metas. Las vistas se recuperan al iniciar sesión o recargar. Una confirmación de escritura se muestra después de la respuesta del servidor. Si falla la carga siguiente, la vista indica que debe reintentarse.
 
 ## Servicios conectados
 
@@ -10,7 +10,7 @@ La interfaz se publica en `https://planifia.cl/` desde GitHub Pages de `PlanifIA
 
 La instalación usa Supabase `hlnzxgpdxgadbdcqavcd` y la Edge Function `goal-plan`. Para la IA, un túnel independiente sirve `https://ia-seller.planifia.cl/v1`, con autenticación Bearer y un adaptador local en `127.0.0.1:8012`. El adaptador llama exclusivamente al Ollama local en `127.0.0.1:11434` con el modelo de 27B fijado en la configuración privada. No se publican las rutas de administración de Ollama.
 
-El generador centraliza el presupuesto efectivo de cada semana y día; valida la respuesta y permite una corrección dentro del mismo límite total de tiempo. La propuesta queda sin guardar hasta su aprobación. Las cuentas y datos están en la nube; generar con esta instalación de Ollama necesita el PC y sus servicios activos.
+El generador centraliza el presupuesto efectivo de cada semana y día; valida la respuesta y permite una corrección dentro del mismo límite total de tiempo. La propuesta queda guardada como resultado privado de la cola; las metas y acciones no se modifican hasta su aprobación. Las cuentas y datos están en la nube; generar con esta instalación de Ollama necesita el PC y sus servicios activos.
 
 ## Tablas
 
@@ -51,7 +51,7 @@ RLS está activada en las tablas públicas: los datos personales se leen por `au
 
 El bloqueo por usuario, una sola contratación abierta, la identidad única del ciclo de renovación y las referencias persistentes de cada intento evitan duplicados. Una respuesta incierta se consulta antes de repetir operaciones financieras. La confirmación guarda período, promoción, orden y suscripción en una transacción. Inscribir una tarjeta no confirma un pago. Integración y producción tienen registros separados y deben coincidir entre la base y las funciones.
 
-La cuota mensual se reserva antes de llamar al proveedor de IA. Un trigger protege también la creación y reactivación de metas desde cualquier RPC. La vigencia y los límites se calculan a partir de períodos pagados, con descenso a Gratis al vencer, conservando metas, tareas, hábitos y XP. Configuración y despliegue: [suscripciones y Transbank](billing.md).
+La cuota mensual y diaria se reserva en la misma transacción que crea el trabajo de la cola, sólo una vez por solicitud. Un trigger protege también la creación y reactivación de metas desde cualquier RPC. La vigencia y los límites se calculan a partir de períodos pagados, con descenso a Gratis al vencer, conservando metas, tareas, hábitos y XP. Configuración y despliegue: [suscripciones y Transbank](billing.md).
 
 ## Consistencia
 
@@ -73,4 +73,10 @@ Para modificar XP, un administrador puede actualizar `private.game_rules` desde 
 
 No se migran hashes de contraseñas ni sesiones de MySQL a Supabase Auth. Los planes académicos y la mascota anteriores se guardan íntegros en los originales importados y se pueden descargar; no se convierten silenciosamente en nuevos planes o XP. Los hábitos futuros no se pueden marcar como realizados. Las metas y tareas se archivan/retiran, conservando historial.
 
-La aplicación no promete resultados garantizados. La IA ayuda a estructurar metas y puede equivocarse; las propuestas se revisan antes de confirmar. Las credenciales del proveedor y la clave administrativa viven en secretos de Edge Functions. Ningún componente está configurado con datos reales de Supabase en el repositorio.
+La aplicación no promete resultados garantizados. La IA ayuda a estructurar metas y puede equivocarse; las propuestas se revisan antes de confirmar. Las credenciales del adaptador y del trabajador viven en el archivo privado `.env.gateway.local`; las credenciales internas de Edge son proporcionadas por Supabase. Ningún componente está configurado con datos reales de Supabase en el repositorio.
+
+## Conversación y ejecución asíncrona
+
+Lumi usa una biblioteca local y audio sintetizado original. Los saludos son opcionales y se limitan por sesión; el ánimo elegido no se persiste en la cuenta. Las animaciones autónomas conservan su controlador independiente.
+
+La cola se ejecuta en PostgreSQL mediante RPC restringidas. La función `goal-plan` valida y encola; el trabajador del PC procesa con Ollama aun si el navegador está cerrado. `public.ai_jobs` tiene RLS y resultados propios; `private.ai_job_payloads` contiene la instantánea privada. Las concesiones con token, renovación y límite global impiden guardar resultados desde trabajadores vencidos. [Configuración y verificaciones](lumi-cola-ia.md).

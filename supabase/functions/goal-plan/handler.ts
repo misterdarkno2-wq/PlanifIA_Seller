@@ -1,8 +1,4 @@
 import { createClient } from "npm:@supabase/supabase-js@2.58.0";
-import {
-  generateValidatedPlan,
-  PlanGenerationError,
-} from "../_shared/generate-plan.ts";
 
 const json = (data: unknown, status: number, headers: HeadersInit) =>
   Response.json(data, { status, headers });
@@ -58,31 +54,6 @@ export async function handleGoalPlan(req: Request) {
         headers,
       );
     }
-    const apiKey = Deno.env.get("AI_API_KEY"),
-      model = Deno.env.get("AI_MODEL"),
-      base = Deno.env.get("AI_BASE_URL");
-    const missing = [
-      !apiKey && "AI_API_KEY",
-      !model && "AI_MODEL",
-      !base && "AI_BASE_URL",
-    ].filter(Boolean);
-    if (missing.length) {
-      return json(
-        {
-          error: `Falta configurar ${
-            missing.join(", ")
-          } en los secretos de la función goal-plan.`,
-        },
-        503,
-        headers,
-      );
-    }
-    const baseUrl = new URL(base!);
-    if (baseUrl.protocol !== "https:" || baseUrl.username || baseUrl.password) {
-      throw new Error(
-        "Configura AI_BASE_URL con una dirección HTTPS sin credenciales.",
-      );
-    }
     if (Number(req.headers.get("content-length")) > 20000) {
       return json(
         { error: "La descripción es demasiado larga." },
@@ -99,6 +70,17 @@ export async function handleGoalPlan(req: Request) {
       );
     }
     const input = JSON.parse(raw);
+    if (
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        input.request_id || "",
+      )
+    ) {
+      return json(
+        { error: "Falta un identificador válido para recuperar la solicitud." },
+        422,
+        headers,
+      );
+    }
     if (
       typeof input.idea !== "string" ||
       input.idea.trim().length < 3 ||
@@ -201,18 +183,19 @@ export async function handleGoalPlan(req: Request) {
       const date = new Date(startDate + "T12:00:00Z");
       date.setUTCDate(date.getUTCDate() + d);
       const day = date.toISOString().slice(0, 10);
-      const used = tasks
-        .filter((t) => t.scheduled_date === day)
-        .reduce((sum, t) => sum + t.minutes, 0) +
+      const used =
+        tasks
+          .filter((t) => t.scheduled_date === day)
+          .reduce((sum, t) => sum + t.minutes, 0) +
         habits
           .filter((h) => h.days.includes(date.getUTCDay()))
           .reduce((sum, h) => sum + h.minutes, 0);
       remainingDaily[day] = profile.available_days.includes(date.getUTCDay())
         ? Math.max(
-          0,
-          Math.ceil(profile.weekly_minutes / profile.available_days.length) -
-            used,
-        )
+            0,
+            Math.ceil(profile.weekly_minutes / profile.available_days.length) -
+              used,
+          )
         : 0;
       remainingWeekly[Math.floor(d / 7)] += used;
     }
@@ -221,100 +204,59 @@ export async function handleGoalPlan(req: Request) {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
       { auth: { persistSession: false } },
     );
-    const limit = Number(Deno.env.get("AI_DAILY_LIMIT") || 8);
-    const reserved = await admin.rpc("reserve_ai_request", {
+    const limits = {
+      weeklyMinutes,
+      remainingDaily,
+      remainingWeekly: remainingWeekly.map((used) =>
+        Math.max(0, profile.weekly_minutes - used),
+      ),
+      startDate,
+      targetDate,
+      availableDays: profile.available_days,
+    };
+    // Whitelist user input: priority, plan and payload cannot be injected by clients.
+    const clientInput = {
+      idea: input.idea.trim(),
+      current_situation: String(input.current_situation || ""),
+      outcome: String(input.outcome || ""),
+      reason: String(input.reason || ""),
+      weekly_minutes: weeklyMinutes,
+      target_date: targetDate,
+      goal_id: goal?.id || null,
+    };
+    const queued = await admin.rpc("enqueue_ai_job", {
       p_user_id: user.id,
-      p_limit: limit,
-    });
-    if (reserved.error) {
-      throw new Error(
-        "No pudimos comprobar el límite de uso. Revisa las migraciones de Supabase.",
-      );
-    }
-    if (!reserved.data) {
-      return json(
-        {
-          error:
-            `Llegaste al límite de ${limit} propuestas por día. Puedes seguir editando tus metas manualmente.`,
-        },
-        429,
-        headers,
-      );
-    }
-    const monthly = await admin.rpc("reserve_plan_ai", {
-      p_user_id: user.id,
+      p_request_id: input.request_id,
       p_kind: goal ? "adjustment" : "generation",
-    });
-    if (monthly.error) {
-      throw new Error("No pudimos comprobar el consumo mensual de tu plan.");
-    }
-    if (!monthly.data) {
-      const current = await client.rpc("billing_state");
-      const usage = current.data?.usage;
-      const activeLimit = !goal && usage &&
-        usage.active_goals >= usage.max_active_goals;
-      return json(
-        {
-          error: activeLimit
-            ? `Tu plan permite ${usage.max_active_goals} metas activas. Pausa una meta para crear otra; tu información y progreso se conservan.`
-            : "Llegaste al límite mensual de IA de tu plan. Consulta Mi suscripción para ver cuándo se reinicia. Puedes seguir editando tus metas manualmente.",
-          code: "plan_limit",
-        },
-        429,
-        headers,
-      );
-    }
-    const proposal = await generateValidatedPlan({
-      endpoint: base!.replace(/\/$/, "") + "/chat/completions",
-      apiKey: apiKey!,
-      model: model!,
-      requestData: {
-        ...input,
-        current_goal: goal,
-        completed_actions: tasks.filter(
-          (t) => t.goal_id === goal?.id && t.status === "completed",
-        ),
-      },
-      limits: {
-        weeklyMinutes,
-        remainingDaily,
-        remainingWeekly: remainingWeekly.map((used) =>
-          Math.max(0, profile.weekly_minutes - used)
-        ),
-        startDate,
-        targetDate,
-        availableDays: profile.available_days,
-      },
-    });
-    return json(
-      {
-        proposal: {
-          ...proposal,
-          start_date: startDate,
-          target_date: targetDate,
-          weekly_minutes: weeklyMinutes,
-          current_situation: input.current_situation || "",
-        },
-        constraints: {
-          remainingDaily,
-          remainingWeekly: remainingWeekly.map((used) =>
-            Math.max(0, profile.weekly_minutes - used)
+      p_input: clientInput,
+      p_payload: {
+        requestData: {
+          ...clientInput,
+          current_goal: goal,
+          completed_actions: tasks.filter(
+            (t) => t.goal_id === goal?.id && t.status === "completed",
           ),
-          availableDays: profile.available_days,
         },
+        limits,
         goal_id: goal?.id || null,
         expected_version: goal?.version || null,
       },
-      200,
-      headers,
-    );
-  } catch (error) {
-    if (error instanceof PlanGenerationError) {
-      return json({ error: error.message }, error.status, headers);
+    });
+    if (queued.error) {
+      const message =
+        queued.error.code === "P0001"
+          ? queued.error.message
+          : "No pudimos guardar la solicitud. Revisa la migración de la cola.";
+      return json(
+        { error: message },
+        queued.error.code === "P0001" ? 429 : 503,
+        headers,
+      );
     }
-    const message = error instanceof Error
-      ? error.message
-      : "No pudimos crear la propuesta.";
+    return json({ job: queued.data }, 202, headers);
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "No pudimos crear la propuesta.";
     if (
       error instanceof Error &&
       ["TimeoutError", "AbortError"].includes(error.name)

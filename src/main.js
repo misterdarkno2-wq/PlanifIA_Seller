@@ -1,5 +1,19 @@
 import "./style.css";
 import "./pet.css";
+import "./lumi-conversation.css";
+import { createLumiCompanion } from "./lumi-messages.js";
+import { createLumiVoice } from "./lumi-voice.js";
+import {
+  lumiConversationMarkup,
+  lumiConversationSettings,
+  mountLumiConversation,
+} from "./lumi-conversation.js";
+import {
+  createAiJobMonitor,
+  JOB_LABELS,
+  jobDescription,
+  terminalJob,
+} from "./ai-jobs.js";
 import {
   cloud,
   missing,
@@ -7,6 +21,9 @@ import {
   loadState,
   rpc,
   generatePlan,
+  listAiJobs,
+  cancelAiJob,
+  releaseAiRequest,
 } from "./cloud.js";
 import {
   CATEGORIES,
@@ -56,6 +73,107 @@ let petPose = null;
 let disposePetMotionControls = null;
 let disposeBilling = null;
 let paymentReturn = null;
+const companion = createLumiCompanion({
+  storage: localStorage,
+  session: sessionStorage,
+});
+const companionVoice = createLumiVoice();
+let disposeConversation = null;
+const aiJobs = createAiJobMonitor({
+  list: listAiJobs,
+  cancel: cancelAiJob,
+  notify: toast,
+});
+aiJobs.subscribe(() => updateAiBadge());
+function updateAiBadge() {
+  const button = document.querySelector("#ai-jobs");
+  if (!button) return;
+  const pending = aiJobs.jobs.filter((j) =>
+    ["queued", "processing"].includes(j.status),
+  ).length;
+  const ready = aiJobs.jobs.filter((j) => j.status === "completed").length;
+  button.textContent = pending
+    ? "IA · " + pending + " en preparación"
+    : ready
+      ? "IA · propuestas para revisar"
+      : "Mis solicitudes de IA";
+}
+function aiJobsDialog() {
+  const host = modal(
+    "Mis solicitudes de IA",
+    '<p class="muted">Tu trabajo continúa aunque cierres la página. Las propuestas sólo cambian tus metas cuando las confirmas.</p><div data-job-list></div>',
+  );
+  let previous = "";
+  const unsubscribe = aiJobs.subscribe((jobs, error) => {
+    if (!host.isConnected || !host.open) return;
+    const markup =
+      (error ? '<p role="alert">' + e(error) + "</p>" : "") +
+      (jobs
+        .map(
+          (job) =>
+            '<article class="panel ai-job-card"><h3>' +
+            e(JOB_LABELS[job.status]) +
+            "</h3><p>" +
+            e(jobDescription(job)) +
+            "</p>" +
+            (job.status === "completed"
+              ? '<button data-review-job="' +
+                job.id +
+                '">Revisar propuesta</button>'
+              : "") +
+            (["queued", "processing"].includes(job.status) &&
+            !job.cancel_requested
+              ? '<button class="secondary" data-cancel-job="' +
+                job.id +
+                '">' +
+                (job.status === "processing"
+                  ? "Solicitar interrupción"
+                  : "Cancelar solicitud") +
+                "</button>"
+              : "") +
+            "</article>",
+        )
+        .join("") ||
+        '<p class="muted">Todavía no hay solicitudes. Crea una meta para pedir tu primera propuesta.</p>');
+    if (markup === previous) return;
+    previous = markup;
+    const focus = document.activeElement?.dataset;
+    $("[data-job-list]", host).innerHTML = markup;
+    host.querySelectorAll("[data-review-job]").forEach(
+      (button) =>
+        (button.onclick = () => {
+          const job = aiJobs.jobs.find(
+            (j) => j.id === button.dataset.reviewJob,
+          );
+          if (job?.result) {
+            releaseAiRequest(job.request_id);
+            proposalEditor({ ...job.result, job_id: job.id });
+          }
+        }),
+    );
+    host.querySelectorAll("[data-cancel-job]").forEach(
+      (button) =>
+        (button.onclick = () =>
+          busy(button, async () => {
+            const job = await aiJobs.cancel(button.dataset.cancelJob);
+            if (terminalJob(job)) releaseAiRequest(job.request_id);
+          })),
+    );
+    const focusId = focus?.reviewJob || focus?.cancelJob;
+    if (focusId)
+      host
+        .querySelector(
+          '[data-review-job="' +
+            focusId +
+            '"], [data-cancel-job="' +
+            focusId +
+            '"]',
+        )
+        ?.focus();
+  });
+  host.addEventListener("close", unsubscribe, { once: true });
+  aiJobs.refresh();
+}
 function mountBillingView() {
   const root = $("[data-billing-root]");
   if (!root || disposeBilling) return;
@@ -80,6 +198,8 @@ function billingDestination() {
   return planId ? `subscription?plan=${planId}` : "today";
 }
 function disposePets() {
+  disposeConversation?.();
+  disposeConversation = null;
   for (const [svg, controller] of petControllers) {
     if (svg.closest("#pet")) petPose = controller.getState();
     controller.dispose();
@@ -89,6 +209,12 @@ function disposePets() {
   disposePetMotionControls = null;
 }
 function mountPets() {
+  if (user && state && !disposeConversation) {
+    companion.start(user.id);
+    disposeConversation = mountLumiConversation(app, companion, {
+      voice: companionVoice,
+    });
+  }
   if (
     !disposePetMotionControls &&
     app.querySelector("[data-lumi-motion-select]")
@@ -225,13 +351,14 @@ function closeModal() {
 const alert = () => '<p class="error" role="alert" hidden></p>';
 function petCard() {
   const p = state.pet;
-  return `<aside class="pet-card featured" id="pet" aria-labelledby="pet-name"><div class="pet-portrait">${portrait(p.stage)}</div><div class="pet-info"><p class="eyebrow">TU COMPAÑERA DE CADA PASO</p><div class="pet-title"><h2 id="pet-name">${e(p.name)}</h2><span class="pet-level">Nivel ${p.level}</span></div><p class="pet-stage">${STAGES[p.stage - 1]} · ${p.total_xp} XP</p><progress aria-label="Experiencia de Lumi" value="${p.next_xp === null ? 1 : p.level_xp}" max="${p.next_xp ?? 1}"></progress><p class="pet-xp-label">${p.next_xp === null ? "Evolución final alcanzada" : `${p.level_xp} / ${p.next_xp} XP para el siguiente nivel`}</p><p class="pet-message">Un paso pequeño también es avanzar. Estoy contigo.</p></div></aside>`;
+  return `<aside class="pet-card featured" id="pet" aria-labelledby="pet-name"><div class="pet-portrait">${portrait(p.stage)}</div><div class="pet-info"><p class="eyebrow">TU COMPAÑERA DE CADA PASO</p><div class="pet-title"><h2 id="pet-name">${e(p.name)}</h2><span class="pet-level">Nivel ${p.level}</span></div><p class="pet-stage">${STAGES[p.stage - 1]} · ${p.total_xp} XP</p><progress aria-label="Experiencia de Lumi" value="${p.next_xp === null ? 1 : p.level_xp}" max="${p.next_xp ?? 1}"></progress><p class="pet-xp-label">${p.next_xp === null ? "Evolución final alcanzada" : `${p.level_xp} / ${p.next_xp} XP para el siguiente nivel`}</p>${lumiConversationMarkup()}</div></aside>`;
 }
 function celebrate(result, before) {
   const p = result.pet;
   if (result.xp_delta > 0) {
     const evolved = p.stage > before.stage,
       levelled = p.level > before.level;
+    companion.say(evolved ? "evolve" : levelled ? "level" : "completed");
     celebratePet(evolved ? "evolve" : levelled ? "level" : "happy");
     toast(
       evolved
@@ -336,7 +463,7 @@ function daysInputs(selected, prefix = "days") {
 }
 function settingsPage() {
   const p = state.profile;
-  return `<div class="page-heading"><div><h1>Tu ritmo y tus datos</h1><p class="muted">Los cambios se guardan en tu cuenta y se recuperan en otros dispositivos.</p></div></div><div class="settings-grid"><section class="panel pet-motion-panel"><h2>Lumi a tu ritmo</h2><p>Elige cómo te acompaña mientras organizas tus metas.</p>${petMotionControls()}</section><section class="panel"><h2>Disponibilidad</h2><form id="profile-form"><label>Tu nombre<input name="name" value="${e(p.name)}" maxlength="80" required></label><label>Zona horaria<input name="timezone" value="${e(p.timezone)}" required placeholder="America/Santiago"></label><label>Minutos totales por semana<input name="minutes" type="number" min="30" max="3360" value="${p.weekly_minutes}" required></label>${daysInputs(p.available_days)}<p class="muted">La IA reparte este tiempo entre tus días disponibles, contando acciones y hábitos existentes.</p>${alert()}<button>Guardar disponibilidad</button></form></section><section class="panel"><h2>Conservar lo que ya hiciste</h2><p>Importa un archivo JSON de PlanifIA anterior. Verás el destino y el contenido antes de confirmar.</p><label class="file-label">Seleccionar exportación<input type="file" id="import-file" accept="application/json,.json"></label><button class="secondary" id="import-local">Buscar tareas guardadas en este navegador</button><p class="muted">Los archivos originales se conservan. Repetir la importación no crea actividades duplicadas. La XP histórica se conserva en el respaldo original, sin asignar recompensas nuevas.</p><h3>Importaciones guardadas</h3>${state.imports.map((i) => `<p>${e(i.source)} <button class="text-button" data-export-import="${i.id}">Descargar original</button></p>`).join("") || '<p class="muted">Todavía no hay importaciones.</p>'}<button class="secondary" id="export-data">Exportar mis datos</button></section></div>`;
+  return `<div class="page-heading"><div><h1>Tu ritmo y tus datos</h1><p class="muted">Los cambios se guardan en tu cuenta y se recuperan en otros dispositivos.</p></div></div><div class="settings-grid"><section class="panel pet-motion-panel"><h2>Lumi a tu ritmo</h2><p>Elige cómo te acompaña mientras organizas tus metas.</p>${petMotionControls()}${lumiConversationSettings(companion)}</section><section class="panel"><h2>Disponibilidad</h2><form id="profile-form"><label>Tu nombre<input name="name" value="${e(p.name)}" maxlength="80" required></label><label>Zona horaria<input name="timezone" value="${e(p.timezone)}" required placeholder="America/Santiago"></label><label>Minutos totales por semana<input name="minutes" type="number" min="30" max="3360" value="${p.weekly_minutes}" required></label>${daysInputs(p.available_days)}<p class="muted">La IA reparte este tiempo entre tus días disponibles, contando acciones y hábitos existentes.</p>${alert()}<button>Guardar disponibilidad</button></form></section><section class="panel"><h2>Conservar lo que ya hiciste</h2><p>Importa un archivo JSON de PlanifIA anterior. Verás el destino y el contenido antes de confirmar.</p><label class="file-label">Seleccionar exportación<input type="file" id="import-file" accept="application/json,.json"></label><button class="secondary" id="import-local">Buscar tareas guardadas en este navegador</button><p class="muted">Los archivos originales se conservan. Repetir la importación no crea actividades duplicadas. La XP histórica se conserva en el respaldo original, sin asignar recompensas nuevas.</p><h3>Importaciones guardadas</h3>${state.imports.map((i) => `<p>${e(i.source)} <button class="text-button" data-export-import="${i.id}">Descargar original</button></p>`).join("") || '<p class="muted">Todavía no hay importaciones.</p>'}<button class="secondary" id="export-data">Exportar mis datos</button></section></div>`;
 }
 function shell(content) {
   const tab = location.hash.slice(1).split("?")[0] || "today";
@@ -355,7 +482,7 @@ function shell(content) {
     )
     .join(
       "",
-    )}</nav><p>Tus metas, un plan claro<br>y un paso a la vez.</p></aside><div class="app-body"><header class="app-header"><span class="cloud-state">● Tu espacio en la nube</span><div><span>${e(state?.profile.name || user.email)}</span><button class="text-button" id="logout">Cerrar sesión</button></div></header><main id="main"><div class="error panel" id="page-error" role="alert" hidden><p></p><button id="retry-load">Volver a cargar</button></div>${content}</main></div></div>`;
+    )}</nav><p>Tus metas, un plan claro<br>y un paso a la vez.</p></aside><div class="app-body"><header class="app-header"><span class="cloud-state">● Tu espacio en la nube</span><div><button class="text-button" id="ai-jobs">Mis solicitudes de IA</button><span>${e(state?.profile.name || user.email)}</span><button class="text-button" id="logout">Cerrar sesión</button></div></header><main id="main"><div class="error panel" id="page-error" role="alert" hidden><p></p><button id="retry-load">Volver a cargar</button></div>${content}</main></div></div>`;
 }
 function render() {
   disposeBilling?.();
@@ -391,7 +518,10 @@ function render() {
       }[route] || dashboard
     )(),
   );
+  aiJobs.start(user.id);
   bindShell();
+  $("#ai-jobs").onclick = aiJobsDialog;
+  updateAiBadge();
   bindActions();
   mountPets();
   mountBillingView();
@@ -557,6 +687,7 @@ function bindActions() {
               .percent === 100
           ) {
             celebratePet();
+            companion.say("milestone");
             toast(`¡Hito completado: ${m.title}! Un paso más en tu camino.`);
           }
         })),
@@ -706,24 +837,53 @@ function goalForm(goal = null) {
       previousError.hidden = true;
       previousError.textContent = "";
       const waiting = startPlanLoading(host, form, state.pet.stage);
+      let unsubscribe, finishView;
+      host.addEventListener(
+        "close",
+        () => {
+          unsubscribe?.();
+          waiting.dispose();
+          finishView?.();
+        },
+        { once: true },
+      );
       try {
-        const response = await generatePlan(
-          {
-            ...fields,
-            idea: fields.title,
-            weekly_minutes: Number(fields.weekly_minutes),
-            goal_id: goal?.id || null,
-          },
-          { signal: waiting.signal },
-        );
-        if (!waiting.isActive() || dialog !== host || user?.id !== accountId)
-          return;
-        proposalEditor(response);
+        const response = await generatePlan({
+          ...fields,
+          idea: fields.title,
+          weekly_minutes: Number(fields.weekly_minutes),
+          goal_id: goal?.id || null,
+        });
+        aiJobs.refresh();
+        if (!waiting.isActive() || user?.id !== accountId) return;
+        await new Promise((resolve) => {
+          finishView = resolve;
+          unsubscribe = aiJobs.watch(response.job.id, (job) => {
+            if (!waiting.isActive() || user?.id !== accountId) {
+              unsubscribe?.();
+              resolve();
+              return;
+            }
+            waiting.update(job, (id) => aiJobs.cancel(id));
+            if (terminalJob(job)) {
+              unsubscribe?.();
+              waiting.dispose();
+              resolve();
+              if (job.status === "completed") {
+                releaseAiRequest(job.request_id);
+                proposalEditor({ ...job.result, job_id: job.id });
+              } else {
+                releaseAiRequest(job.request_id);
+                formError(form, new Error(jobDescription(job)));
+              }
+            }
+          });
+        });
+        unsubscribe?.();
       } catch (error) {
-        if (waiting.isActive() && dialog === host && user?.id === accountId)
-          throw error;
-      } finally {
         waiting.dispose();
+        if (host.isConnected && host.open && user?.id === accountId)
+          throw error;
       }
     });
   };
@@ -790,7 +950,10 @@ function confirmStatus(goal, status, message) {
           ? "¡Meta alcanzada! Date un momento para reconocer este paso."
           : "Meta archivada. Su historial sigue contigo.",
       );
-      if (status === "achieved") celebratePet();
+      if (status === "achieved") {
+        celebratePet();
+        companion.say("goal");
+      }
     });
 }
 function milestoneForm(goal) {
@@ -906,7 +1069,7 @@ function habitForm(habit = null) {
 }
 function proposalEditor(response) {
   const plan = response.proposal,
-    requestId = uuid();
+    requestId = response.job_id || uuid();
   const host = modal(
     response.goal_id ? "Revisar el ajuste" : "Tu propuesta, antes de guardar",
     `<p class="notice">${response.goal_id ? "Este ajuste reemplazará únicamente las acciones pendientes. Las completadas y sus recompensas se conservan." : "Esta propuesta todavía no está guardada. Puedes editar sus acciones y fechas antes de confirmar."}</p><p>${e(plan.summary)}</p><p><strong>Primera acción:</strong> ${e(plan.first_action)}</p><form id="proposal-form"><label>Meta<input name="title" value="${e(plan.title)}" maxlength="160" required></label><label>Descripción<textarea name="description" maxlength="3000">${e(plan.description)}</textarea></label><label>Resultado esperado<textarea name="outcome" maxlength="1000" required>${e(plan.outcome)}</textarea></label><label>Área<select name="category">${options(CATEGORIES, plan.category)}</select></label>${plan.milestones
@@ -1046,6 +1209,9 @@ if (cloud) {
         return;
       }
       if (!session) {
+        companion.end();
+        companionVoice.dispose();
+        aiJobs.stop();
         user = null;
         state = null;
         loadVersion++;

@@ -6,6 +6,7 @@ function assert(condition: unknown, message = "Assertion failed") {
 }
 function setup() {
   const savedFetch = globalThis.fetch;
+  let enqueueBody: Record<string, unknown> | null = null;
   let providerCalls = 0,
     quota = true,
     monthlyQuota = true;
@@ -20,18 +21,16 @@ function setup() {
     "ALLOWED_ORIGINS",
   ];
   const saved = new Map(keys.map((key) => [key, Deno.env.get(key)]));
-  for (
-    const [key, value] of Object.entries({
-      SUPABASE_URL: "https://supabase.example.test",
-      SUPABASE_ANON_KEY: "test-only-public-key",
-      SUPABASE_SERVICE_ROLE_KEY: "test-only-private-key",
-      AI_BASE_URL: "https://ai.example.test/v1",
-      AI_API_KEY: "test-only-provider-key",
-      AI_MODEL: "fixture",
-      AI_DAILY_LIMIT: "2",
-      ALLOWED_ORIGINS: "https://web.example.test",
-    })
-  ) {
+  for (const [key, value] of Object.entries({
+    SUPABASE_URL: "https://supabase.example.test",
+    SUPABASE_ANON_KEY: "test-only-public-key",
+    SUPABASE_SERVICE_ROLE_KEY: "test-only-private-key",
+    AI_BASE_URL: "https://ai.example.test/v1",
+    AI_API_KEY: "test-only-provider-key",
+    AI_MODEL: "fixture",
+    AI_DAILY_LIMIT: "2",
+    ALLOWED_ORIGINS: "https://web.example.test",
+  })) {
     Deno.env.set(key, value);
   }
   globalThis.fetch = async (input, options) => {
@@ -39,7 +38,7 @@ function setup() {
     if (url.includes("/auth/v1/user")) {
       if (
         new Headers(options?.headers).get("authorization") !==
-          "Bearer test-valid-session"
+        "Bearer test-valid-session"
       ) {
         return Response.json({ msg: "Session expired" }, { status: 401 });
       }
@@ -55,6 +54,18 @@ function setup() {
         weekly_minutes: 700,
         available_days: [0, 1, 2, 3, 4, 5, 6],
       });
+    }
+    if (url.includes("/rpc/enqueue_ai_job")) {
+      enqueueBody = JSON.parse(String(options?.body));
+      return quota && monthlyQuota
+        ? Response.json({
+            id: "33333333-3333-4333-8333-333333333333",
+            status: "queued",
+          })
+        : Response.json(
+            { code: "P0001", message: "Llegaste al límite de tu plan." },
+            { status: 400 },
+          );
     }
     if (url.includes("/rpc/reserve_ai_request")) return Response.json(quota);
     if (url.includes("/rpc/reserve_plan_ai")) {
@@ -100,6 +111,7 @@ function setup() {
   };
   return {
     calls: () => providerCalls,
+    submission: () => enqueueBody,
     denyQuota: () => {
       quota = false;
     },
@@ -126,6 +138,9 @@ const request = (
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
+      request_id: "22222222-2222-4222-8222-222222222222",
+      plan_id: "pro",
+      priority: 999,
       idea: "Hablar inglés",
       weekly_minutes: 140,
       current_situation: "Principiante",
@@ -153,27 +168,34 @@ Deno.test(
     }
   },
 );
-Deno.test("Cuota mensual agotada impide llamar a la IA aunque quede cuota diaria", async () => {
-  const fixture = setup();
-  try {
-    fixture.denyMonthlyQuota();
-    const response = await handleGoalPlan(request());
-    assert(response.status === 429);
-    assert((await response.json()).code === "plan_limit");
-    assert(fixture.calls() === 0);
-  } finally {
-    fixture.close();
-  }
-});
 Deno.test(
-  "Credencial ausente identifica el secreto y no simula un plan",
+  "Cuota mensual agotada impide llamar a la IA aunque quede cuota diaria",
+  async () => {
+    const fixture = setup();
+    try {
+      fixture.denyMonthlyQuota();
+      const response = await handleGoalPlan(request());
+      assert(response.status === 429);
+      assert((await response.json()).error.includes("límite"));
+      assert(fixture.calls() === 0);
+    } finally {
+      fixture.close();
+    }
+  },
+);
+Deno.test(
+  "No requiere credencial de GPU en Edge: valida y guarda una solicitud, sin generación síncrona",
   async () => {
     const fixture = setup();
     try {
       Deno.env.delete("AI_API_KEY");
       const response = await handleGoalPlan(request());
-      assert(response.status === 503);
-      assert((await response.json()).error.includes("AI_API_KEY"));
+      assert(response.status === 202);
+      assert((await response.json()).job.status === "queued");
+      const submission = fixture.submission()!;
+      assert(submission.p_user_id === "11111111-1111-4111-8111-111111111111");
+      assert(!Object.hasOwn(submission, "priority"));
+      assert(!Object.hasOwn(submission.p_input as object, "plan_id"));
       assert(fixture.calls() === 0);
     } finally {
       fixture.close();
@@ -194,11 +216,10 @@ Deno.test(
     fixture = setup();
     try {
       const response = await handleGoalPlan(request());
-      assert(response.status === 200);
+      assert(response.status === 202);
       const data = await response.json();
-      assert(data.proposal.milestones.length === 1);
-      assert(data.goal_id === null);
-      assert(fixture.calls() === 1);
+      assert(data.job.status === "queued");
+      assert(fixture.calls() === 0);
     } finally {
       fixture.close();
     }

@@ -1,0 +1,71 @@
+.lumi-conversation {
+  max-width: 560px;
+  margin-top: 14px;
+}
+.lumi-message-text {
+  min-height: 2.8em;
+  margin: 0 0 12px;
+  color: #24584c;
+  font-size: 1rem;
+  line-height: 1.55;
+}
+.lumi-moods,
+.lumi-message-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0;
+}
+.lumi-moods[hidden],
+.lumi-conversation[hidden] {
+  display: none;
+}
+.lumi-moods .secondary {
+  font-size: 0.85rem;
+  padding: 8px 12px;
+}
+.lumi-message-tools .text-button {
+  font-size: 0.8rem;
+  padding: 4px 0;
+  margin-right: 12px;
+}
+.lumi-conversation small {
+  display: block;
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+.lumi-conversation-settings {
+  margin-top: 22px;
+  border: 1px solid #d9e7de;
+  border-radius: 16px;
+  padding: 18px;
+}
+.lumi-conversation-settings label {
+  margin-bottom: 14px;
+}
+.lumi-speaking .lumi-smile {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: lumi-speech 0.15s ease-in-out infinite alternate;
+}
+@keyframes lumi-speech {
+  to {
+    transform: scaleY(0.45);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lumi-speaking .lumi-smile {
+    animation: none;
+  }
+}
+@media (max-width: 400px) {
+  .app-header {
+    height: auto;
+    min-height: 62px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .app-header > div {
+    flex-wrap: wrap;
+  }
+}

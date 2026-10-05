@@ -20,4 +20,5 @@ jobs:
       - run: npm run check:edge
       - run: npx playwright install --with-deps chromium
       - run: npm run test:billing-ui
+      - run: npm run test:companion-ui
       - run: npm run build

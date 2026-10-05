@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import { createHash, timingSafeEqual, randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
+import { startConfiguredWorker } from "./ai-worker.js";
 
 const LOOPBACK = "127.0.0.1";
 const OLLAMA_URL = "http://127.0.0.1:11434/api/chat";
@@ -38,6 +39,13 @@ export function gatewayConfig(env = process.env) {
   return {
     secret,
     model,
+    concurrency: boundedInteger(
+      env.GATEWAY_CONCURRENCY,
+      1,
+      1,
+      4,
+      "GATEWAY_CONCURRENCY",
+    ),
     port: boundedInteger(env.GATEWAY_PORT, 8012, 1024, 65535, "GATEWAY_PORT"),
     timeoutMs: boundedInteger(
       env.GATEWAY_TIMEOUT_MS,
@@ -284,10 +292,11 @@ export function createGatewayServer(options) {
     GATEWAY_TIMEOUT_MS: options.timeoutMs,
     GATEWAY_MAX_TOKENS: options.maxTokens,
     OLLAMA_NUM_CTX: options.numCtx,
+    GATEWAY_CONCURRENCY: options.concurrency,
   });
   const fetchImpl = options.fetchImpl ?? globalThis.fetch;
   const expectedSecret = digest(config.secret);
-  let busy = false;
+  let activeSlots = 0;
   const server = createServer(async (req, res) => {
     if (req.url !== "/v1/chat/completions")
       return json(res, 404, { error: "Ruta no disponible." });
@@ -323,9 +332,10 @@ export function createGatewayServer(options) {
     let ownsSlot = false;
     let timeout;
     let abortOnClose;
+    let generation;
     try {
       const body = ollamaRequest(await readBody(req), config);
-      if (busy)
+      if (activeSlots >= config.concurrency)
         return json(
           res,
           429,
@@ -335,7 +345,8 @@ export function createGatewayServer(options) {
           },
           { "Retry-After": "10" },
         );
-      busy = ownsSlot = true;
+      activeSlots++;
+      ownsSlot = true;
       const controller = new AbortController();
       abortOnClose = () => {
         if (!res.writableEnded) controller.abort(new Error("Disconnected"));
@@ -352,7 +363,7 @@ export function createGatewayServer(options) {
           controller.abort(new Error("Timeout"));
         }, config.timeoutMs);
       });
-      const generation = (async () => {
+      generation = (async () => {
         const upstream = await fetchImpl(OLLAMA_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -428,7 +439,11 @@ export function createGatewayServer(options) {
     } finally {
       clearTimeout(timeout);
       if (abortOnClose) res.off("close", abortOnClose);
-      if (ownsSlot) busy = false;
+      // Keep the slot until upstream really settles, even after timeout/disconnect.
+      if (ownsSlot) {
+        await generation?.catch(() => {});
+        activeSlots--;
+      }
     }
   });
   server.requestTimeout = 15000;
@@ -458,20 +473,36 @@ export async function startGateway() {
       throw new Error("No pudimos cargar .env.gateway.local.");
   }
   const config = gatewayConfig();
+  if (!process.env.QUEUE_SUPABASE_URL || !process.env.QUEUE_SERVICE_ROLE_KEY)
+    throw new Error(
+      "Faltan QUEUE_SUPABASE_URL y QUEUE_SERVICE_ROLE_KEY en .env.gateway.local.",
+    );
   const server = createGatewayServer(config);
+  let worker;
   server.on("error", () => {
     console.error(
       "No pudimos iniciar el adaptador. Comprueba que GATEWAY_PORT está libre.",
     );
     process.exitCode = 1;
   });
-  server.listen(config.port, () =>
+  server.listen(config.port, () => {
     console.log(
       `Adaptador Ollama: http://${LOOPBACK}:${config.port}/v1 (${config.model})`,
-    ),
-  );
+    );
+    try {
+      worker = startConfiguredWorker(config);
+      console.log(
+        `Cola persistente de Supabase conectada. Concurrencia GPU: ${config.concurrency}.`,
+      );
+    } catch (error) {
+      console.error(error.message);
+      server.close();
+      process.exitCode = 1;
+    }
+  });
   for (const signal of ["SIGINT", "SIGTERM"])
     process.once(signal, () => {
+      worker?.stop();
       server.close();
       server.closeIdleConnections();
     });

@@ -79,6 +79,7 @@ try {
     aiCalls = 0,
     failSave = false,
     nextAi = null;
+  const jobs = [];
   function holdAi(status = 200) {
     let release, finished;
     const response = new Promise((resolve) => (release = resolve));
@@ -141,39 +142,20 @@ try {
       else if (url.pathname.endsWith("/logout"))
         return route.fulfill({ status: 204, body: "" });
       else result = url.pathname.endsWith("/user") ? user : session;
-    } else if (url.pathname.includes("/functions/")) {
+    } else if (url.pathname.includes('/functions/')) {
       aiCalls++;
       const pending = nextAi;
       nextAi = null;
-      if (pending) {
+      const job = {id:randomUUID(),request_id:body.request_id,kind:body.goal_id?'adjustment':'generation',plan_id:'free',status:pending?'processing':'completed',position:1,estimated_seconds:null,worker_online:true,
+        result:{proposal,goal_id:body.goal_id||null,expected_version:body.goal_id?data.goals.find(g=>g.id===body.goal_id).version:null}};
+      if(pending?.status!==200 && pending) {
         await pending.response;
-        try {
-          if (pending.status !== 200)
-            return await route.fulfill({
-              status: pending.status,
-              json: { error: "La IA está ocupada. Inténtalo nuevamente." },
-            });
-          return await route.fulfill({
-            status: 200,
-            json: {
-              proposal,
-              goal_id: body.goal_id || null,
-              expected_version: body.goal_id
-                ? data.goals.find((g) => g.id === body.goal_id).version
-                : null,
-            },
-          });
-        } finally {
-          pending.finished();
-        }
+        pending.finished();
+        return route.fulfill({status:pending.status,json:{error:'La IA está ocupada. Inténtalo nuevamente.'}});
       }
-      result = {
-        proposal,
-        goal_id: body.goal_id || null,
-        expected_version: body.goal_id
-          ? data.goals.find((g) => g.id === body.goal_id).version
-          : null,
-      };
+      jobs.unshift(job);
+      if(pending)pending.response.then(()=>{job.status='completed';pending.finished();});
+      return route.fulfill({status:202,json:{job:{id:job.id,status:job.status}}});
     } else if (url.pathname.includes("/rpc/")) {
       const name = url.pathname.split("/").at(-1);
       if (failSave && name === "save_task") {
@@ -183,7 +165,9 @@ try {
           json: { message: "No se pudo guardar la acción.", code: "PGRST503" },
         });
       }
-      if (name === "pet_state") result = pet();
+      if (name === 'get_ai_jobs') result = jobs;
+      else if (name === 'cancel_ai_job') { const job=jobs.find(j=>j.id===body.p_id);job.status='cancelled';result=job; }
+      else if (name === "pet_state") result = pet();
       else if (name === "apply_goal_plan") {
         let g = data.goals.find((g) => g.id === body.p_goal_id);
         if (g) {
@@ -378,7 +362,7 @@ try {
       ),
       true,
     );
-    assert.equal(await card.getByRole("button").count(), 0);
+    assert.equal(await card.locator(".pet-portrait button").count(), 0);
     assert.equal(await card.locator("[data-greet-pet]").count(), 0);
     assert.equal(await card.getByLabel("Animaciones de Lumi").count(), 0);
   }
@@ -644,7 +628,7 @@ try {
     );
     assert.notEqual(await host.getAttribute("aria-busy"), "true");
     await loader
-      .getByRole("heading", { name: "Lumi está preparando tu plan" })
+      .getByRole("heading", { name: /Lumi está preparando tu plan|En cola|Procesando/ })
       .waitFor();
     assert.equal(await p.locator("#goal-form").isVisible(), false);
     assert.equal(

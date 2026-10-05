@@ -90,8 +90,24 @@ export async function loadState() {
 }
 export const rpc = (name, args) => checked(cloud.rpc(name, args));
 export async function generatePlan(input, { signal } = {}) {
+  const { data: sessionData } = await cloud.auth.getSession();
+  const account = sessionData.session?.user.id;
+  if (!account) throw new Error("Inicia sesión para crear un plan.");
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(JSON.stringify(input)),
+  );
+  const key = `planifia-ai-request:${account}:${Array.from(new Uint8Array(digest), (n) => n.toString(16).padStart(2, "0")).join("")}`;
+  let id;
+  try {
+    id = localStorage.getItem(key);
+  } catch {}
+  id ||= crypto.randomUUID();
+  try {
+    localStorage.setItem(key, id);
+  } catch {}
   const { data, error } = await cloud.functions.invoke("goal-plan", {
-    body: input,
+    body: { ...input, request_id: id },
     signal,
   });
   if (error) {
@@ -105,4 +121,17 @@ export async function generatePlan(input, { signal } = {}) {
     );
   }
   return data;
+}
+export const listAiJobs = () => rpc("get_ai_jobs", { p_id: null });
+export const cancelAiJob = (id) => rpc("cancel_ai_job", { p_id: id });
+export function releaseAiRequest(requestId) {
+  // Only identifiers/digests are cached, never the prompt or its result.
+  try {
+    for (const key of Object.keys(localStorage))
+      if (
+        key.startsWith("planifia-ai-request:") &&
+        localStorage.getItem(key) === requestId
+      )
+        localStorage.removeItem(key);
+  } catch {}
 }

@@ -1,8 +1,9 @@
 import { portrait } from "./pet-art.js";
 import { createPetBehavior } from "./pet-behavior.js";
 import { getPetMotionSettings } from "./pet-motion.js";
+import { JOB_LABELS, jobDescription } from "./ai-jobs.js";
 
-/** Owns the waiting screen, request lifetime and form restoration. */
+/** Closing this view only detaches it. Persistent jobs continue in the worker. */
 export function startPlanLoading(host, form, stage) {
   const controller = new AbortController();
   const controls = [...form.elements].map((element) => [
@@ -24,9 +25,10 @@ export function startPlanLoading(host, form, stage) {
     <h3 tabindex="-1">Lumi está preparando tu plan</h3>
     <p class="ai-loading-copy" data-plan-message>Buscando acciones que encajen con tu idea y el tiempo que tienes.</p>
     <div class="ai-loading-track" aria-hidden="true"><span></span></div>
-    <p class="ai-loading-time" aria-hidden="true"><span class="ai-wait-dot"></span>Generando con IA <span data-plan-elapsed>0:00 de espera</span></p>
+    <p class="ai-loading-time" aria-hidden="true"><span class="ai-wait-dot"></span><span data-plan-status>Guardando solicitud</span> <span data-plan-elapsed>0:00 de espera</span></p>
     <div class="ai-plan-preview" aria-hidden="true">${[1, 2, 3].map((number) => `<div class="ai-preview-card"><span class="ai-preview-number">${number}</span><div><i></i><i></i></div></div>`).join("")}</div>
-    <p class="ai-loading-note">Podrás revisar y editar la propuesta antes de guardar.<br>Tu meta todavía no ha cambiado.</p>`;
+    <p data-plan-position></p><button type="button" class="secondary" data-cancel-job disabled>Cancelar solicitud</button>
+    <p class="ai-loading-note">Podrás revisar y editar la propuesta antes de guardar.<br>Tu meta todavía no ha cambiado. Puedes cerrar esta ventana: el trabajo seguirá guardado.</p>`;
   controls.forEach(([element]) => (element.disabled = true));
   form.hidden = true;
   form.setAttribute("aria-busy", "true");
@@ -51,7 +53,7 @@ export function startPlanLoading(host, form, stage) {
     if (seconds >= 90 && waitMessage < 2) {
       waitMessage = 2;
       message.textContent =
-        "Seguimos esperando la respuesta de la IA. Puedes cerrar esta ventana y volver a intentarlo cuando quieras.";
+        "Tu solicitud sigue guardada. Puedes continuar con tus metas y recuperar la propuesta desde «Mis solicitudes de IA».";
     } else if (seconds >= 35 && waitMessage < 1) {
       waitMessage = 1;
       message.textContent =
@@ -80,5 +82,35 @@ export function startPlanLoading(host, form, stage) {
     signal: controller.signal,
     isActive: () => !disposed && host.isConnected && host.open,
     dispose,
+    update(job, cancel) {
+      if (disposed) return;
+      screen.querySelector("h3").textContent =
+        JOB_LABELS[job.status] || "Guardando solicitud";
+      screen.querySelector("[data-plan-status]").textContent =
+        JOB_LABELS[job.status];
+      message.textContent =
+        job.status === "queued"
+          ? "Tu propuesta está guardada y espera su turno. Puedes continuar con tus metas."
+          : "Organizando acciones que encajen con tu idea y el tiempo que tienes.";
+      screen.querySelector("[data-plan-position]").textContent =
+        jobDescription(job);
+      const button = screen.querySelector("[data-cancel-job]");
+      button.disabled =
+        !["queued", "processing"].includes(job.status) || job.cancel_requested;
+      button.textContent =
+        job.status === "processing"
+          ? "Solicitar interrupción"
+          : "Cancelar solicitud";
+      button.onclick = async () => {
+        button.disabled = true;
+        try {
+          this.update(await cancel(job.id), cancel);
+        } catch {
+          screen.querySelector("[data-plan-position]").textContent =
+            "No pudimos confirmar la cancelación. El trabajo sigue guardado; vuelve a intentarlo.";
+          button.disabled = false;
+        }
+      };
+    },
   };
 }

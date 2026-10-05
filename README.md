@@ -1,16 +1,16 @@
 # PlanifIA Seller
 
-**Tus metas, un plan claro y un paso a la vez.** Planificador para metas personales, profesionales, aprendizaje, bienestar, creatividad y proyectos. La interfaz es estática y se publica en GitHub Pages; Supabase almacena las cuentas y datos, y una Edge Function llama al proveedor de IA.
+**Tus metas, un plan claro y un paso a la vez.** Planificador para metas personales, profesionales, aprendizaje, bienestar, creatividad y proyectos. La interfaz es estática y se publica en GitHub Pages; Supabase almacena las cuentas y datos, y una Edge Function valida y guarda solicitudes en una cola persistente que procesa el servicio de Ollama en el PC.
 
 ## Repositorio y estado
 
-Este proyecto corresponde exclusivamente a `misterdarkno2-wq/PlanifIA_Seller`. La transformación inicial se desarrolló en `codex/metas-supabase`; las suscripciones se implementan en `codex/suscripciones-transbank`. La web se publica en [planifia.cl](https://planifia.cl/) mediante GitHub Pages. La dirección anterior era [GitHub Pages Seller](https://misterdarkno2-wq.github.io/PlanifIA_Seller/); Pages la redirige al dominio personalizado. Se reutilizan el logo, el símbolo y la ilustración original de Lumi de PlanifIA.
+Este proyecto corresponde exclusivamente a `misterdarkno2-wq/PlanifIA_Seller`. La transformación inicial se desarrolló en `codex/metas-supabase`; las suscripciones se implementan en `codex/suscripciones-transbank`; la conversación de Lumi y la cola de IA en `codex/lumi-cola-ia`. La web se publica en [planifia.cl](https://planifia.cl/) mediante GitHub Pages. La dirección anterior era [GitHub Pages Seller](https://misterdarkno2-wq.github.io/PlanifIA_Seller/); Pages la redirige al dominio personalizado. Se reutilizan el logo, el símbolo y la ilustración original de Lumi de PlanifIA.
 
 En esta instalación, Supabase está conectado al proyecto `hlnzxgpdxgadbdcqavcd`. La configuración privada está en archivos excluidos de Git. El estado de despliegue y las comprobaciones contra servicios reales se documentan en [verificación](docs/verificacion.md). El envío de correo para personas fuera del equipo requiere configurar SMTP; la confirmación de correo permanece habilitada. En otras instalaciones, la aplicación indica si falta configuración.
 
 ## Ejecutar en Windows
 
-Necesitas Node.js 22.12 o posterior.
+Necesitas Node.js 22.18 o posterior (24 recomendado para el trabajador de IA).
 
 En este PC, la configuración ya está guardada. Para iniciar los servicios y abrir la interfaz local:
 
@@ -59,31 +59,15 @@ npx.cmd supabase functions deploy goal-plan
 
 Revisa `db push` antes de confirmar si utilizas un proyecto con tablas previas. Las migraciones crean tablas nuevas de esta aplicación y no importan ni borran la base MySQL del PlanifIA anterior. Se recomienda un proyecto de Supabase dedicado.
 
-## IA en la nube
+## IA y cola persistente
 
-Completa en el archivo privado `supabase/functions/.env.local`:
+La función `goal-plan` valida la cuenta y la disponibilidad y devuelve HTTP 202 con una solicitud guardada. PostgreSQL reserva la cuota, aplica el plan vigente y ordena Pro, Plus y Gratis con antigüedad para evitar esperas indefinidas. Un trabajador integrado en `scripts/ollama-gateway.js` procesa la cola desde el PC, aunque se cierre el navegador. Las propuestas se guardan en Supabase y sólo cambian la meta al confirmarlas.
 
-```dotenv
-AI_BASE_URL=https://ia-seller.planifia.cl/v1
-AI_API_KEY=SECRETO_DEL_ADAPTADOR
-AI_MODEL=hf.co/unsloth/Qwen3.8-27B-GGUF:UD-IQ3_S
-AI_DAILY_LIMIT=8
-ALLOWED_ORIGINS=https://planifia.cl,https://www.planifia.cl,https://misterdarkno2-wq.github.io,http://127.0.0.1:5173,http://localhost:5173
-```
+En `supabase/functions/.env.local` configura `ALLOWED_ORIGINS` para los orígenes completos permitidos. Supabase proporciona las credenciales internas de la función. Los antiguos secretos `AI_*` ya no controlan el encolado. En el archivo privado `.env.gateway.local`, configura el modelo instalado, el secreto del adaptador, `QUEUE_SUPABASE_URL` y `QUEUE_SERVICE_ROLE_KEY`. Nunca usar un prefijo `VITE_` para secretos.
 
-`AI_MODEL` debe admitir `response_format: json_schema` en su endpoint. La integración utiliza `/chat/completions`, JSON estructurado y validación adicional. Puedes usar otro proveedor con esa API y HTTPS. El consumo puede tener coste; el límite cuenta intentos, incluidos los que falla el proveedor, por usuario y día UTC. El límite se aplica de forma atómica en PostgreSQL.
+El adaptador exige Bearer y escucha sólo en `127.0.0.1:8012`; Ollama conserva `127.0.0.1:11434`. La configuración actual limita a una generación simultánea, contexto de 8192 y hasta 6000 tokens de salida. El modelo instalado se conserva: `hf.co/unsloth/Qwen3.8-27B-GGUF:UD-IQ3_S`. Cada generación y su posible corrección comparten 125 segundos; los reintentos del trabajador tienen límite y no descuentan cuota de nuevo.
 
-Supabase proporciona `SUPABASE_URL`, `SUPABASE_ANON_KEY` y `SUPABASE_SERVICE_ROLE_KEY` al entorno de funciones. La clave administrativa se usa únicamente para reservar la cuota del usuario cuya sesión se ha validado. Las lecturas del calendario usan su JWT y respetan RLS.
-
-La función valida el JWT con `auth.getUser()` antes de consultar datos o llamar a la IA. `verify_jwt=false` en `config.toml` permite que esta comprobación soporte las claves actuales de Supabase; **no elimina la comprobación de sesión en el código**. Los orígenes permitidos deben ser orígenes completos, sin rutas. Si falta una credencial, la función devuelve exactamente qué secreto falta.
-
-### Ollama conectado en este PC
-
-La función llama a `https://ia-seller.planifia.cl/v1`, servido por un túnel separado `planifia-seller-ia`. El adaptador `scripts/ollama-gateway.js` exige un secreto Bearer, escucha solamente en `127.0.0.1:8012` y admite únicamente la generación de propuestas. Ollama sigue en `127.0.0.1:11434`; sus rutas de modelos no se publican.
-
-El modelo instalado es `hf.co/unsloth/Qwen3.8-27B-GGUF:UD-IQ3_S`. El adaptador desactiva el pensamiento extendido para esta tarea, limita contexto/salida y permite una generación simultánea. Si está ocupado devuelve un error que permite reintentar. Los secretos de `.env.gateway.local` y `supabase/functions/.env.local` no entran en Git ni en la web.
-
-La función valida cada propuesta y, si excede la disponibilidad, solicita una corrección una vez. Los dos intentos comparten un máximo de 125 segundos; no se guarda nada hasta la aprobación del usuario. Una solicitud de la aplicación consume una cuota diaria, aunque haga esa corrección.
+**[Configuración, seguridad, cancelación y preferencias de Lumi](docs/lumi-cola-ia.md)** incluye los valores SQL y el arranque. La nueva conversación usa mensajes locales y sílabas sintetizadas originales; saludos, ánimo, progreso y animaciones no generan solicitudes a la GPU.
 
 Después de encender este PC:
 

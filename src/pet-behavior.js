@@ -71,6 +71,7 @@ export function createPetBehavior(svg, options = {}) {
   let disposed = false;
   let paused = doc.hidden;
   let reduced = motion.matches;
+  const pausedDecorations = new Set();
 
   const between = ([minimum, maximum]) =>
     minimum + random() * (maximum - minimum);
@@ -359,7 +360,17 @@ export function createPetBehavior(svg, options = {}) {
         remaining = null;
       }
       for (const animation of animations) animation.pause();
+      // CSS transitions on arms/feet also need pausing, not only keyframes.
+      for (const animation of svg.getAnimations?.({ subtree: true }) || []) {
+        if (animation.playState === "running") {
+          animation.pause();
+          pausedDecorations.add(animation);
+        }
+      }
     } else {
+      for (const animation of pausedDecorations)
+        if (animation.playState === "paused") animation.play();
+      pausedDecorations.clear();
       for (const animation of animations) animation.play();
       if (!running) {
         if (pendingReaction) {
@@ -426,6 +437,8 @@ export function createPetBehavior(svg, options = {}) {
     clearTimer();
     for (const animation of animations) animation.cancel();
     animations.clear();
+    for (const animation of pausedDecorations) animation.cancel();
+    pausedDecorations.clear();
     doc.removeEventListener("visibilitychange", visibility);
     motion.removeEventListener("change", motionChange);
   }
