@@ -119,3 +119,5 @@ La lista necesita el proyecto real y no debe marcarse completada a partir de res
 - Configuración y comando de arranque: [Lumi y cola de IA](lumi-cola-ia.md).
 
 Resultado final de la suite local de la cola y conversación: **63 pruebas Node aprobadas**, **29 pruebas Edge aprobadas**, comprobación de tipos y compilación pública correctas. Las suites de UI general, conversación/cola y pagos se verificaron por separado; no hubo pagos ni uso de cuentas reales en ellas.
+
+Comprobación adicional con **Supabase y GPU reales**: un trabajo en procesamiento aceptó una solicitud de interrupción y quedó `cancelled` en unos diez segundos, sin guardar resultado y al primer intento. Una segunda cuenta no pudo leer ni cancelar el trabajo ajeno. Las dos cuentas temporales se eliminaron.

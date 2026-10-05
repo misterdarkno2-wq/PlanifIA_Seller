@@ -345,6 +345,9 @@ try {
       .getByRole("heading", { name: "Tu propuesta, antes de guardar" })
       .waitFor();
     await page.getByRole("button", { name: "Cerrar", exact: true }).click();
+    await page.getByRole("link", { name: "Ajustes", exact: true }).click();
+    await page.getByLabel("Mostrar el texto completo inmediatamente").uncheck();
+    await page.getByRole("link", { name: "Hoy", exact: true }).click();
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page
       .getByRole("button", {
@@ -355,6 +358,12 @@ try {
     await page
       .getByRole("button", { name: "Completar: Mi paso breve", exact: true })
       .click();
+    await page
+      .getByRole("button", {
+        name: "Volver a pendiente: Mi paso breve",
+        exact: true,
+      })
+      .waitFor();
     await page.waitForFunction(
       () =>
         document.querySelector(".lumi-message-text span")?.textContent ===
@@ -365,8 +374,13 @@ try {
     assert.equal(
       await page
         .locator(".lumi-smile")
-        .evaluate((el) => getComputedStyle(el).animationName),
-      "none",
+        .evaluate(
+          (el) =>
+            el.isConnected &&
+            el.getAnimations().filter((a) => a.playState === "running")
+              .length === 0,
+        ),
+      true,
     );
     await page.emulateMedia({ reducedMotion: "no-preference" });
     await page.getByRole("link", { name: "Ajustes", exact: true }).click();
