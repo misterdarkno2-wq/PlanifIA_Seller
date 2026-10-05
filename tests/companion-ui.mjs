@@ -422,6 +422,9 @@ try {
       beforeAudio,
     );
     await page.getByRole("link", { name: "Ajustes", exact: true }).click();
+    await page
+      .getByRole("heading", { name: "Tu ritmo y tus datos", exact: true })
+      .waitFor();
     assert.ok(
       (await page.evaluate(() => window.audioProof)).disconnected >=
         beforeAudio + 6,

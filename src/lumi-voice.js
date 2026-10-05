@@ -11,6 +11,8 @@ export function createLumiVoice({
     for (const node of nodes) {
       try {
         node.stop?.();
+      } catch {}
+      try {
         node.disconnect();
       } catch {}
     }
