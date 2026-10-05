@@ -38,17 +38,21 @@ export function createLumiVoice({
       }
     },
     get ready() { return unlocked && context?.state === "running"; },
-    speak(volume) {
+    speak(volume, utterance) {
       stop();
       if (!unlocked || context?.state !== "running" || volume <= 0)
         return false;
       const start = context.currentTime;
-      for (let i = 0; i < 6; i++) {
+      const syllables = utterance?.syllables || Array.from({ length: 6 }, (_, i) => ({
+        at: i * 150,
+        duration: 65 + random() * 45,
+      }));
+      for (const syllable of syllables) {
         const oscillator = context.createOscillator(),
           envelope = context.createGain(),
           filter = context.createBiquadFilter();
-        const at = start + i * 0.15,
-          length = 0.065 + random() * 0.045;
+        const at = start + syllable.at / 1000,
+          length = syllable.duration / 1000;
         oscillator.type = "triangle";
         oscillator.frequency.setValueAtTime(390 + random() * 210, at);
         oscillator.frequency.exponentialRampToValueAtTime(

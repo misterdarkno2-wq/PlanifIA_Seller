@@ -129,3 +129,10 @@ Comprobación adicional con **Supabase y GPU reales**: un trabajo en procesamien
 - Sonido activado por defecto y habilitado por la primera interacción normal, con reproducción del mensaje pendiente. Sílabas originales de onda triangular y volumen suave más audible. El silenciamiento explícito posterior se guarda entre sesiones; activar sonido reproduce el mensaje visible sin exigir una nueva frase.
 - Pruebas de preferencias y síntesis, más navegador en escritorio y móvil: comprueban que no hay sonido antes de interactuar, detectan señal de audio no nula con un analizador Web Audio, prueban silenciamiento, reactivación, recarga y ausencia de disparadores de movimiento. Las respuestas de nube y GPU en estos escenarios son fixtures.
 - La suite general conserva autonomía, límites del retrato, pausa de pestaña, tareas, XP, niveles y evolución. La compilación pública pasó. El altavoz y volumen físico del dispositivo no se pueden validar desde estas pruebas.
+
+
+## Habla expresiva de Lumi
+
+- Corregida la discrepancia entre el modo Animadas elegido para Lumi y el bloqueo del habla por la preferencia del sistema. Tranquilas sigue desactivando sus gestos; la escritura de texto sigue respetando la reducción de movimiento del dispositivo.
+- Boca despejada del huevo, ojos más expresivos y retrato ampliado. Audio y formas de boca comparten el ritmo de cada frase (2,4–5,2 segundos), con pausas breves. Cabeza y brazos gesticulan en reposo, cediendo a las acciones autónomas y celebraciones.
+- Pruebas de navegador en escritorio y móvil verifican cambio real de tamaño de boca, gestos activos, duración superior al antiguo segundo, modo Animadas con reducción de movimiento y ausencia de gestos en modo Tranquilas. La prueba de síntesis comprueba que los inicios de audio coinciden con la apertura de boca. Servicios de nube y GPU simulados en esta suite; estas animaciones no consumen GPU.

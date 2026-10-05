@@ -240,7 +240,8 @@ try {
     assert.equal((await page.evaluate(() => window.audioProof)).started, 0);
     assert.equal(await page.getByRole("button", { name: "Silenciar", exact: true }).count(), 1);
     await page.keyboard.press("Tab");
-    await page.waitForFunction(() => window.audioProof.started === 6);
+    await page.waitForFunction(() => window.audioProof.started > 0);
+    const greetingAudio = (await page.evaluate(() => window.audioProof)).started;
     await page.waitForFunction(() => window.audioProof.meters.some((meter) => {
       const samples = new Float32Array(meter.fftSize);
       meter.getFloatTimeDomainData(samples);
@@ -249,7 +250,8 @@ try {
     assert.equal(await page.locator(".lumi-speech-bubble").count(), 1);
     assert.equal(await page.locator(".lumi-talking-mouth").count(), 1);
     await page.getByRole("button", { name: "Cansado", exact: true }).click();
-    await page.waitForFunction(() => window.audioProof.started === 12);
+    await page.waitForFunction((before) => window.audioProof.started > before, greetingAudio);
+    const moodAudio = (await page.evaluate(() => window.audioProof)).started;
     assert.match(
       await page.locator(".lumi-message-text").getAttribute("aria-label"),
       /cansado|pausa|ritmo/,
@@ -268,7 +270,7 @@ try {
     await page.getByRole("button", { name: "Silenciar", exact: true }).click();
     assert.equal(
       (await page.evaluate(() => window.audioProof)).disconnected,
-      12,
+      moodAudio,
     );
     await page
       .getByRole("button", { name: "Mostrar texto completo", exact: true })
@@ -278,7 +280,25 @@ try {
       await page.locator(".lumi-message-text").getAttribute("aria-label"),
     );
     await page.getByRole("button", {name:"Activar sonido", exact:true}).click();
-    await page.waitForFunction(() => window.audioProof.started === 18);
+    await page.waitForFunction((before) => window.audioProof.started > before, moodAudio);
+    const mouthProof = await page.locator(".lumi-talking-mouth").evaluate((el) => {
+      const animation = el.getAnimations().find(a => a.playState === "running");
+      if (!animation) return null;
+      const duration = animation.effect.getTiming().duration;
+      const frames = animation.effect.getKeyframes();
+      animation.pause();
+      animation.currentTime = 0;
+      const closed = el.getBoundingClientRect().height;
+      animation.currentTime = frames[2].offset * duration;
+      const open = el.getBoundingClientRect().height;
+      animation.play();
+      return {duration, closed, open, visible: getComputedStyle(el).opacity};
+    });
+    assert.ok(mouthProof && mouthProof.duration >= 2400 && mouthProof.open > mouthProof.closed * 3);
+    assert.equal(mouthProof.visible, "1");
+    assert.ok(await page.locator(".lumi-talk-right-arm").evaluate(el => el.getAnimations().some(a => a.playState === "running")));
+    await page.waitForTimeout(1250);
+    assert.equal(await page.locator("#pet .lumi-speaking").count(), 1, "Speaking lasts throughout the phrase, beyond one second");
     await page.screenshot({path:`supabase/.temp/lumi-audio-qa/lumi-bubble-${viewport.width}.png`,fullPage:false});
     await page.getByRole("button", {name:"Silenciar", exact:true}).click();
     assert.equal(enqueues, 0, "Mood and sound do not consume GPU");
@@ -399,10 +419,21 @@ try {
           (el) =>
             el.isConnected &&
             el.getAnimations().filter((a) => a.playState === "running")
-              .length === 0,
+              .length > 0,
         ),
       true,
+      "Lumi animated mode overrides OS reduced motion for speech too",
     );
+    await page.getByRole("link", {name:"Ajustes", exact:true}).click();
+    await page.getByLabel("Animaciones de Lumi").selectOption("calm");
+    await page.getByRole("link", {name:"Hoy", exact:true}).click();
+    await page.getByRole("button", {name:"Volver a pendiente: Mi paso breve", exact:true}).click();
+    await page.getByRole("button", {name:"Completar: Mi paso breve", exact:true}).click();
+    await page.getByRole("button", {name:"Volver a pendiente: Mi paso breve", exact:true}).waitFor();
+    assert.equal(await page.locator("#pet .lumi-speaking").count(), 0, "Calm mode disables speech gestures");
+    await page.getByRole("link", {name:"Ajustes", exact:true}).click();
+    await page.getByLabel("Animaciones de Lumi").selectOption("animated");
+    await page.getByRole("link", {name:"Hoy", exact:true}).click();
     await page.emulateMedia({ reducedMotion: "no-preference" });
     await page.getByRole("link", { name: "Ajustes", exact: true }).click();
     await page.getByLabel("Sonido suave al conversar").check();

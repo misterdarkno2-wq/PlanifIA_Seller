@@ -82,22 +82,49 @@
 .lumi-conversation-settings label {
   margin-bottom: 14px;
 }
-.lumi-talking-mouth { opacity: 0; }
+.lumi-talking-mouth {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center 25%;
+}
 .lumi-speaking .lumi-smile { opacity: 0; }
 .lumi-speaking .lumi-talking-mouth {
   opacity: 1;
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: lumi-speech 0.13s ease-in-out infinite alternate;
 }
-@keyframes lumi-speech {
-  to {
-    transform: scaleY(0.35) scaleX(0.9);
-  }
+.lumi-talk-head,
+.lumi-talk-left-arm,
+.lumi-talk-right-arm { transform-box: view-box; }
+.lumi-talk-head { transform-origin: 130px 124px; }
+.lumi-talk-left-arm { transform-origin: 78px 137px; }
+.lumi-talk-right-arm { transform-origin: 182px 137px; }
+.lumi-speaking[data-lumi-state="idle"] .lumi-talk-head {
+  animation: lumi-talk-nod 0.9s ease-in-out infinite;
 }
+.lumi-speaking[data-lumi-state="idle"] .lumi-talk-right-arm {
+  animation: lumi-talk-gesture 1.3s ease-in-out infinite;
+}
+.lumi-speaking[data-lumi-state="idle"] .lumi-talk-left-arm {
+  animation: lumi-talk-listen 1.7s ease-in-out infinite;
+}
+@keyframes lumi-talk-nod {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  40% { transform: translateY(-1.5px) rotate(-1.5deg); }
+  75% { transform: translateY(-0.5px) rotate(1deg); }
+}
+@keyframes lumi-talk-gesture {
+  0%, 100% { transform: rotate(0); }
+  30%, 55% { transform: rotate(-19deg); }
+  42% { transform: rotate(-11deg); }
+}
+@keyframes lumi-talk-listen {
+  0%, 100% { transform: rotate(0); }
+  55% { transform: rotate(10deg); }
+}
+.lumi-art[data-lumi-motion="calm"] .lumi-talking-mouth { opacity: 0; }
+.lumi-art[data-lumi-motion="calm"] .lumi-smile { opacity: 1; }
 @media (prefers-reduced-motion: reduce) {
-  .lumi-speaking .lumi-talking-mouth { opacity: 0; animation: none; }
-  .lumi-speaking .lumi-smile { opacity: 1; }
+  .lumi-speaking:not([data-lumi-motion="animated"]) .lumi-talking-mouth { opacity: 0; }
+  .lumi-speaking:not([data-lumi-motion="animated"]) .lumi-smile { opacity: 1; }
 }
 @media (max-width: 680px) {
   .lumi-speech-bubble { padding: 18px 20px; margin-top: 10px; }

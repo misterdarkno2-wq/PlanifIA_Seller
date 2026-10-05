@@ -1,5 +1,7 @@
 import { LUMI_FREQUENCY } from "./lumi-messages.js";
 import { createLumiVoice } from "./lumi-voice.js";
+import { createLumiUtterance, lumiMouthFrames } from "./lumi-speech.js";
+import { getPetMotionSettings } from "./pet-motion.js";
 const MOODS = {
   energy: "Con energía",
   well: "Bien",
@@ -51,24 +53,38 @@ export function mountLumiConversation(root, model, options = {}) {
     svg = root.querySelector("#pet .lumi-art");
   let textTimer,
     talkTimer,
+    mouthAnimation,
+    utterance,
     idleTimer,
     pendingSpeech = null,
     lastId = null,
     dismissed = null,
     disposed = false;
-  const motion = matchMedia("(prefers-reduced-motion: reduce)");
+  const textMotion = matchMedia("(prefers-reduced-motion: reduce)");
+  const petMotion = getPetMotionSettings();
   function stop() {
     clearInterval(textTimer);
     clearTimeout(talkTimer);
+    mouthAnimation?.cancel();
+    mouthAnimation = null;
     voice.stop();
     pendingSpeech = null;
     svg?.classList.remove("lumi-speaking");
   }
   function speaking() {
-    if (motion.matches) return;
+    if (petMotion.matches || document.hidden || !utterance) return;
+    mouthAnimation?.cancel();
     svg?.classList.add("lumi-speaking");
+    mouthAnimation = svg?.querySelector(".lumi-talking-mouth")?.animate(
+      lumiMouthFrames(utterance),
+      { duration: utterance.durationMs, easing: "linear" },
+    );
     clearTimeout(talkTimer);
-    talkTimer = setTimeout(() => svg?.classList.remove("lumi-speaking"), 1000);
+    talkTimer = setTimeout(() => {
+      svg?.classList.remove("lumi-speaking");
+      mouthAnimation?.cancel();
+      mouthAnimation = null;
+    }, utterance.durationMs);
   }
   function audioStatus() {
     if (!messageRoot) return;
@@ -82,7 +98,7 @@ export function mountLumiConversation(root, model, options = {}) {
     if (disposed || document.hidden || !model.preferences.sound ||
         messageRoot?.hidden || pendingSpeech !== model.message?.id ||
         pendingSpeech == null) return;
-    if (voice.speak(model.preferences.volume)) {
+    if (voice.speak(model.preferences.volume, utterance)) {
       pendingSpeech = null;
       speaking();
     }
@@ -93,6 +109,7 @@ export function mountLumiConversation(root, model, options = {}) {
     const prefs = model.preferences,
       isNew = message.id !== lastId;
     stop();
+    if (isNew || !utterance) utterance = createLumiUtterance(message.text);
     messageRoot.hidden = false;
     const node = messageRoot.querySelector(".lumi-message-text");
     messageRoot.querySelector(".lumi-moods").hidden = !message.askMood;
@@ -107,19 +124,21 @@ export function mountLumiConversation(root, model, options = {}) {
     node.innerHTML = '<span aria-hidden="true"></span>';
     const visual = node.firstElementChild;
     const immediate =
-      initial || !isNew || prefs.immediate || motion.matches || document.hidden;
+      initial || !isNew || prefs.immediate || textMotion.matches || document.hidden;
     visual.textContent = immediate ? message.text : "";
     if (!immediate) {
-      let offset = 0;
+      const startedAt = performance.now();
       textTimer = setInterval(() => {
-        visual.textContent = message.text.slice(0, ++offset * 2);
-        if (offset * 2 >= message.text.length) {
+        const fraction = Math.min(1, (performance.now() - startedAt) / (utterance.durationMs - 150));
+        visual.textContent = message.text.slice(0, Math.ceil(message.text.length * fraction));
+        if (fraction >= 1) {
           clearInterval(textTimer);
-          svg?.classList.remove("lumi-speaking");
         }
       }, 26);
-      speaking();
     }
+    // Speaking also works with muted audio or immediately displayed text.
+    // It follows Lumi's own animated/calm preference, just like her idle actions.
+    if (isNew && !initial && !document.hidden) speaking();
     if (isNew && !initial && prefs.sound && !document.hidden) {
       pendingSpeech = message.id;
       speakPending();
@@ -197,7 +216,8 @@ export function mountLumiConversation(root, model, options = {}) {
   document.addEventListener("pointerdown", unlock);
   document.addEventListener("keydown", unlock);
   document.addEventListener("visibilitychange", visibility);
-  motion.addEventListener("change", visibility);
+  textMotion.addEventListener("change", visibility);
+  petMotion.addEventListener("change", visibility);
   // Existing messages on navigation are immediate and silent; no new greeting.
   show(model.message, presented.get(model) === model.message?.id);
   schedule();
@@ -213,6 +233,7 @@ export function mountLumiConversation(root, model, options = {}) {
     document.removeEventListener("pointerdown", unlock);
     document.removeEventListener("keydown", unlock);
     document.removeEventListener("visibilitychange", visibility);
-    motion.removeEventListener("change", visibility);
+    textMotion.removeEventListener("change", visibility);
+    petMotion.removeEventListener("change", visibility);
   };
 }

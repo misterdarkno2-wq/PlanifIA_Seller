@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createLumiCompanion } from "../src/lumi-messages.js";
 import { createLumiVoice } from "../src/lumi-voice.js";
+import { createLumiUtterance, lumiMouthFrames } from "../src/lumi-speech.js";
 const store = () => {
   const data = new Map();
   return {
@@ -98,8 +99,9 @@ test("Synthesized voice needs user activation, never overlaps, and stops all osc
     createOscillator() {
       const osc = {
         ...node(),
-        start() {
+        start(at) {
           this.started = true;
+          this.at = at;
         },
         stop() {
           this.stops = (this.stops || 0) + 1;
@@ -126,6 +128,21 @@ test("Synthesized voice needs user activation, never overlaps, and stops all osc
   );
   voice.stop();
   assert.ok(oscillators.every((n) => n.stops === 2 && n.disconnected));
+  const phrase = createLumiUtterance("¡Hola! Soy Lumi. ¿Planificamos tu día juntos?", () => 0.5);
+  const frames = lumiMouthFrames(phrase);
+  context.currentTime = 10;
+  voice.speak(0.2, phrase);
+  const spoken = oscillators.slice(12);
+  assert.ok(phrase.durationMs >= 2400 && phrase.durationMs <= 5200);
+  assert.equal(spoken.length, phrase.syllables.length);
+  assert.ok(spoken.length > 6, "The complete phrase is not truncated to the old six chirps");
+  for (let i = 0; i < spoken.length; i++) {
+    const syllable = phrase.syllables[i];
+    assert.equal(spoken[i].at, 10 + syllable.at / 1000);
+    const mouthOpensAt = frames[2 + i * 4].offset * phrase.durationMs;
+    assert.ok(Math.abs(mouthOpensAt - syllable.at - 20) < 0.001, "The mouth opens with the same audio syllable");
+  }
+  assert.ok(frames.every((frame, i) => frame.offset >= 0 && frame.offset <= 1 && (!i || frame.offset >= frames[i-1].offset)));
   voice.dispose();
   assert.equal(closed, true);
 });
