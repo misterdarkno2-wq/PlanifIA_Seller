@@ -6,6 +6,7 @@ export function createLumiVoice({
 } = {}) {
   let context,
     unlocked = false,
+    unlocking,
     nodes = [];
   function stop() {
     for (const node of nodes) {
@@ -20,14 +21,23 @@ export function createLumiVoice({
   }
   return {
     async unlock() {
+      if (unlocked && context?.state === "running") return true;
+      if (unlocking) return unlocking;
+      // resume() is invoked synchronously within the user's gesture.
       try {
         context ||= contextFactory();
-        await context.resume();
-        unlocked = context.state === "running";
+        const current = context;
+        unlocking = Promise.resolve(current.resume()).then(
+          () => (unlocked = context === current && current.state === "running"),
+          () => false,
+        ).finally(() => { unlocking = null; });
+        return await unlocking;
       } catch {
         unlocked = false;
+        return false;
       }
     },
+    get ready() { return unlocked && context?.state === "running"; },
     speak(volume) {
       stop();
       if (!unlocked || context?.state !== "running" || volume <= 0)
@@ -39,16 +49,16 @@ export function createLumiVoice({
           filter = context.createBiquadFilter();
         const at = start + i * 0.15,
           length = 0.065 + random() * 0.045;
-        oscillator.type = "sine";
-        oscillator.frequency.setValueAtTime(270 + random() * 150, at);
+        oscillator.type = "triangle";
+        oscillator.frequency.setValueAtTime(390 + random() * 210, at);
         oscillator.frequency.exponentialRampToValueAtTime(
-          360 + random() * 170,
+          330 + random() * 260,
           at + length,
         );
         filter.type = "lowpass";
-        filter.frequency.value = 1100;
+        filter.frequency.value = 1400;
         envelope.gain.setValueAtTime(0, at);
-        envelope.gain.linearRampToValueAtTime(volume * 0.22, at + 0.012);
+        envelope.gain.linearRampToValueAtTime(volume * 0.42, at + 0.012);
         envelope.gain.exponentialRampToValueAtTime(0.001, at + length);
         oscillator.connect(filter);
         filter.connect(envelope);

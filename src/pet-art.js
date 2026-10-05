@@ -17,6 +17,7 @@ export function portrait(stage) {
  <g class="lumi-delighted-eyes" fill="none" stroke="#163e3b" stroke-width="3" stroke-linecap="round"><path d="M99 110q8-12 16 0M145 110q8-12 16 0"/></g>
  <ellipse cx="93" cy="123" rx="10" ry="5" fill="#ecaaa2"/><ellipse cx="167" cy="123" rx="10" ry="5" fill="#ecaaa2"/>
  <path class="lumi-smile" d="M120 122q10 12 20 0" fill="none" stroke="#163e3b" stroke-width="3" stroke-linecap="round"/>
+ <g class="lumi-talking-mouth"><path d="M119 122Q130 120 141 122Q140 139 130 139Q120 139 119 122Z" fill="#163e3b"/><path d="M123 134Q130 128 137 134Q134 139 130 139Q126 139 123 134Z" fill="#f0a7a3"/></g>
  ${s === 1 ? '<path d="m73 139 19-10 16 13 19-11 18 12 19-14 23 10-6 31q-8 33-51 28-43 5-51-28Z" fill="#fff4db" stroke="#ceb98b" stroke-width="3"/><path d="m110 160 9 7-6 11" fill="none" stroke="#dbc79e" stroke-width="3"/>' : '<g class="lumi-foot-left"><ellipse cx="95" cy="179" rx="19" ry="10" fill="#247c6a"/></g><g class="lumi-foot-right"><ellipse cx="165" cy="179" rx="19" ry="10" fill="#247c6a"/></g>'}
  ${s >= 2 && s < 5 ? `<path class="lumi-sprout" d="M130 68V46M130 57Q102 56 110 35Q132 35 130 57${s >= 3 ? "M130 53Q151 26 159 43Q152 61 130 57" : ""}" fill="#b0db7e" stroke="#4b8d57" stroke-width="3" stroke-linecap="round"/>` : ""}
  </g></g></g></g></svg>`;

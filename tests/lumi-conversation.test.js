@@ -12,6 +12,20 @@ const store = () => {
   };
 };
 
+test("Sound starts enabled, migrates the old silent default once, and respects later mute choices", () => {
+  const storage = store();
+  const build = () => createLumiCompanion({ storage, session: store() });
+  assert.equal(build().preferences.sound, true);
+  storage.setItem("planifia-lumi-conversation", JSON.stringify({sound:false, volume:0.18, frequency:"quiet"}));
+  const migrated = build();
+  assert.equal(migrated.preferences.sound, true);
+  assert.equal(migrated.preferences.volume, 0.28);
+  assert.equal(migrated.preferences.frequency, "quiet");
+  migrated.configure({ sound: false });
+  assert.equal(build().preferences.sound, false);
+  assert.equal(build().preferences.soundDefaultVersion, 2);
+});
+
 test("Greeting is session-scoped, optional, varied, and mood is never permanently stored", () => {
   const storage = store(),
     session = store();
@@ -100,9 +114,11 @@ test("Synthesized voice needs user activation, never overlaps, and stops all osc
     random: () => 0.5,
   });
   assert.equal(voice.speak(0.2), false);
-  await voice.unlock();
+  assert.equal(await voice.unlock(), true);
+  assert.equal(voice.ready, true);
   assert.equal(voice.speak(0.2), true);
   assert.equal(oscillators.length, 6);
+  assert.ok(oscillators.every((n) => n.type === "triangle"));
   voice.speak(0.1);
   assert.equal(oscillators.length, 12);
   assert.ok(

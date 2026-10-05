@@ -121,3 +121,11 @@ La lista necesita el proyecto real y no debe marcarse completada a partir de res
 Resultado final de la suite local de la cola y conversación: **63 pruebas Node aprobadas**, **29 pruebas Edge aprobadas**, comprobación de tipos y compilación pública correctas. Las suites de UI general, conversación/cola y pagos se verificaron por separado; no hubo pagos ni uso de cuentas reales en ellas.
 
 Comprobación adicional con **Supabase y GPU reales**: un trabajo en procesamiento aceptó una solicitud de interrupción y quedó `cancelled` en unos diez segundos, sin guardar resultado y al primer intento. Una segunda cuenta no pudo leer ni cancelar el trabajo ajeno. Las dos cuentas temporales se eliminaron.
+
+
+## Burbuja y audio audible por defecto — 5 de octubre de 2026
+
+- Interfaz de diálogo inspirada en la referencia del usuario: burbuja blanca, borde verde, cola hacia Lumi y boca abierta con movimiento suave. Se conserva el personaje SVG y sus evoluciones.
+- Sonido activado por defecto y habilitado por la primera interacción normal, con reproducción del mensaje pendiente. Sílabas originales de onda triangular y volumen suave más audible. El silenciamiento explícito posterior se guarda entre sesiones; activar sonido reproduce el mensaje visible sin exigir una nueva frase.
+- Pruebas de preferencias y síntesis, más navegador en escritorio y móvil: comprueban que no hay sonido antes de interactuar, detectan señal de audio no nula con un analizador Web Audio, prueban silenciamiento, reactivación, recarga y ausencia de disparadores de movimiento. Las respuestas de nube y GPU en estos escenarios son fixtures.
+- La suite general conserva autonomía, límites del retrato, pausa de pestaña, tareas, XP, niveles y evolución. La compilación pública pasó. El altavoz y volumen físico del dispositivo no se pueden validar desde estas pruebas.

@@ -11,7 +11,7 @@ const presented = new WeakMap();
 
 export const lumiConversationMarkup =
   () => `<section class="lumi-conversation" aria-label="Mensajes de Lumi">
-  <p class="lumi-message-text" role="status" aria-live="polite"></p><div class="lumi-moods" aria-label="Cómo te sientes" hidden>${Object.entries(
+  <div class="lumi-speech-bubble"><span class="lumi-speaker" aria-hidden="true">Lumi dice</span><p class="lumi-message-text" role="status" aria-live="polite"></p><svg class="lumi-bubble-tail" viewBox="0 0 32 36" aria-hidden="true"><path d="M31 2C20 5 18 19 3 32C21 32 30 24 31 21"/></svg></div><div class="lumi-moods" aria-label="Cómo te sientes" hidden>${Object.entries(
     MOODS,
   )
     .map(
@@ -19,7 +19,8 @@ export const lumiConversationMarkup =
         `<button type="button" class="secondary" data-lumi-mood="${id}">${title}</button>`,
     )
     .join("")}</div>
-  <div class="lumi-message-tools"><button class="text-button" data-lumi-mute type="button">Activar sonido</button><button class="text-button" data-lumi-reveal type="button">Mostrar texto completo</button><button class="text-button" data-lumi-dismiss type="button">Cerrar mensaje</button></div>
+  <div class="lumi-message-tools"><button class="text-button" data-lumi-mute type="button">Silenciar</button><button class="text-button" data-lumi-reveal type="button">Mostrar texto completo</button><button class="text-button" data-lumi-dismiss type="button">Cerrar mensaje</button></div>
+  <small class="muted lumi-audio-status" data-lumi-audio-status></small>
   <small class="muted">Lumi es tu compañera virtual con IA. Tu respuesta de ánimo no se guarda en tu cuenta.</small></section>`;
 
 export function lumiConversationSettings(model) {
@@ -51,6 +52,7 @@ export function mountLumiConversation(root, model, options = {}) {
   let textTimer,
     talkTimer,
     idleTimer,
+    pendingSpeech = null,
     lastId = null,
     dismissed = null,
     disposed = false;
@@ -59,7 +61,32 @@ export function mountLumiConversation(root, model, options = {}) {
     clearInterval(textTimer);
     clearTimeout(talkTimer);
     voice.stop();
+    pendingSpeech = null;
     svg?.classList.remove("lumi-speaking");
+  }
+  function speaking() {
+    if (motion.matches) return;
+    svg?.classList.add("lumi-speaking");
+    clearTimeout(talkTimer);
+    talkTimer = setTimeout(() => svg?.classList.remove("lumi-speaking"), 1000);
+  }
+  function audioStatus() {
+    if (!messageRoot) return;
+    const node = messageRoot.querySelector("[data-lumi-audio-status]");
+    node.textContent = model.preferences.sound && !voice.ready
+      ? "Sonido activado. Se habilita al usar un control de la página."
+      : "";
+    node.hidden = !node.textContent;
+  }
+  function speakPending() {
+    if (disposed || document.hidden || !model.preferences.sound ||
+        messageRoot?.hidden || pendingSpeech !== model.message?.id ||
+        pendingSpeech == null) return;
+    if (voice.speak(model.preferences.volume)) {
+      pendingSpeech = null;
+      speaking();
+    }
+    audioStatus();
   }
   function show(message, initial = false) {
     if (!messageRoot || !message || dismissed === message.id) return;
@@ -91,14 +118,13 @@ export function mountLumiConversation(root, model, options = {}) {
           svg?.classList.remove("lumi-speaking");
         }
       }, 26);
-      svg?.classList.add("lumi-speaking");
-      talkTimer = setTimeout(
-        () => svg?.classList.remove("lumi-speaking"),
-        1600,
-      );
+      speaking();
     }
-    if (isNew && !initial && prefs.sound && !document.hidden)
-      voice.speak(prefs.volume);
+    if (isNew && !initial && prefs.sound && !document.hidden) {
+      pendingSpeech = message.id;
+      speakPending();
+    }
+    audioStatus();
     lastId = message.id;
     presented.set(model, message.id);
   }
@@ -118,8 +144,12 @@ export function mountLumiConversation(root, model, options = {}) {
     show(message);
     schedule();
   });
-  const unlock = () => {
-    if (model.preferences.sound && !document.hidden) voice.unlock();
+  const unlock = async () => {
+    if (!model.preferences.sound || document.hidden) return;
+    await voice.unlock();
+    if (disposed || document.hidden) return;
+    speakPending();
+    audioStatus();
   };
   const visibility = () => {
     stop();
@@ -135,7 +165,10 @@ export function mountLumiConversation(root, model, options = {}) {
     model.configure({
       [key]: field.type === "checkbox" ? field.checked : field.value,
     });
-    if (key === "sound" && field.checked) voice.unlock();
+    if (key === "sound" && field.checked) {
+      if (messageRoot && !messageRoot.hidden) pendingSpeech = model.message?.id;
+      unlock();
+    }
   };
   const click = async (event) => {
     const button = event.target.closest("button");
@@ -144,7 +177,10 @@ export function mountLumiConversation(root, model, options = {}) {
       model.chooseMood(button.dataset.lumiMood);
     if (button.hasAttribute("data-lumi-mute")) {
       model.configure({ sound: !model.preferences.sound });
-      if (model.preferences.sound) await voice.unlock();
+      if (model.preferences.sound) {
+        pendingSpeech = model.message?.id;
+        await unlock();
+      }
     }
     if (button.hasAttribute("data-lumi-reveal")) {
       stop();

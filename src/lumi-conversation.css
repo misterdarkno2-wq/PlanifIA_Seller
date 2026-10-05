@@ -1,13 +1,50 @@
 .lumi-conversation {
   max-width: 560px;
-  margin-top: 14px;
+  margin: 0 0 22px;
+}
+.lumi-speech-bubble {
+  position: relative;
+  padding: 20px 26px;
+  background: #fff;
+  border: 2px solid #246d61;
+  border-radius: 30px 34px 32px 12px;
+  box-shadow: 0 5px 0 #dceee4;
+}
+.lumi-speaker {
+  display: block;
+  margin-bottom: 7px;
+  color: #508575;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.lumi-bubble-tail {
+  position: absolute;
+  width: 32px;
+  height: 36px;
+  left: -31px;
+  top: 40%;
+  fill: white;
+  stroke: #246d61;
+  stroke-width: 2;
+  overflow: visible;
+}
+.pet-progress-summary {
+  padding-top: 14px;
+  border-top: 1px solid #d9e7de;
+}
+.featured .pet-progress-summary .pet-title h2 {
+  font-size: 23px;
 }
 .lumi-message-text {
-  min-height: 2.8em;
-  margin: 0 0 12px;
-  color: #24584c;
-  font-size: 1rem;
-  line-height: 1.55;
+  min-height: 3em;
+  margin: 0;
+  color: #164f48;
+  font-size: clamp(1.05rem, 1.7vw, 1.4rem);
+  font-weight: 600;
+  line-height: 1.5;
+  text-wrap: pretty;
 }
 .lumi-moods,
 .lumi-message-tools {
@@ -34,6 +71,8 @@
   font-size: 0.75rem;
   line-height: 1.5;
 }
+.lumi-conversation small[hidden] { display: none; }
+.lumi-audio-status { margin-bottom: 6px; }
 .lumi-conversation-settings {
   margin-top: 22px;
   border: 1px solid #d9e7de;
@@ -43,20 +82,31 @@
 .lumi-conversation-settings label {
   margin-bottom: 14px;
 }
-.lumi-speaking .lumi-smile {
+.lumi-talking-mouth { opacity: 0; }
+.lumi-speaking .lumi-smile { opacity: 0; }
+.lumi-speaking .lumi-talking-mouth {
+  opacity: 1;
   transform-box: fill-box;
   transform-origin: center;
-  animation: lumi-speech 0.15s ease-in-out infinite alternate;
+  animation: lumi-speech 0.13s ease-in-out infinite alternate;
 }
 @keyframes lumi-speech {
   to {
-    transform: scaleY(0.45);
+    transform: scaleY(0.35) scaleX(0.9);
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .lumi-speaking .lumi-smile {
-    animation: none;
+  .lumi-speaking .lumi-talking-mouth { opacity: 0; animation: none; }
+  .lumi-speaking .lumi-smile { opacity: 1; }
+}
+@media (max-width: 680px) {
+  .lumi-speech-bubble { padding: 18px 20px; margin-top: 10px; }
+  .lumi-bubble-tail {
+    left: calc(50% - 16px);
+    top: -28px;
+    transform: rotate(90deg);
   }
+  .lumi-message-text { font-size: 1.08rem; }
 }
 @media (max-width: 400px) {
   .app-header {

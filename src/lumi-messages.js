@@ -1,6 +1,7 @@
 /** Local conversation only: none of these messages calls an AI provider. */
 export const LUMI_MESSAGES = {
   welcome: [
+    "¡Hola! Soy Lumi. ¿Planificamos tu día juntos? ¿Cómo estás hoy?",
     "¡Qué bueno verte! ¿Cómo estás hoy?",
     "Un nuevo rato para tus metas. ¿Cómo te sientes hoy?",
     "Hola, aquí tienes tu espacio para avanzar a tu ritmo. ¿Cómo estás?",
@@ -82,14 +83,23 @@ export function createLumiCompanion({
       store?.setItem(key, JSON.stringify(value));
     } catch {}
   };
+  const saved = read(storage, "planifia-lumi-conversation", {});
   let preferences = {
-    sound: false,
-    volume: 0.18,
+    sound: true,
+    volume: 0.28,
     immediate: false,
     greetings: true,
     frequency: "normal",
-    ...read(storage, "planifia-lumi-conversation", {}),
+    ...saved,
   };
+  // The first release saved its muted default even without an explicit choice.
+  // Apply the requested audible default once; subsequent mute choices persist.
+  if (saved.soundDefaultVersion !== 2) {
+    preferences.sound = true;
+    if (preferences.volume === 0.18) preferences.volume = 0.28;
+  }
+  preferences.soundDefaultVersion = 2;
+  write(storage, "planifia-lumi-conversation", preferences);
   function say(kind, askMood = false) {
     if (!account) return;
     const library = LUMI_MESSAGES[kind] || LUMI_MESSAGES.small;

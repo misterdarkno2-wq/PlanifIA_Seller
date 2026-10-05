@@ -78,6 +78,13 @@ const companion = createLumiCompanion({
   session: sessionStorage,
 });
 const companionVoice = createLumiVoice();
+// Login, keyboard navigation or any normal control can enable browser audio.
+// This does not control Lumi's autonomous actions.
+const activateCompanionAudio = () => {
+  if (companion.preferences.sound && !document.hidden) companionVoice.unlock();
+};
+document.addEventListener("pointerdown", activateCompanionAudio, { passive: true });
+document.addEventListener("keydown", activateCompanionAudio);
 let disposeConversation = null;
 const aiJobs = createAiJobMonitor({
   list: listAiJobs,
@@ -351,7 +358,7 @@ function closeModal() {
 const alert = () => '<p class="error" role="alert" hidden></p>';
 function petCard() {
   const p = state.pet;
-  return `<aside class="pet-card featured" id="pet" aria-labelledby="pet-name"><div class="pet-portrait">${portrait(p.stage)}</div><div class="pet-info"><p class="eyebrow">TU COMPAÑERA DE CADA PASO</p><div class="pet-title"><h2 id="pet-name">${e(p.name)}</h2><span class="pet-level">Nivel ${p.level}</span></div><p class="pet-stage">${STAGES[p.stage - 1]} · ${p.total_xp} XP</p><progress aria-label="Experiencia de Lumi" value="${p.next_xp === null ? 1 : p.level_xp}" max="${p.next_xp ?? 1}"></progress><p class="pet-xp-label">${p.next_xp === null ? "Evolución final alcanzada" : `${p.level_xp} / ${p.next_xp} XP para el siguiente nivel`}</p>${lumiConversationMarkup()}</div></aside>`;
+  return `<aside class="pet-card featured" id="pet" aria-labelledby="pet-name"><div class="pet-portrait">${portrait(p.stage)}</div><div class="pet-info">${lumiConversationMarkup()}<div class="pet-progress-summary"><p class="eyebrow">TU COMPAÑERA DE CADA PASO</p><div class="pet-title"><h2 id="pet-name">${e(p.name)}</h2><span class="pet-level">Nivel ${p.level}</span></div><p class="pet-stage">${STAGES[p.stage - 1]} · ${p.total_xp} XP</p><progress aria-label="Experiencia de Lumi" value="${p.next_xp === null ? 1 : p.level_xp}" max="${p.next_xp ?? 1}"></progress><p class="pet-xp-label">${p.next_xp === null ? "Evolución final alcanzada" : `${p.level_xp} / ${p.next_xp} XP para el siguiente nivel`}</p></div></div></aside>`;
 }
 function celebrate(result, before) {
   const p = result.pet;

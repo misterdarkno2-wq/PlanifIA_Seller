@@ -35,6 +35,7 @@ try {
     await new Promise((r) => setTimeout(r, 100));
   }
   await mkdir("dist/qa", { recursive: true });
+  await mkdir("supabase/.temp/lumi-audio-qa", { recursive: true });
   browser = await chromium.launch({
     ...(process.platform === "win32" ? { channel: "msedge" } : {}),
     headless: true,
@@ -83,6 +84,7 @@ try {
           stopped: 0,
           disconnected: 0,
           contexts: 0,
+          meters: [],
         };
         window.AudioContext = class extends Original {
           constructor(...args) {
@@ -106,6 +108,13 @@ try {
               window.audioProof.disconnected++;
               return disconnect(...a);
             };
+            return node;
+          }
+          createGain() {
+            const node = super.createGain(), meter = this.createAnalyser();
+            meter.fftSize = 256;
+            node.connect(meter);
+            window.audioProof.meters.push(meter);
             return node;
           }
         };
@@ -229,11 +238,18 @@ try {
       .waitFor();
     assert.equal(await page.locator("[data-lumi-mood]").count(), 5);
     assert.equal((await page.evaluate(() => window.audioProof)).started, 0);
-    await page
-      .getByRole("button", { name: "Activar sonido", exact: true })
-      .click();
-    await page.getByRole("button", { name: "Cansado", exact: true }).click();
+    assert.equal(await page.getByRole("button", { name: "Silenciar", exact: true }).count(), 1);
+    await page.keyboard.press("Tab");
     await page.waitForFunction(() => window.audioProof.started === 6);
+    await page.waitForFunction(() => window.audioProof.meters.some((meter) => {
+      const samples = new Float32Array(meter.fftSize);
+      meter.getFloatTimeDomainData(samples);
+      return samples.some((sample) => Math.abs(sample) > 0.015);
+    }));
+    assert.equal(await page.locator(".lumi-speech-bubble").count(), 1);
+    assert.equal(await page.locator(".lumi-talking-mouth").count(), 1);
+    await page.getByRole("button", { name: "Cansado", exact: true }).click();
+    await page.waitForFunction(() => window.audioProof.started === 12);
     assert.match(
       await page.locator(".lumi-message-text").getAttribute("aria-label"),
       /cansado|pausa|ritmo/,
@@ -252,7 +268,7 @@ try {
     await page.getByRole("button", { name: "Silenciar", exact: true }).click();
     assert.equal(
       (await page.evaluate(() => window.audioProof)).disconnected,
-      6,
+      12,
     );
     await page
       .getByRole("button", { name: "Mostrar texto completo", exact: true })
@@ -261,12 +277,17 @@ try {
       await page.locator(".lumi-message-text span").textContent(),
       await page.locator(".lumi-message-text").getAttribute("aria-label"),
     );
+    await page.getByRole("button", {name:"Activar sonido", exact:true}).click();
+    await page.waitForFunction(() => window.audioProof.started === 18);
+    await page.screenshot({path:`supabase/.temp/lumi-audio-qa/lumi-bubble-${viewport.width}.png`,fullPage:false});
+    await page.getByRole("button", {name:"Silenciar", exact:true}).click();
     assert.equal(enqueues, 0, "Mood and sound do not consume GPU");
     await page.reload();
     await page
       .getByRole("heading", { name: /Un paso a la vez, Ana/ })
       .waitFor();
     assert.equal(await page.locator(".lumi-moods").isVisible(), false);
+    assert.equal(await page.getByRole("button", { name: "Activar sonido", exact:true }).count(), 1, "An explicit mute survives reload");
     await page
       .getByRole("button", { name: "Completar: Mi paso breve", exact: true })
       .click();
@@ -373,7 +394,7 @@ try {
     );
     assert.equal(
       await page
-        .locator(".lumi-smile")
+        .locator(".lumi-talking-mouth")
         .evaluate(
           (el) =>
             el.isConnected &&
