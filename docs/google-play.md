@@ -87,15 +87,11 @@ No marques ubicación, contactos, fotos, audio, salud, mensajes, identificadores
 
 ### Compilar el AAB firmado
 
-La contraseña de la clave de carga **no** se guarda en el repositorio. En PowerShell, en la misma sesión:
+La contraseña de la clave de carga **no** se guarda en el repositorio. El script la pide oculta, compila y borra las variables al terminar:
 
 ```powershell
 cd C:\Users\Admin\Downloads\PlanifIA_Seller
-$env:PLANIFIA_ANDROID_KEYSTORE = "C:\Users\Admin\Downloads\PlanifIA_Seller\planifia-release.keystore"
-$env:PLANIFIA_ANDROID_KEY_ALIAS = "planifia"
-$env:PLANIFIA_ANDROID_STORE_PASSWORD = Read-Host "Contraseña del almacén"
-$env:PLANIFIA_ANDROID_KEY_PASSWORD = Read-Host "Contraseña de la clave"
-npm.cmd run android:aab
+powershell -ExecutionPolicy RemoteSigned -File .\scripts\android-aab.ps1
 ```
 
 El archivo queda en `src-tauri/gen/android/app/build/outputs/bundle/universalRelease/app-universal-release.aab`. Guarda una copia del `.keystore` fuera del PC (y su contraseña en un gestor de contraseñas): sin él no podrás publicar actualizaciones, salvo que pidas a Google restablecer la clave de carga.
