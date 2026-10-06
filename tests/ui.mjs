@@ -719,6 +719,22 @@ try {
   await loader.getByRole("button", { name: "← Juegos" }).click();
   await loader.getByRole("button", { name: /Carrera de Lumi/ }).waitFor();
   assert.equal(await loader.locator(".ai-loading-scene").isVisible(), true);
+  await loader.locator(".lumi-games").screenshot({ path: "dist/qa/games-menu.png" });
+  for (const [name, key] of [
+    ["Lluvia de estrellas", "ArrowLeft"],
+    ["¿Dónde está Lumi?", "1"],
+    ["Memoria de Lumi", " "],
+  ]) {
+    await loader.getByRole("button", { name }).click();
+    const gameCanvas = loader.locator(".lumi-game-canvas");
+    await gameCanvas.click({ position: { x: 40, y: 40 } });
+    await page.keyboard.down(key);
+    await page.waitForTimeout(250);
+    await page.keyboard.up(key);
+    assert.equal(await loader.locator(".lumi-game-bar strong").textContent(), name);
+    await gameCanvas.screenshot({ path: `dist/qa/game-${name.replace(/[^a-z]/gi, "")}.png` });
+    await loader.getByRole("button", { name: "← Juegos" }).click();
+  }
   assert.equal(
     data.goals.length,
     0,

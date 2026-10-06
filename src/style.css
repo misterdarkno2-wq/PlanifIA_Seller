@@ -903,7 +903,7 @@ legend {
 }
 .lumi-games-list {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 10px;
   margin-top: 14px;
 }
@@ -926,6 +926,10 @@ legend {
 .lumi-game-card span {
   display: grid;
   gap: 2px;
+}
+.lumi-game-card strong {
+  font-size: 14px;
+  line-height: 1.25;
 }
 .lumi-game-card small {
   color: var(--muted);
@@ -954,7 +958,8 @@ legend {
   aspect-ratio: 360 / 220;
   border: 2px solid #246d61;
   border-radius: 16px;
-  touch-action: manipulation;
+  /* Arrastrar sobre el juego mueve a Lumi en lugar de desplazar la ventana. */
+  touch-action: none;
   cursor: pointer;
 }
 .lumi-game-hint {

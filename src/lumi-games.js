@@ -1,21 +1,13 @@
-import { portrait } from "./pet-art.js";
+import { spriteSvg, dataUrl, drawSprite } from "./lumi-sprite.js";
+import { MORE_GAMES } from "./lumi-games-more.js";
 
+export { spriteSvg };
 const W = 360,
   H = 220;
-
-/** Lumi estática para canvas e imágenes: sin fondo, sombra ni capas que oculta el CSS. */
-export function spriteSvg(stage, attributes = "") {
-  return portrait(stage)
-    .replace(
-      /^<svg[^>]*>/,
-      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="20 10 220 185" ${attributes}><style>.lumi-delighted-eyes,.lumi-talking-mouth{display:none}</style>`,
-    )
-    .replace(/<g class="lumi-shadow-position">.*?<\/g>/, "")
-    .replace(/<circle cx="130" cy="105" r="87"[^>]*\/>/, "")
-    .replace(/<g class="lumi-sparks"[^>]*>.*?<\/g>/, "");
-}
-const dataUrl = (svg) =>
-  "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+const JUMP_KEYS = [" ", "Spacebar", "ArrowUp", "w", "W"];
+/** Vuelo y Carrera sólo responden a tocar o a la tecla de salto. */
+const isJump = (input = {}) =>
+  input.type === "down" || (input.type === "key" && input.down && JUMP_KEYS.includes(input.key));
 
 function flapThumb(stage) {
   return dataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">
@@ -40,14 +32,19 @@ export const LUMI_GAMES = [
     id: "flap",
     name: "Vuelo de Lumi",
     hint: "Toca o pulsa Espacio para aletear entre los tubos.",
+    stageHint: "Con tus alas el paso entre tubos es más amplio.",
     thumb: flapThumb,
+    logic: flapGame,
   },
   {
     id: "run",
     name: "Carrera de Lumi",
     hint: "Toca o pulsa Espacio para saltar los obstáculos.",
+    stageHint: "Con tus alas puedes saltar dos veces.",
     thumb: runThumb,
+    logic: runGame,
   },
+  ...MORE_GAMES,
 ];
 
 const readBest = (id) => {
@@ -65,7 +62,7 @@ const saveBest = (id, score) => {
   }
 };
 
-function flapGame(stage) {
+function flapGame(stage, random = Math.random) {
   const lumi = { x: 92, y: H / 2, vy: 0, r: 15 };
   let pipes = [],
     spawn = 0;
@@ -76,8 +73,8 @@ function flapGame(stage) {
       pipes = [];
       spawn = 0.4;
     },
-    action() {
-      lumi.vy = -330;
+    action(input) {
+      if (isJump(input)) lumi.vy = -330;
     },
     step(dt, game) {
       lumi.vy = Math.min(lumi.vy + 1350 * dt, 520);
@@ -85,7 +82,7 @@ function flapGame(stage) {
       spawn -= dt;
       if (spawn <= 0) {
         spawn = 1.45;
-        pipes.push({ x: W + 30, top: 30 + Math.random() * (H - 78 - gap), passed: false });
+        pipes.push({ x: W + 30, top: 30 + random() * (H - 78 - gap), passed: false });
       }
       for (const p of pipes) {
         p.x -= 135 * dt;
@@ -140,7 +137,7 @@ function flapGame(stage) {
   };
 }
 
-function runGame(stage) {
+function runGame(stage, random = Math.random) {
   const ground = H - 30;
   const lumi = { x: 64, y: ground, vy: 0, jumps: 0 };
   const maxJumps = stage >= 4 ? 2 : 1;
@@ -156,8 +153,8 @@ function runGame(stage) {
       speed = 230;
       distance = 0;
     },
-    action() {
-      if (lumi.jumps >= maxJumps) return;
+    action(input) {
+      if (!isJump(input) || lumi.jumps >= maxJumps) return;
       lumi.vy = lumi.jumps ? -520 : -610;
       lumi.jumps++;
     },
@@ -173,8 +170,8 @@ function runGame(stage) {
       }
       spawn -= dt;
       if (spawn <= 0) {
-        spawn = (0.75 + Math.random() * 0.9) * (300 / speed) + 0.35;
-        const tall = Math.random() < 0.4;
+        spawn = (0.75 + random() * 0.9) * (300 / speed) + 0.35;
+        const tall = random() < 0.4;
         obstacles.push({ x: W + 20, w: tall ? 18 : 26, h: tall ? 42 : 24, kind: tall ? "plant" : "rock" });
       }
       for (const o of obstacles) {
@@ -226,28 +223,36 @@ function runGame(stage) {
 }
 
 /** Lógica sin dibujo, usada por el canvas y por las pruebas de jugabilidad. */
-export const gameLogic = (id, stage) =>
-  id === "flap" ? flapGame(stage) : runGame(stage);
+export const gameLogic = (id, stage, random = Math.random) =>
+  LUMI_GAMES.find((g) => g.id === id).logic(stage, random);
 
-function drawSprite(ctx, sprite, width) {
-  const height = width * (185 / 220);
-  if (sprite.complete && sprite.naturalWidth)
-    ctx.drawImage(sprite, -width / 2, -height / 2, width, height);
-  else {
-    ctx.fillStyle = "#77cdb0";
-    ctx.beginPath();
-    ctx.arc(0, 0, width / 3, 0, Math.PI * 2);
-    ctx.fill();
-  }
-}
+const CAPTURED_KEYS = [
+  ...JUMP_KEYS,
+  "ArrowLeft",
+  "ArrowRight",
+  "ArrowDown",
+  "Enter",
+  "a",
+  "A",
+  "d",
+  "D",
+  "1",
+  "2",
+  "3",
+  "4",
+  "5",
+  "6",
+];
 
 /** Partida en un canvas; devuelve dispose para liberar el bucle y los eventos. */
 export function playGame(host, gameId, stage, onExit) {
   const info = LUMI_GAMES.find((g) => g.id === gameId);
   const logic = gameLogic(gameId, stage);
+  const hint =
+    info.hint + (stage >= 4 && info.stageHint ? " " + info.stageHint : "");
   host.innerHTML = `<div class="lumi-game-bar"><button type="button" class="text-button" data-game-exit>← Juegos</button><strong>${info.name}</strong><span data-game-score aria-live="off">0</span></div>
-    <canvas class="lumi-game-canvas" tabindex="0" role="img" aria-label="${info.name}. ${info.hint}"></canvas>
-    <p class="lumi-game-hint">${info.hint}${stage >= 4 && gameId === "run" ? " Con tus alas puedes saltar dos veces." : ""}</p>`;
+    <canvas class="lumi-game-canvas" tabindex="0" role="img" aria-label="${info.name}. ${hint}"></canvas>
+    <p class="lumi-game-hint">${hint}</p>`;
   const canvas = host.querySelector("canvas");
   const ctx = canvas.getContext("2d");
   const scoreLabel = host.querySelector("[data-game-score]");
@@ -270,7 +275,7 @@ export function playGame(host, gameId, stage, onExit) {
     ctx.fillRect(0, 0, W, H);
     ctx.fillStyle = "#fff";
     ctx.textAlign = "center";
-    ctx.font = "700 22px Inter, 'Segoe UI', system-ui, sans-serif";
+    ctx.font = "700 20px Inter, 'Segoe UI', system-ui, sans-serif";
     ctx.fillText(title, W / 2, H / 2 - 6);
     ctx.font = "500 13px Inter, 'Segoe UI', system-ui, sans-serif";
     ctx.fillText(detail, W / 2, H / 2 + 20);
@@ -281,7 +286,10 @@ export function playGame(host, gameId, stage, onExit) {
     if (game.state === "ready") overlay("¡A jugar!", "Toca para empezar");
     else if (game.state === "paused") overlay("En pausa", "Toca para continuar");
     else if (game.state === "over")
-      overlay(`Puntaje: ${game.score}`, `Récord: ${game.best} · Toca para reintentar`);
+      overlay(
+        logic.overTitle?.(game) || `Puntaje: ${game.score}`,
+        `Récord: ${game.best} · Toca para reintentar`,
+      );
   }
   function loop(now) {
     frame = 0;
@@ -301,23 +309,50 @@ export function playGame(host, gameId, stage, onExit) {
     render();
     if (game.state === "playing") frame = requestAnimationFrame(loop);
   }
-  function press(event) {
-    event.preventDefault();
-    canvas.focus({ preventScroll: true });
+  function point(event) {
+    const box = canvas.getBoundingClientRect();
+    return {
+      x: ((event.clientX - box.left) / (box.width || W)) * W,
+      y: ((event.clientY - box.top) / (box.height || H)) * H,
+    };
+  }
+  /** Devuelve true si este toque sólo inició o reanudó la partida. */
+  function start() {
+    if (game.state === "playing") return false;
     if (game.state === "ready" || game.state === "over") {
       logic.reset();
       game.score = 0;
       scoreLabel.textContent = "0";
     }
-    if (game.state !== "playing") {
-      game.state = "playing";
-      last = performance.now();
-      frame = requestAnimationFrame(loop);
-    }
-    logic.action();
+    game.state = "playing";
+    last = performance.now();
+    frame = requestAnimationFrame(loop);
+    return true;
   }
-  function key(event) {
-    if ([" ", "Spacebar", "ArrowUp", "w", "W"].includes(event.key)) press(event);
+  function send(input) {
+    const started = start();
+    if (!started || logic.startWithAction !== false) logic.action(input, game);
+    scoreLabel.textContent = String(game.score);
+    render();
+  }
+  function down(event) {
+    event.preventDefault();
+    canvas.focus({ preventScroll: true });
+    send({ type: "down", ...point(event) });
+  }
+  function move(event) {
+    if (game.state === "playing")
+      logic.action({ type: "move", ...point(event) }, game);
+  }
+  function keydown(event) {
+    if (!CAPTURED_KEYS.includes(event.key)) return;
+    event.preventDefault();
+    if (event.repeat) return;
+    send({ type: "key", key: event.key, down: true });
+  }
+  function keyup(event) {
+    if (game.state === "playing" && CAPTURED_KEYS.includes(event.key))
+      logic.action({ type: "key", key: event.key, down: false }, game);
   }
   function visibility() {
     if (document.hidden && game.state === "playing") {
@@ -330,8 +365,10 @@ export function playGame(host, gameId, stage, onExit) {
     resize();
     render();
   };
-  canvas.addEventListener("pointerdown", press);
-  canvas.addEventListener("keydown", key);
+  canvas.addEventListener("pointerdown", down);
+  canvas.addEventListener("pointermove", move);
+  canvas.addEventListener("keydown", keydown);
+  canvas.addEventListener("keyup", keyup);
   document.addEventListener("visibilitychange", visibility);
   window.addEventListener("resize", onResize);
   sprite.addEventListener("load", render, { once: true });
@@ -348,8 +385,10 @@ export function playGame(host, gameId, stage, onExit) {
     if (disposed) return;
     disposed = true;
     cancelAnimationFrame(frame);
-    canvas.removeEventListener("pointerdown", press);
-    canvas.removeEventListener("keydown", key);
+    canvas.removeEventListener("pointerdown", down);
+    canvas.removeEventListener("pointermove", move);
+    canvas.removeEventListener("keydown", keydown);
+    canvas.removeEventListener("keyup", keyup);
     document.removeEventListener("visibilitychange", visibility);
     window.removeEventListener("resize", onResize);
   }

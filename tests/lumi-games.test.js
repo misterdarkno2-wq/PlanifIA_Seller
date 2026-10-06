@@ -7,7 +7,7 @@ function run(logic, seconds, bot = () => false) {
   const game = { score: 0 };
   logic.reset();
   for (let i = 0; i < seconds / DT; i++) {
-    if (bot(logic.snapshot())) logic.action();
+    if (bot(logic.snapshot())) logic.action({ type: "down" });
     if (!logic.step(DT, game)) return { alive: false, score: game.score, t: i * DT };
   }
   return { alive: true, score: game.score };
@@ -39,10 +39,10 @@ test("Las alas (etapa 4+) dan doble salto en la carrera", () => {
   for (const [stage, jumps] of [[3, 1], [4, 2], [5, 2]]) {
     const logic = gameLogic("run", stage);
     logic.reset();
-    logic.action();
+    logic.action({ type: "key", key: " ", down: true });
     logic.step(DT, { score: 0 });
     const vy = logic.snapshot().lumi.vy;
-    logic.action();
+    logic.action({ type: "key", key: " ", down: true });
     assert.equal(logic.snapshot().lumi.vy !== vy, jumps === 2, `etapa ${stage}`);
   }
 });
@@ -57,6 +57,6 @@ test("El sprite usa la etapa de Lumi sin fondo ni capas ocultas por CSS", () => 
     assert.doesNotMatch(svg, /lumi-shadow-position|lumi-sparks|r="87"/);
     assert.match(svg, /\.lumi-delighted-eyes,\.lumi-talking-mouth\{display:none\}/);
   }
-  assert.deepEqual(LUMI_GAMES.map((g) => g.id), ["flap", "run"]);
+  assert.deepEqual(LUMI_GAMES.map((g) => g.id), ["flap", "run", "catch", "peek", "memory"]);
   for (const g of LUMI_GAMES) assert.match(g.thumb(3), /^data:image\/svg\+xml/);
 });
