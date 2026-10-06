@@ -1,0 +1,45 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "PlanifIA",
+  "version": "2.1.0",
+  "identifier": "cl.planifia.app",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://127.0.0.1:5173",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "PlanifIA",
+        "width": 1200,
+        "height": 850,
+        "minWidth": 360,
+        "minHeight": 560,
+        "useHttpsScheme": true,
+        "backgroundColor": "#f5f7f4"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; media-src 'self' blob:; connect-src 'self' ipc: http://ipc.localhost https://ipc.localhost https://hlnzxgpdxgadbdcqavcd.supabase.co wss://hlnzxgpdxgadbdcqavcd.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "android": {
+      "minSdkVersion": 26,
+      "versionCode": 20100,
+      "debugApplicationIdSuffix": ".debug"
+    }
+  }
+}

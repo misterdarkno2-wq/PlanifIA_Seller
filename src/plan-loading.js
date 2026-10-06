@@ -2,6 +2,7 @@ import { portrait } from "./pet-art.js";
 import { createPetBehavior } from "./pet-behavior.js";
 import { getPetMotionSettings } from "./pet-motion.js";
 import { JOB_LABELS, jobDescription } from "./ai-jobs.js";
+import { mountLumiGames } from "./lumi-games.js";
 
 /** Closing this view only detaches it. Persistent jobs continue in the worker. */
 export function startPlanLoading(host, form, stage) {
@@ -26,7 +27,7 @@ export function startPlanLoading(host, form, stage) {
     <p class="ai-loading-copy" data-plan-message>Buscando acciones que encajen con tu idea y el tiempo que tienes.</p>
     <div class="ai-loading-track" aria-hidden="true"><span></span></div>
     <p class="ai-loading-time" aria-hidden="true"><span class="ai-wait-dot"></span><span data-plan-status>Guardando solicitud</span> <span data-plan-elapsed>0:00 de espera</span></p>
-    <div class="ai-plan-preview" aria-hidden="true">${[1, 2, 3].map((number) => `<div class="ai-preview-card"><span class="ai-preview-number">${number}</span><div><i></i><i></i></div></div>`).join("")}</div>
+    <div class="lumi-games" data-lumi-games></div>
     <p data-plan-position></p><button type="button" class="secondary" data-cancel-job disabled>Cancelar solicitud</button>
     <p class="ai-loading-note">Podrás revisar y editar la propuesta antes de guardar.<br>Tu meta todavía no ha cambiado. Puedes cerrar esta ventana: el trabajo seguirá guardado.</p>`;
   controls.forEach(([element]) => (element.disabled = true));
@@ -37,6 +38,15 @@ export function startPlanLoading(host, form, stage) {
   host.append(screen);
   const petBehavior = createPetBehavior(screen.querySelector(".lumi-art"), {
     motionQuery: getPetMotionSettings(),
+  });
+  const scene = screen.querySelector(".ai-loading-scene");
+  // Mientras se juega, la Lumi del juego reemplaza al retrato grande.
+  const games = mountLumiGames(screen.querySelector("[data-lumi-games]"), {
+    stage,
+    onPlayingChange(playing) {
+      scene.hidden = playing;
+      screen.classList.toggle("is-playing", playing);
+    },
   });
   host.scrollTop = 0;
   screen.querySelector("h3").focus({ preventScroll: true });
@@ -66,6 +76,7 @@ export function startPlanLoading(host, form, stage) {
     disposed = true;
     clearInterval(timer);
     controller.abort();
+    games.dispose();
     petBehavior.dispose();
     host.removeEventListener("close", dispose);
     host.removeEventListener("cancel", dispose);

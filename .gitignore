@@ -1,4 +1,7 @@
 node_modules/
+artifacts/
+*.keystore
+*.jks
 dist/
 .env*
 !.env.example

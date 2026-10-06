@@ -78,6 +78,7 @@ try {
   let total = 0,
     aiCalls = 0,
     failSave = false,
+    deletedWith = null,
     nextAi = null;
   const jobs = [];
   function holdAi(status = 200) {
@@ -165,7 +166,8 @@ try {
           json: { message: "No se pudo guardar la acción.", code: "PGRST503" },
         });
       }
-      if (name === 'get_ai_jobs') result = jobs;
+      if (name === 'delete_my_account') { deletedWith = body.p_confirm; result = true; }
+      else if (name === 'get_ai_jobs') result = jobs;
       else if (name === 'cancel_ai_job') { const job=jobs.find(j=>j.id===body.p_id);job.status='cancelled';result=job; }
       else if (name === "pet_state") result = pet();
       else if (name === "apply_goal_plan") {
@@ -696,6 +698,27 @@ try {
       ),
     );
   assert.equal(aiCalls, 1, "Repetir el clic no duplica la generación");
+  const loader = page.locator(".ai-loading");
+  await loader.getByText("¿Quieres jugar conmigo mientras esperas?").waitFor();
+  for (const name of ["Vuelo de Lumi", "Carrera de Lumi"])
+    assert.match(
+      await loader
+        .getByRole("button", { name: new RegExp(name) })
+        .locator("img")
+        .getAttribute("src"),
+      /^data:image\/svg\+xml/,
+      "Cada juego muestra su imagen con la Lumi actual",
+    );
+  await loader.getByRole("button", { name: /Vuelo de Lumi/ }).click();
+  assert.equal(await loader.locator(".ai-loading-scene").isVisible(), false);
+  const canvas = loader.locator(".lumi-game-canvas");
+  await canvas.click();
+  await page.keyboard.press("Space");
+  await page.waitForTimeout(300);
+  assert.equal(await canvas.evaluate((c) => c.width > 0), true);
+  await loader.getByRole("button", { name: "← Juegos" }).click();
+  await loader.getByRole("button", { name: /Carrera de Lumi/ }).waitFor();
+  assert.equal(await loader.locator(".ai-loading-scene").isVisible(), true);
   assert.equal(
     data.goals.length,
     0,
@@ -1154,11 +1177,25 @@ try {
   );
   await finishLumi(phone, ".ai-loading");
   await phone.clock.resume();
+  await phone.getByRole("button", { name: /Carrera de Lumi/ }).click();
+  await phone.locator(".lumi-game-canvas").click();
+  await phone.waitForTimeout(400);
+  assert.equal(
+    await phone.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    true,
+    "El juego cabe en el ancho del teléfono",
+  );
+  await phone.screenshot({ path: "dist/qa/game-mobile.png", fullPage: false });
   mobilePlan.release();
   await mobilePlan.done;
   await phone
     .getByRole("heading", { name: "Tu propuesta, antes de guardar" })
     .waitFor();
+  assert.equal(
+    await phone.locator(".lumi-game-canvas").count(),
+    0,
+    "Al llegar el plan, la partida se cierra y aparece la propuesta",
+  );
   await phone.getByRole("button", { name: "Cerrar", exact: true }).click();
   await setPhoneMotion("auto");
   await phone
@@ -1245,9 +1282,18 @@ try {
     "No quedan acciones espontáneas en un personaje desmontado",
   );
   await phone.clock.resume();
+  await phone.getByRole("link", { name: "Ajustes", exact: true }).click();
+  await phone.getByRole("button", { name: "Eliminar mi cuenta" }).click();
+  await phone.getByRole("button", { name: "Cancelar" }).click();
+  assert.equal(deletedWith, null, "Cancelar no elimina la cuenta");
+  await phone.getByRole("button", { name: "Eliminar mi cuenta" }).click();
+  await phone.getByLabel("Escribe ELIMINAR para confirmar").fill("ELIMINAR");
+  await phone.getByRole("button", { name: "Eliminar definitivamente" }).click();
+  await phone.getByText("Tu cuenta y tus datos fueron eliminados.").waitFor();
+  assert.equal(deletedWith, "ELIMINAR");
   assert.deepEqual(errors, []);
   console.log(
-    "UI fixtures: registro, login/logout, Lumi autónoma sin clic/hover, movimientos dentro del retrato, pausa de pestaña y desmontaje, XP/nivel/evolución, propuesta editable, carga IA, doble clic, error/reintento, cierre seguro, ajustes, acciones, hábitos, importación, segundo dispositivo, responsive, movimiento reducido y preferencia de Lumi persistente y sincronizada: OK",
+    "UI fixtures: registro, login/logout, Lumi autónoma sin clic/hover, movimientos dentro del retrato, pausa de pestaña y desmontaje, XP/nivel/evolución, propuesta editable, carga IA, doble clic, error/reintento, cierre seguro, ajustes, acciones, hábitos, importación, segundo dispositivo, responsive, movimiento reducido y preferencia de Lumi persistente y sincronizada, eliminación de cuenta: OK",
   );
 } finally {
   if (browser) await browser.close();

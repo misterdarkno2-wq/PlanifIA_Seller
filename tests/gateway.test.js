@@ -4,6 +4,7 @@ import { once } from "node:events";
 import {
   createGatewayServer,
   gatewayConfig,
+  preloadModel,
 } from "../scripts/ollama-gateway.js";
 
 const secret = "test-only-gateway-token-not-a-real-secret-000000000";
@@ -365,4 +366,28 @@ test("Un proveedor que ignora abort mantiene la plaza hasta terminar, sin duplic
   release();
   await new Promise((r) => setTimeout(r, 10));
   assert.equal((await f.call()).status, 200);
+});
+
+test("El modelo queda residente en VRAM y se precarga con el mismo contexto", async () => {
+  const config = gatewayConfig({ GATEWAY_SECRET: secret, OLLAMA_MODEL: model });
+  assert.equal(config.keepAlive, -1);
+  assert.equal(
+    gatewayConfig({ GATEWAY_SECRET: secret, OLLAMA_MODEL: model, OLLAMA_KEEP_ALIVE: "30m" }).keepAlive,
+    "30m",
+  );
+  assert.throws(
+    () => gatewayConfig({ GATEWAY_SECRET: secret, OLLAMA_MODEL: model, OLLAMA_KEEP_ALIVE: "siempre" }),
+    /OLLAMA_KEEP_ALIVE/,
+  );
+  let sent;
+  await preloadModel(config, async (url, init) => {
+    sent = { url, body: JSON.parse(init.body) };
+    return Response.json({ done: true });
+  });
+  assert.equal(sent.url, "http://127.0.0.1:11434/api/generate");
+  assert.deepEqual(sent.body, {
+    model,
+    keep_alive: -1,
+    options: { num_ctx: config.numCtx },
+  });
 });

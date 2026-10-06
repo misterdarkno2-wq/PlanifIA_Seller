@@ -6,6 +6,7 @@ import { startConfiguredWorker } from "./ai-worker.js";
 
 const LOOPBACK = "127.0.0.1";
 const OLLAMA_URL = "http://127.0.0.1:11434/api/chat";
+const OLLAMA_PRELOAD_URL = "http://127.0.0.1:11434/api/generate";
 const MAX_BODY = 96 * 1024;
 const MAX_MESSAGE_CHARS = 24000;
 const MAX_SCHEMA_CHARS = 16000;
@@ -36,9 +37,17 @@ export function gatewayConfig(env = process.env) {
     throw new Error(
       "Configura OLLAMA_MODEL con el nombre exacto de un modelo instalado.",
     );
+  // "-1" mantiene el modelo en VRAM; recargarlo desde disco cuesta 10-15 s por solicitud.
+  const keepAlive = env.OLLAMA_KEEP_ALIVE || "-1";
+  if (!/^(-1|0|\d{1,5}[smh])$/.test(keepAlive))
+    throw new Error(
+      "Configura OLLAMA_KEEP_ALIVE como -1 (siempre cargado), 0 o una duración como 30m.",
+    );
   return {
     secret,
     model,
+    // Ollama sólo acepta duraciones con unidad o números; -1 debe ir como número.
+    keepAlive: /^-?\d+$/.test(keepAlive) ? Number(keepAlive) : keepAlive,
     concurrency: boundedInteger(
       env.GATEWAY_CONCURRENCY,
       1,
@@ -238,7 +247,7 @@ function ollamaRequest(input, config) {
     format,
     stream: false,
     think: false,
-    keep_alive: "5m",
+    keep_alive: config.keepAlive,
     options: {
       temperature,
       num_ctx: config.numCtx,
@@ -283,6 +292,22 @@ async function readOllama(response, signal) {
   }
 }
 
+/** Loads the model with the same num_ctx as real requests so the first plan does not wait for disk. */
+export async function preloadModel(config, fetchImpl = globalThis.fetch) {
+  const response = await fetchImpl(OLLAMA_PRELOAD_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: config.model,
+      keep_alive: config.keepAlive,
+      options: { num_ctx: config.numCtx },
+    }),
+    signal: AbortSignal.timeout(120000),
+  });
+  if (!response.ok) throw new Error("Ollama no pudo cargar el modelo.");
+  await response.arrayBuffer();
+}
+
 /** The only upstream is local Ollama; fetch injection is solely for tests. */
 export function createGatewayServer(options) {
   const config = gatewayConfig({
@@ -292,6 +317,7 @@ export function createGatewayServer(options) {
     GATEWAY_TIMEOUT_MS: options.timeoutMs,
     GATEWAY_MAX_TOKENS: options.maxTokens,
     OLLAMA_NUM_CTX: options.numCtx,
+    OLLAMA_KEEP_ALIVE: options.keepAlive,
     GATEWAY_CONCURRENCY: options.concurrency,
   });
   const fetchImpl = options.fetchImpl ?? globalThis.fetch;
@@ -489,6 +515,11 @@ export async function startGateway() {
     console.log(
       `Adaptador Ollama: http://${LOOPBACK}:${config.port}/v1 (${config.model})`,
     );
+    if (config.keepAlive !== 0)
+      preloadModel(config).then(
+        () => console.log(`Modelo cargado en la GPU (keep_alive ${config.keepAlive}).`),
+        () => console.error("No pudimos precargar el modelo; se cargará con la primera solicitud."),
+      );
     try {
       worker = startConfiguredWorker(config);
       console.log(

@@ -1,0 +1,15 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "La ventana local puede guardar respaldos únicamente en el destino que el usuario elige.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:app:allow-register-listener",
+    "core:app:allow-remove-listener",
+    "core:app:allow-exit",
+    "dialog:allow-save",
+    "fs:allow-write-text-file"
+  ]
+}

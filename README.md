@@ -10,6 +10,8 @@ En esta instalación, Supabase está conectado al proyecto `hlnzxgpdxgadbdcqavcd
 
 ## Ejecutar en Windows
 
+**App Android:** la integración Tauri 2 se desarrolla en `codex/tauri-android`. Consulta [compilar, instalar y firmar Android](docs/android.md) y [publicar en Google Play](docs/google-play.md). Reutiliza este frontend y estas cuentas; no necesita ejecutar Python ni MySQL en el teléfono.
+
 Necesitas Node.js 22.18 o posterior (24 recomendado para el trabajador de IA).
 
 En este PC, la configuración ya está guardada. Para iniciar los servicios y abrir la interfaz local:
@@ -65,7 +67,7 @@ La función `goal-plan` valida la cuenta y la disponibilidad y devuelve HTTP 202
 
 En `supabase/functions/.env.local` configura `ALLOWED_ORIGINS` para los orígenes completos permitidos. Supabase proporciona las credenciales internas de la función. Los antiguos secretos `AI_*` ya no controlan el encolado. En el archivo privado `.env.gateway.local`, configura el modelo instalado, el secreto del adaptador, `QUEUE_SUPABASE_URL` y `QUEUE_SERVICE_ROLE_KEY`. Nunca usar un prefijo `VITE_` para secretos.
 
-El adaptador exige Bearer y escucha sólo en `127.0.0.1:8012`; Ollama conserva `127.0.0.1:11434`. La configuración actual limita a una generación simultánea, contexto de 8192 y hasta 6000 tokens de salida. El modelo instalado se conserva: `hf.co/unsloth/Qwen3.8-27B-GGUF:UD-IQ3_S`. Cada generación y su posible corrección comparten 125 segundos; los reintentos del trabajador tienen límite y no descuentan cuota de nuevo.
+El adaptador exige Bearer y escucha sólo en `127.0.0.1:8012`; Ollama conserva `127.0.0.1:11434`. La configuración actual limita a una generación simultánea, contexto de 8192 y hasta 6000 tokens de salida. El modelo instalado se conserva: `hf.co/unsloth/Qwen3.8-27B-GGUF:UD-IQ3_S`. Cada generación y su posible corrección comparten 125 segundos; los reintentos del trabajador tienen límite y no descuentan cuota de nuevo. El modelo queda residente en VRAM (`OLLAMA_KEEP_ALIVE=-1`) y el adaptador lo precarga al arrancar, para no recargar ~12 GB desde disco en cada solicitud. Las fechas y minutos de cada acción los ajusta `fitSchedule` (en `supabase/functions/_shared/plan.js`) a tus días y tiempo disponibles; la IA sólo se vuelve a llamar si la propuesta está incompleta.
 
 **[Configuración, seguridad, cancelación y preferencias de Lumi](docs/lumi-cola-ia.md)** incluye los valores SQL y el arranque. La nueva conversación usa mensajes locales y sílabas sintetizadas originales; saludos, ánimo, progreso y animaciones no generan solicitudes a la GPU.
 
@@ -132,7 +134,7 @@ Los intervalos (8–20 segundos), pesos, duraciones, desplazamiento máximo y de
 
 Lumi está **animada por defecto**, también durante la espera de IA, sin pedir confirmación ni mostrar un selector en Hoy. En **Ajustes → Animaciones de Lumi** puedes elegir opcionalmente **Tranquilas** para detener sus animaciones o **Según dispositivo** para respetar reducir movimiento; **Animadas** recupera el comportamiento habitual. La elección se guarda en este navegador para la dirección que estés usando: localhost y `planifia.cl` tienen preferencias independientes. El resto de la interfaz sigue respetando la configuración del dispositivo. Cambiar la opción no reinicia formularios ni solicitudes de IA.
 
-Al pedir un plan de IA aparece una pantalla de espera con Lumi, un indicador sin porcentaje y el tiempo transcurrido. Si falla, se recuperan los datos del formulario para reintentar. Cerrar la ventana descarta la respuesta pendiente y evita que vuelva a abrirse por una respuesta tardía.
+Al pedir un plan de IA aparece una pantalla de espera con Lumi, un indicador sin porcentaje y el tiempo transcurrido. Si falla, se recuperan los datos del formulario para reintentar. Cerrar la ventana permite seguir usando el planificador: la solicitud queda en la cola de tu cuenta, sobrevive a una recarga y su resultado aparece para revisarlo antes de guardar. Cancelar solicita su retirada sin aplicar cambios a tus metas.
 
 Las reglas están centralizadas en `private.game_rules`: 10/20/35 XP por prioridad, 5 extra solo antes de una fecha límite real. Sin fecha o en el vencimiento/después: XP base. La curva empieza con 100 XP y suma 35 al coste de cada nivel siguiente. Hay 20 niveles y evoluciones en 1, 5, 10, 15 y 20.
 

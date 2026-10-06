@@ -111,15 +111,36 @@ Deno.test(
 );
 
 Deno.test(
-  "Una primera propuesta fuera de presupuesto provoca una corrección sin reenviar su contenido",
+  "Una propuesta fuera de presupuesto se reparte en el calendario sin una segunda generación",
+  async () => {
+    let calls = 0;
+    const overBudget = validPlan();
+    overBudget.milestones[0].tasks = [
+      { ...overBudget.milestones[0].tasks[0], minutes: 120 },
+      { ...overBudget.milestones[0].tasks[0], minutes: 120, day_offset: 1 },
+    ];
+    const result = await generateValidatedPlan(
+      options(async () => {
+        calls++;
+        return completion(overBudget);
+      }),
+    );
+    assert(calls === 1);
+    const tasks = result.milestones.flatMap(
+      (m: { tasks: { minutes: number }[] }) => m.tasks,
+    );
+    assert(tasks.length >= 1);
+    assert(tasks.every((t: { minutes: number }) => t.minutes >= 5 && t.minutes <= 120));
+  },
+);
+
+Deno.test(
+  "Una primera propuesta incompleta provoca una corrección sin reenviar su contenido",
   async () => {
     let calls = 0;
     const invalid = validPlan();
     invalid.description = "PRIVATE_PREVIOUS_OUTPUT_MUST_NOT_APPEAR";
-    invalid.milestones[0].tasks = [
-      { ...invalid.milestones[0].tasks[0], minutes: 120 },
-      { ...invalid.milestones[0].tasks[0], minutes: 120, day_offset: 1 },
-    ];
+    invalid.outcome = "";
     const result = await generateValidatedPlan(
       options(async (_url, init) => {
         calls++;
@@ -127,9 +148,7 @@ Deno.test(
         if (calls === 1) return completion(invalid);
         assert(body.messages.length === 3);
         assert(body.messages[2].role === "user");
-        assert(
-          body.messages[2].content.includes("supera el tiempo disponible"),
-        );
+        assert(body.messages[2].content.includes("incompleta"));
         assert(
           !String(init?.body).includes(
             "PRIVATE_PREVIOUS_OUTPUT_MUST_NOT_APPEAR",

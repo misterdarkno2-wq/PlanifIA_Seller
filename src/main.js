@@ -1,4 +1,5 @@
 import "./style.css";
+import { authRedirect, downloadJson, installNativeBack } from "./platform.js";
 import "./pet.css";
 import "./lumi-conversation.css";
 import { createLumiCompanion } from "./lumi-messages.js";
@@ -311,6 +312,7 @@ async function refresh() {
     state = next;
     loading = false;
     render();
+    return true;
   } catch (error) {
     if (version !== loadVersion) return;
     loading = false;
@@ -320,12 +322,13 @@ async function refresh() {
       panel.hidden = false;
       $("p", panel).textContent = errorMessage(error);
     }
+    return false;
   }
 }
 async function saved(message) {
   closeModal();
-  toast(message);
-  await refresh();
+  if (await refresh()) toast(message);
+  else toast("El cambio se guardó, pero no pudimos actualizar la vista. Vuelve a cargar tus datos.");
 }
 function modal(title, content) {
   closeModal();
@@ -470,7 +473,7 @@ function daysInputs(selected, prefix = "days") {
 }
 function settingsPage() {
   const p = state.profile;
-  return `<div class="page-heading"><div><h1>Tu ritmo y tus datos</h1><p class="muted">Los cambios se guardan en tu cuenta y se recuperan en otros dispositivos.</p></div></div><div class="settings-grid"><section class="panel pet-motion-panel"><h2>Lumi a tu ritmo</h2><p>Elige cómo te acompaña mientras organizas tus metas.</p>${petMotionControls()}${lumiConversationSettings(companion)}</section><section class="panel"><h2>Disponibilidad</h2><form id="profile-form"><label>Tu nombre<input name="name" value="${e(p.name)}" maxlength="80" required></label><label>Zona horaria<input name="timezone" value="${e(p.timezone)}" required placeholder="America/Santiago"></label><label>Minutos totales por semana<input name="minutes" type="number" min="30" max="3360" value="${p.weekly_minutes}" required></label>${daysInputs(p.available_days)}<p class="muted">La IA reparte este tiempo entre tus días disponibles, contando acciones y hábitos existentes.</p>${alert()}<button>Guardar disponibilidad</button></form></section><section class="panel"><h2>Conservar lo que ya hiciste</h2><p>Importa un archivo JSON de PlanifIA anterior. Verás el destino y el contenido antes de confirmar.</p><label class="file-label">Seleccionar exportación<input type="file" id="import-file" accept="application/json,.json"></label><button class="secondary" id="import-local">Buscar tareas guardadas en este navegador</button><p class="muted">Los archivos originales se conservan. Repetir la importación no crea actividades duplicadas. La XP histórica se conserva en el respaldo original, sin asignar recompensas nuevas.</p><h3>Importaciones guardadas</h3>${state.imports.map((i) => `<p>${e(i.source)} <button class="text-button" data-export-import="${i.id}">Descargar original</button></p>`).join("") || '<p class="muted">Todavía no hay importaciones.</p>'}<button class="secondary" id="export-data">Exportar mis datos</button></section></div>`;
+  return `<div class="page-heading"><div><h1>Tu ritmo y tus datos</h1><p class="muted">Los cambios se guardan en tu cuenta y se recuperan en otros dispositivos.</p></div></div><div class="settings-grid"><section class="panel pet-motion-panel"><h2>Lumi a tu ritmo</h2><p>Elige cómo te acompaña mientras organizas tus metas.</p>${petMotionControls()}${lumiConversationSettings(companion)}</section><section class="panel"><h2>Disponibilidad</h2><form id="profile-form"><label>Tu nombre<input name="name" value="${e(p.name)}" maxlength="80" required></label><label>Zona horaria<input name="timezone" value="${e(p.timezone)}" required placeholder="America/Santiago"></label><label>Minutos totales por semana<input name="minutes" type="number" min="30" max="3360" value="${p.weekly_minutes}" required></label>${daysInputs(p.available_days)}<p class="muted">La IA reparte este tiempo entre tus días disponibles, contando acciones y hábitos existentes.</p>${alert()}<button>Guardar disponibilidad</button></form></section><section class="panel"><h2>Conservar lo que ya hiciste</h2><p>Importa un archivo JSON de PlanifIA anterior. Verás el destino y el contenido antes de confirmar.</p><label class="file-label">Seleccionar exportación<input type="file" id="import-file" accept="application/json,.json"></label><button class="secondary" id="import-local">Buscar tareas guardadas en este navegador</button><p class="muted">Los archivos originales se conservan. Repetir la importación no crea actividades duplicadas. La XP histórica se conserva en el respaldo original, sin asignar recompensas nuevas.</p><h3>Importaciones guardadas</h3>${state.imports.map((i) => `<p>${e(i.source)} <button class="text-button" data-export-import="${i.id}">Descargar original</button></p>`).join("") || '<p class="muted">Todavía no hay importaciones.</p>'}<button class="secondary" id="export-data">Exportar mis datos</button></section><section class="panel danger-zone"><h2>Eliminar cuenta</h2><p>Borra de forma permanente tu cuenta y todos sus datos: metas, acciones, hábitos, Lumi, solicitudes de IA e importaciones. No se puede deshacer.</p><p class="muted">Te recomendamos exportar tus datos antes. Consulta la <a href="https://planifia.cl/privacidad.html" target="_blank" rel="noopener">política de privacidad</a>.</p><button class="danger" id="delete-account">Eliminar mi cuenta</button></section></div>`;
 }
 function shell(content) {
   const tab = location.hash.slice(1).split("?")[0] || "today";
@@ -591,7 +594,7 @@ function authModal(mode) {
             password: fields.password,
             options: {
               data: { name: fields.name },
-              emailRedirectTo: location.origin + location.pathname,
+              emailRedirectTo: authRedirect(),
             },
           }),
         );
@@ -626,7 +629,7 @@ function authModal(mode) {
       if (!cloud) throw new Error("Falta conectar Supabase.");
       await checked(
         cloud.auth.resetPasswordForEmail(email, {
-          redirectTo: location.origin + location.pathname + "#reset",
+          redirectTo: authRedirect("#reset"),
         }),
       );
       toast(
@@ -634,6 +637,30 @@ function authModal(mode) {
       );
     });
   });
+}
+function deleteAccountForm() {
+  const form = $(
+    "form",
+    modal(
+      "Eliminar tu cuenta",
+      `<form><p>Se borrarán permanentemente tu cuenta (${e(user.email)}) y todos tus datos de PlanifIA. Esta acción no se puede deshacer.</p><label>Escribe ELIMINAR para confirmar<input name="confirm" autocomplete="off" required pattern="ELIMINAR"></label><p class="error" role="alert" hidden></p><div class="actions"><button type="button" class="secondary" data-cancel>Cancelar</button><button class="danger">Eliminar definitivamente</button></div></form>`,
+    ),
+  );
+  $("[data-cancel]", form).onclick = closeModal;
+  form.onsubmit = (event) => {
+    event.preventDefault();
+    busy($("button.danger", form), async () => {
+      await rpc("delete_my_account", { p_confirm: form.confirm.value.trim() });
+      await cloud.auth.signOut({ scope: "local" }).catch(() => {});
+      user = null;
+      state = null;
+      loadVersion++;
+      closeModal();
+      location.hash = "home";
+      render();
+      toast("Tu cuenta y tus datos fueron eliminados.");
+    });
+  };
 }
 function bindShell() {
   $("#logout")?.addEventListener("click", (event) =>
@@ -777,12 +804,13 @@ function bindActions() {
       );
     }
   });
-  $("#export-data")?.addEventListener("click", () =>
-    download("planifia-seller-respaldo.json", {
+  $("#delete-account")?.addEventListener("click", deleteAccountForm);
+  $("#export-data")?.addEventListener("click", (event) =>
+    busy(event.currentTarget, async () => downloadJson("planifia-seller-respaldo.json", {
       version: 2,
       sourceId: "seller:" + user.id,
       ...state,
-    }),
+    })),
   );
   document.querySelectorAll("[data-export-import]").forEach(
     (b) =>
@@ -795,7 +823,7 @@ function bindActions() {
               .eq("id", b.dataset.exportImport)
               .single(),
           );
-          download("planifia-original.json", data.original);
+          await downloadJson("planifia-original.json", data.original);
         })),
   );
 }
@@ -1180,15 +1208,12 @@ function importPreview(data) {
       );
     });
 }
-function download(name, data) {
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(
-    new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }),
-  );
-  a.download = name;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-}
+installNativeBack({
+  modalOpen: () => Boolean(dialog?.open),
+  closeModal,
+  goHome: () => { location.hash = user ? "today" : "home"; },
+  onError: (error) => toast(errorMessage(error)),
+}).catch((error) => toast(errorMessage(error)));
 window.addEventListener("hashchange", () => {
   closeModal();
   if (location.hash === "#reset") {

@@ -13,14 +13,26 @@
     "test:companion-ui": "node tests/companion-ui.mjs",
     "test:edge": "npx --yes deno test --allow-env --no-config --no-lock --node-modules-dir=none supabase/functions/",
     "check:edge": "npx --yes deno check --no-config --no-lock --node-modules-dir=none supabase/functions/goal-plan/index.ts supabase/functions/billing/index.ts supabase/functions/billing-return/index.ts supabase/functions/billing-renew/index.ts",
-    "test:live": "node tests/live.mjs"
+    "test:live": "node tests/live.mjs",
+    "tauri": "node scripts/tauri.mjs",
+    "desktop:dev": "npm run tauri -- dev",
+    "desktop:build": "npm run tauri -- build --no-bundle",
+    "android:init": "npm run tauri -- android init --ci",
+    "android:apk": "npm run tauri -- android build --debug --apk --target aarch64 x86_64",
+    "android:release": "npm run tauri -- android build --apk --target aarch64",
+    "android:aab": "npm run tauri -- android build --aab --target aarch64 armv7",
+    "android:dev": "npm run tauri -- android dev"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.58.0"
+    "@supabase/supabase-js": "^2.58.0",
+    "@tauri-apps/api": "^2.12.1",
+    "@tauri-apps/plugin-dialog": "^2.8.1",
+    "@tauri-apps/plugin-fs": "^2.6.0"
   },
   "devDependencies": {
-    "vite": "^7.1.0",
     "@electric-sql/pglite": "^0.3.10",
-    "@playwright/test": "^1.55.0"
+    "@playwright/test": "^1.55.0",
+    "@tauri-apps/cli": "^2.12.1",
+    "vite": "^7.1.0"
   }
 }

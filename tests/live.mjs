@@ -11,6 +11,8 @@ if (process.env.PLANIFIA_RUN_LIVE !== "1")
   throw new Error(
     "Esta prueba crea y elimina sus propias cuentas de validación. Actívala con PLANIFIA_RUN_LIVE=1.",
   );
+const web = process.env.PLANIFIA_LIVE_WEB_URL || "http://127.0.0.1:5173/";
+assert.ok((await fetch(web, { signal: AbortSignal.timeout(15000) })).ok, "Inicia la web antes de ejecutar la prueba real.");
 const settings = Object.fromEntries(
   (await readFile(".env.local", "utf8"))
     .split("\n")
@@ -216,6 +218,7 @@ try {
     },
     signal: AbortSignal.timeout(140000),
     body: JSON.stringify({
+      request_id: randomUUID(),
       goal_id: goal,
       idea: "Quiero publicar una serie de cuatro fotografías. Propón sólo cuatro acciones pequeñas para esta semana, repartidas en días distintos, con dos hitos.",
       current_situation:
@@ -225,12 +228,22 @@ try {
       target_date: null,
     }),
   });
-  const result = await response.json();
+  const accepted = await response.json();
   assert.equal(
     response.status,
-    200,
-    result.error || "La función no devolvió una propuesta.",
+    202,
+    accepted.error || "La función no aceptó la solicitud en la cola.",
   );
+  assert.ok(accepted.job?.id, "La respuesta debe identificar el trabajo persistido.");
+  let job = accepted.job;
+  while (!["completed", "failed", "cancelled"].includes(job.status) && Date.now() - started < 420000) {
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    [job] = await rpc(clientA, "get_ai_jobs", { p_id: accepted.job.id });
+    assert.ok(job, "El trabajo debe seguir disponible para su propietario.");
+  }
+  assert.equal(job.status, "completed", job.error || "La cola no terminó dentro del plazo.");
+  const result = job.result;
+  assert.ok(result?.proposal, "El trabajo terminado debe contener la propuesta real.");
   assert.equal(
     unwrap(await clientA.from("milestones").select("id").eq("goal_id", goal))
       .length,

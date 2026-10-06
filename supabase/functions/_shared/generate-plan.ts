@@ -1,4 +1,4 @@
-import { PLAN_SCHEMA, SYSTEM, validateProposal } from "./plan.js";
+import { fitSchedule, PLAN_SCHEMA, SYSTEM, validateProposal } from "./plan.js";
 
 export class PlanGenerationError extends Error {
   readonly status: number;
@@ -238,10 +238,8 @@ export async function generateValidatedPlan({
     }
     let proposal;
     try {
-      proposal = validateProposal(parsed, {
-        ...limits,
-        remainingWeekly: effectiveWeekly,
-      });
+      const fitted = { ...limits, remainingWeekly: effectiveWeekly };
+      proposal = validateProposal(fitSchedule(parsed, fitted), fitted);
     } catch (error) {
       problem =
         error instanceof Error
