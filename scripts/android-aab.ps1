@@ -3,12 +3,14 @@
 # sólo viven en este proceso; nunca se guardan en archivos ni en el historial.
 [CmdletBinding()]
 param(
-    [string]$Keystore = (Join-Path (Split-Path -Parent $PSScriptRoot) 'planifia-release.keystore'),
+    [string]$Keystore = '',
     [string]$Alias = 'planifia'
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+# Windows PowerShell 5.1 no define $PSScriptRoot al evaluar los valores de param().
 $repoPath = Split-Path -Parent $PSScriptRoot
+if (-not $Keystore) { $Keystore = Join-Path $repoPath 'planifia-release.keystore' }
 
 if (-not (Test-Path -LiteralPath $Keystore -PathType Leaf)) {
     throw "No se encontro la clave de carga en $Keystore. Indica otra ruta con -Keystore."
