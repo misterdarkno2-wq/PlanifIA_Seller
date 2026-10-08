@@ -38,7 +38,6 @@ import com.google.android.libraries.ads.mobile.sdk.rewarded.ServerSideVerificati
 import com.google.android.ump.ConsentInformation
 import com.google.android.ump.ConsentRequestParameters
 import com.google.android.ump.UserMessagingPlatform
-import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
 private const val TAG = "PlanifiaAds"
@@ -97,7 +96,6 @@ private class AdIds(
 class AdsPlugin(private val activity: Activity) : Plugin(activity) {
   private val ids by lazy { AdIds.from(activity) }
   private val consent: ConsentInformation by lazy { UserMessagingPlatform.getConsentInformation(activity) }
-  private val worker = Executors.newSingleThreadExecutor()
   private val initWaiters = mutableListOf<Invoke>()
   private var initStarted = false
   @Volatile private var sdkReady = false
@@ -186,8 +184,10 @@ class AdsPlugin(private val activity: Activity) : Plugin(activity) {
       if (initStarted) return
       initStarted = true
     }
-    // El SDK exige inicializarse fuera del hilo principal para evitar ANR.
-    worker.execute {
+    // El SDK exige inicializarse fuera del hilo principal para evitar ANR. Es un hilo propio y
+    // no un executor guardado: el plugin vive más que la actividad y un executor cerrado
+    // rechazaba la tarea (RejectedExecutionException) y dejaba initAds esperando para siempre.
+    Thread({
       try {
         val config = InitializationConfig.Builder(ids.appId)
           .setRequestConfiguration(
@@ -203,9 +203,9 @@ class AdsPlugin(private val activity: Activity) : Plugin(activity) {
       } catch (error: Throwable) {
         Log.e(TAG, "No se pudo inicializar AdMob", error)
         synchronized(initWaiters) { initStarted = false }
-        flushInit()
+        guard(null, "initAds") { flushInit() }
       }
-    }
+    }, "PlanifiaAdsInit").start()
   }
 
   private fun flushInit() {
@@ -524,6 +524,5 @@ class AdsPlugin(private val activity: Activity) : Plugin(activity) {
     }
     interstitial = null
     rewarded = null
-    worker.shutdown()
   }
 }
