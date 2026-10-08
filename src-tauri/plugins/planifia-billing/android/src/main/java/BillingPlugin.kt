@@ -89,6 +89,19 @@ class BillingPlugin(private val activity: Activity) : Plugin(activity), Purchase
     for ((key, value) in pairs) put(key, value)
   }
 
+  /**
+   * Una compra nunca debe cerrar la app. Tauri sólo atrapa los errores síncronos del comando;
+   * los callbacks de Google Play y el hilo principal pasan por aquí.
+   */
+  private fun guard(invoke: Invoke?, what: String, block: () -> Unit) {
+    try {
+      block()
+    } catch (error: Throwable) {
+      Log.e(TAG, "Falló $what", error)
+      invoke?.reject("No se pudo completar $what.")
+    }
+  }
+
   private fun failure(result: BillingResult?) = result(
     "available" to (result?.responseCode != BillingResponseCode.BILLING_UNAVAILABLE),
     "status" to "error",
@@ -113,7 +126,7 @@ class BillingPlugin(private val activity: Activity) : Plugin(activity), Purchase
           connecting = false
           waiters.toList().also { waiters.clear() }
         }
-        list.forEach { it(if (ok(billingResult)) null else billingResult) }
+        list.forEach { action -> guard(null, "conexión con Google Play") { action(if (ok(billingResult)) null else billingResult) } }
       }
 
       override fun onBillingServiceDisconnected() {
@@ -123,7 +136,7 @@ class BillingPlugin(private val activity: Activity) : Plugin(activity), Purchase
     })
   }
 
-  private fun queryDetails(ids: List<String>, type: String, done: (BillingResult?, List<ProductDetails>, List<String>) -> Unit) {
+  private fun queryDetails(invoke: Invoke, ids: List<String>, type: String, done: (BillingResult?, List<ProductDetails>, List<String>) -> Unit) {
     if (ids.isEmpty()) {
       done(null, emptyList(), emptyList())
       return
@@ -132,13 +145,15 @@ class BillingPlugin(private val activity: Activity) : Plugin(activity), Purchase
       .setProductList(ids.map { QueryProductDetailsParams.Product.newBuilder().setProductId(it).setProductType(type).build() })
       .build()
     client.queryProductDetailsAsync(params) { billingResult, queryResult ->
-      val found = queryResult.productDetailsList
-      found.forEach { details[it.productId] = it }
-      done(
-        if (ok(billingResult)) null else billingResult,
-        found,
-        queryResult.unfetchedProductList.map { it.productId },
-      )
+      guard(invoke, "la consulta de productos") {
+        val found = queryResult.productDetailsList
+        found.forEach { details[it.productId] = it }
+        done(
+          if (ok(billingResult)) null else billingResult,
+          found,
+          queryResult.unfetchedProductList.map { it.productId },
+        )
+      }
     }
   }
 
@@ -210,8 +225,8 @@ class BillingPlugin(private val activity: Activity) : Plugin(activity), Purchase
         invoke.resolve(failure(connection))
         return@withClient
       }
-      queryDetails(args.subscriptions?.toList() ?: emptyList(), ProductType.SUBS) { subsError, subs, subsMissing ->
-        queryDetails(args.products?.toList() ?: emptyList(), ProductType.INAPP) { inappError, inapp, inappMissing ->
+      queryDetails(invoke, args.subscriptions?.toList() ?: emptyList(), ProductType.SUBS) { subsError, subs, subsMissing ->
+        queryDetails(invoke, args.products?.toList() ?: emptyList(), ProductType.INAPP) { inappError, inapp, inappMissing ->
           val error = subsError ?: inappError
           invoke.resolve(JSObject().apply {
             put("available", true)
@@ -287,23 +302,31 @@ class BillingPlugin(private val activity: Activity) : Plugin(activity), Purchase
         }
         flow.setProductDetailsParamsList(listOf(productParams.build()))
         activity.runOnUiThread {
-          synchronized(this) {
-            if (pendingPurchase != null) {
-              invoke.resolve(result("status" to "error", "code" to BillingResponseCode.DEVELOPER_ERROR, "message" to "Ya hay una compra en curso."))
-              return@runOnUiThread
+          guard(invoke, "la compra") {
+            synchronized(this) {
+              if (pendingPurchase != null) {
+                invoke.resolve(result("status" to "error", "code" to BillingResponseCode.DEVELOPER_ERROR, "message" to "Ya hay una compra en curso."))
+                return@guard
+              }
+              pendingPurchase = invoke
             }
-            pendingPurchase = invoke
-          }
-          val launched = client.launchBillingFlow(activity, flow.build())
-          if (!ok(launched)) {
-            synchronized(this) { pendingPurchase = null }
-            invoke.resolve(statusPayload(launched, null))
+            try {
+              val launched = client.launchBillingFlow(activity, flow.build())
+              if (!ok(launched)) {
+                synchronized(this) { pendingPurchase = null }
+                invoke.resolve(statusPayload(launched, null))
+              }
+            } catch (error: Throwable) {
+              // Sin esto, una falla al abrir Google Play bloquearía las compras siguientes.
+              synchronized(this) { pendingPurchase = null }
+              throw error
+            }
           }
         }
       }
       val cached = details[productId]
       if (cached != null) launch(cached)
-      else queryDetails(listOf(productId), type) { _, found, _ -> launch(found.firstOrNull()) }
+      else queryDetails(invoke, listOf(productId), type) { _, found, _ -> launch(found.firstOrNull()) }
     }
   }
 
@@ -326,15 +349,17 @@ class BillingPlugin(private val activity: Activity) : Plugin(activity), Purchase
 
   /** Google llama aquí al terminar la compra, y también cuando una compra pendiente se completa. */
   override fun onPurchasesUpdated(billingResult: BillingResult, purchases: MutableList<Purchase>?) {
-    val payload = statusPayload(billingResult, purchases)
     val waiting = synchronized(this) { pendingPurchase.also { pendingPurchase = null } }
-    waiting?.resolve(payload)
-    trigger("purchasesUpdated", payload)
+    guard(waiting, "la compra") {
+      val payload = statusPayload(billingResult, purchases)
+      waiting?.resolve(payload)
+      trigger("purchasesUpdated", payload)
+    }
   }
 
-  private fun queryOwned(type: String, done: (BillingResult?, List<Purchase>) -> Unit) {
+  private fun queryOwned(invoke: Invoke, type: String, done: (BillingResult?, List<Purchase>) -> Unit) {
     client.queryPurchasesAsync(QueryPurchasesParams.newBuilder().setProductType(type).build()) { billingResult, purchases ->
-      done(if (ok(billingResult)) null else billingResult, purchases)
+      guard(invoke, "la consulta de compras") { done(if (ok(billingResult)) null else billingResult, purchases) }
     }
   }
 
@@ -346,8 +371,8 @@ class BillingPlugin(private val activity: Activity) : Plugin(activity), Purchase
         invoke.resolve(failure(connection))
         return@withClient
       }
-      queryOwned(ProductType.SUBS) { subsError, subs ->
-        queryOwned(ProductType.INAPP) { inappError, inapp ->
+      queryOwned(invoke, ProductType.SUBS) { subsError, subs ->
+        queryOwned(invoke, ProductType.INAPP) { inappError, inapp ->
           val error = subsError ?: inappError
           invoke.resolve(JSObject().apply {
             put("available", true)
@@ -377,20 +402,22 @@ class BillingPlugin(private val activity: Activity) : Plugin(activity), Purchase
         invoke.resolve(result("ok" to (r.responseCode == BillingResponseCode.OK || r.responseCode == BillingResponseCode.ITEM_NOT_OWNED), "code" to r.responseCode))
       }
       if (args.consumable) {
-        client.consumeAsync(ConsumeParams.newBuilder().setPurchaseToken(token).build()) { r, _ -> done(r) }
+        client.consumeAsync(ConsumeParams.newBuilder().setPurchaseToken(token).build()) { r, _ -> guard(invoke, "finishPurchase") { done(r) } }
       } else {
-        client.acknowledgePurchase(AcknowledgePurchaseParams.newBuilder().setPurchaseToken(token).build()) { r -> done(r) }
+        client.acknowledgePurchase(AcknowledgePurchaseParams.newBuilder().setPurchaseToken(token).build()) { r -> guard(invoke, "finishPurchase") { done(r) } }
       }
     }
   }
 
   private fun open(url: String, invoke: Invoke) {
     activity.runOnUiThread {
-      try {
-        activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        invoke.resolve(result("opened" to true))
-      } catch (error: ActivityNotFoundException) {
-        invoke.resolve(result("opened" to false))
+      guard(invoke, "abrir la página") {
+        try {
+          activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+          invoke.resolve(result("opened" to true))
+        } catch (error: ActivityNotFoundException) {
+          invoke.resolve(result("opened" to false))
+        }
       }
     }
   }
@@ -422,6 +449,6 @@ class BillingPlugin(private val activity: Activity) : Plugin(activity), Purchase
   }
 
   override fun onDestroy(activity: AppCompatActivity) {
-    if (created) client.endConnection()
+    if (created) guard(null, "onDestroy") { client.endConnection() }
   }
 }

@@ -131,10 +131,27 @@ class AdsPlugin(private val activity: Activity) : Plugin(activity) {
     for ((key, value) in pairs) put(key, value)
   }
 
+  /**
+   * Un anuncio nunca debe cerrar la app. Tauri sólo atrapa los errores síncronos del comando;
+   * lo que corre después (hilo principal, callbacks del SDK, UMP) pasa por aquí.
+   */
+  private fun guard(invoke: Invoke?, what: String, block: () -> Unit) {
+    try {
+      block()
+    } catch (error: Throwable) {
+      Log.e(TAG, "Falló $what", error)
+      invoke?.reject("No se pudo completar $what.")
+    }
+  }
+
+  private fun onUi(invoke: Invoke?, what: String, block: () -> Unit) {
+    activity.runOnUiThread { guard(invoke, what, block) }
+  }
+
   /** Pide el consentimiento (UMP) y sólo después inicializa el SDK de anuncios. */
   @Command
   fun initAds(invoke: Invoke) {
-    activity.runOnUiThread {
+    onUi(invoke, "initAds") {
       val params = ConsentRequestParameters.Builder()
         .setAdMobAppId(ids.appId)
         .setTagForUnderAgeOfConsent(false)
@@ -143,15 +160,17 @@ class AdsPlugin(private val activity: Activity) : Plugin(activity) {
         activity,
         params,
         {
-          UserMessagingPlatform.loadAndShowConsentFormIfRequired(activity) { error ->
-            if (error != null) Log.w(TAG, "Formulario de consentimiento: ${error.message}")
-            startSdk(invoke)
+          guard(invoke, "consentimiento") {
+            UserMessagingPlatform.loadAndShowConsentFormIfRequired(activity) { error ->
+              if (error != null) Log.w(TAG, "Formulario de consentimiento: ${error.message}")
+              guard(invoke, "initAds") { startSdk(invoke) }
+            }
           }
         },
         { error ->
           // Sin red se usa el consentimiento guardado de la sesión anterior.
           Log.w(TAG, "Consentimiento no actualizado: ${error.message}")
-          startSdk(invoke)
+          guard(invoke, "initAds") { startSdk(invoke) }
         },
       )
     }
@@ -179,7 +198,7 @@ class AdsPlugin(private val activity: Activity) : Plugin(activity) {
           .build()
         MobileAds.initialize(activity.applicationContext, config) {
           sdkReady = true
-          flushInit()
+          guard(null, "initAds") { flushInit() }
         }
       } catch (error: Throwable) {
         Log.e(TAG, "No se pudo inicializar AdMob", error)
@@ -202,7 +221,7 @@ class AdsPlugin(private val activity: Activity) : Plugin(activity) {
 
   @Command
   fun showPrivacyOptions(invoke: Invoke) {
-    activity.runOnUiThread {
+    onUi(invoke, "showPrivacyOptions") {
       UserMessagingPlatform.showPrivacyOptionsForm(activity) { error ->
         if (error != null) Log.w(TAG, "Opciones de privacidad: ${error.message}")
         invoke.resolve(state())
@@ -219,14 +238,14 @@ class AdsPlugin(private val activity: Activity) : Plugin(activity) {
       invoke.resolve(result("shown" to false, "reason" to "not_ready"))
       return
     }
-    activity.runOnUiThread {
+    onUi(invoke, "showBanner") {
       val position = if (args.position == "top") "top" else "bottom"
       val existing = container
       if (existing != null && position == bannerPosition) {
         if (bannerLoaded) existing.visibility = View.VISIBLE
         invoke.resolve(result("shown" to bannerLoaded, "height" to currentHeight()))
         reportBanner()
-        return@runOnUiThread
+        return@onUi
       }
       removeBanner()
       val root = activity.findViewById<ViewGroup>(android.R.id.content)
@@ -271,20 +290,22 @@ class AdsPlugin(private val activity: Activity) : Plugin(activity) {
         BannerAdRequest.Builder(ids.banner, size).build(),
         object : AdLoadCallback<BannerAd> {
           override fun onAdLoaded(ad: BannerAd) {
-            activity.runOnUiThread {
-              if (adView !== view) return@runOnUiThread
+            onUi(invoke, "showBanner") {
+              if (adView !== view) return@onUi
               bannerLoaded = true
               frame.visibility = View.VISIBLE
               ViewCompat.getRootWindowInsets(frame)?.let { applyInsets(frame, it) }
               frame.post {
-                reportBanner()
-                invoke.resolve(result("shown" to true, "height" to currentHeight()))
+                guard(invoke, "showBanner") {
+                  reportBanner()
+                  invoke.resolve(result("shown" to true, "height" to currentHeight()))
+                }
               }
             }
           }
 
           override fun onAdFailedToLoad(adError: LoadAdError) {
-            activity.runOnUiThread {
+            onUi(invoke, "showBanner") {
               if (adView === view) removeBanner()
               invoke.resolve(result("shown" to false, "reason" to adError.code.name))
             }
@@ -302,7 +323,7 @@ class AdsPlugin(private val activity: Activity) : Plugin(activity) {
     if (bannerLoaded) {
       view.visibility = if (insets.isVisible(WindowInsetsCompat.Type.ime())) View.INVISIBLE else View.VISIBLE
     }
-    view.post { reportBanner() }
+    view.post { guard(null, "reportBanner") { reportBanner() } }
   }
 
   /** Alto ocupado por el banner en px CSS (dp), incluido el margen de la barra del sistema. */
@@ -321,7 +342,7 @@ class AdsPlugin(private val activity: Activity) : Plugin(activity) {
 
   @Command
   fun hideBanner(invoke: Invoke) {
-    activity.runOnUiThread {
+    onUi(invoke, "hideBanner") {
       removeBanner()
       invoke.resolve(result("shown" to false, "height" to 0))
     }
@@ -384,19 +405,23 @@ class AdsPlugin(private val activity: Activity) : Plugin(activity) {
     ad.adEventCallback = object : InterstitialAdEventCallback {
       override fun onAdDismissedFullScreenContent() {
         if (finished.compareAndSet(false, true)) invoke.resolve(result("shown" to true))
-        ad.destroy()
-        preloadInterstitial()
+        guard(null, "intersticial") {
+          ad.destroy()
+          preloadInterstitial()
+        }
       }
 
       override fun onAdFailedToShowFullScreenContent(fullScreenContentError: FullScreenContentError) {
         if (finished.compareAndSet(false, true)) {
           invoke.resolve(result("shown" to false, "reason" to fullScreenContentError.code.name))
         }
-        ad.destroy()
-        preloadInterstitial()
+        guard(null, "intersticial") {
+          ad.destroy()
+          preloadInterstitial()
+        }
       }
     }
-    activity.runOnUiThread { ad.show(activity) }
+    onUi(invoke, "showInterstitial") { ad.show(activity) }
   }
 
   // ---------- Recompensado (los créditos los acredita el servidor vía SSV) ----------
@@ -458,8 +483,10 @@ class AdsPlugin(private val activity: Activity) : Plugin(activity) {
         if (finished.compareAndSet(false, true)) {
           invoke.resolve(result("shown" to true, "earned" to earned.get()))
         }
-        ad.destroy()
-        preloadRewarded()
+        guard(null, "recompensado") {
+          ad.destroy()
+          preloadRewarded()
+        }
       }
 
       override fun onAdFailedToShowFullScreenContent(fullScreenContentError: FullScreenContentError) {
@@ -468,17 +495,21 @@ class AdsPlugin(private val activity: Activity) : Plugin(activity) {
             result("shown" to false, "earned" to false, "reason" to fullScreenContentError.code.name),
           )
         }
-        ad.destroy()
-        preloadRewarded()
+        guard(null, "recompensado") {
+          ad.destroy()
+          preloadRewarded()
+        }
       }
     }
-    activity.runOnUiThread {
+    onUi(invoke, "showRewarded") {
       ad.show(
         activity,
         object : OnUserEarnedRewardListener {
           override fun onUserEarnedReward(reward: RewardItem) {
             earned.set(true)
-            trigger("rewardEarned", result("amount" to reward.amount, "type" to reward.type))
+            guard(null, "rewardEarned") {
+              trigger("rewardEarned", result("amount" to reward.amount, "type" to reward.type))
+            }
           }
         },
       )
@@ -486,9 +517,11 @@ class AdsPlugin(private val activity: Activity) : Plugin(activity) {
   }
 
   override fun onDestroy(activity: AppCompatActivity) {
-    activity.runOnUiThread { removeBanner() }
-    interstitial?.destroy()
-    rewarded?.destroy()
+    activity.runOnUiThread { guard(null, "onDestroy") { removeBanner() } }
+    guard(null, "onDestroy") {
+      interstitial?.destroy()
+      rewarded?.destroy()
+    }
     interstitial = null
     rewarded = null
     worker.shutdown()
