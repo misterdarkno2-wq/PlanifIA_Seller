@@ -52,6 +52,21 @@ Sin clave privada de firma se genera un **Release sin firmar**, que no debe entr
 
 Si falta alguna de las cuatro, la compilación falla con una explicación. Guarda una copia segura de tu clave: futuras actualizaciones deben mantener la identidad de firma. Para Google Play genera el AAB con `npm.cmd run android:aab`, con la misma configuración de firma. El paquete de producción es `cl.planifia.app`. Los pasos de Play Console y la prueba cerrada están en [Google Play](google-play.md).
 
+### Probar el release antes de subirlo
+
+Debug no pasa por R8, así que un fallo que sólo ocurre en el AAB de Google Play no aparece con `android:apk`. El workflow **Android en emulador** (`.github/workflows/android-smoke.yml`) compila el APK release con R8, lo abre en un emulador, ejecuta los comandos de anuncios y compras, sale y vuelve a la app, recrea la actividad y muestra el `logcat` si la app se cierra. Usa bloques de prueba de AdMob y una clave de firma desechable; se ejecuta al subir cambios de la app a ramas `claude/**` o a mano desde **Actions**.
+
+Con el teléfono conectado, el motivo de un cierre se ve con:
+
+```powershell
+$adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
+& $adb logcat -c
+# Abre la app y espera a que se cierre.
+& $adb logcat -d | Select-String "AndroidRuntime|FATAL|Fatal signal|PlanifiaAds|PlanifiaBilling"
+```
+
+Las reglas de R8 propias están en `src-tauri/gen/android/app/proguard-rules.pro`. La 2.2.1 se cerraba al abrir porque R8 eliminaba el constructor de la base de datos de WorkManager, que llega con el SDK de anuncios.
+
 **Límites externos:** Google Play Billing y AdMob están integrados con plugins propios (`src-tauri/plugins/`); para vender y mostrar anuncios reales debes completar la configuración de AdMob, Play Console, Google Cloud y Supabase descrita en [monetización](monetizacion.md). El SMTP propio de Supabase requiere un dominio de correo verificado para registros públicos; las pruebas administrativas no acreditan entrega de correos. La IA requiere que el servicio del PC esté encendido.
 
 Documentación oficial: [requisitos de Tauri](https://v2.tauri.app/start/prerequisites/), [distribución Android](https://v2.tauri.app/distribute/google-play/).
