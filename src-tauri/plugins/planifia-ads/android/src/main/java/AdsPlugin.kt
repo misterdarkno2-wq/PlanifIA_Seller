@@ -38,7 +38,6 @@ import com.google.android.libraries.ads.mobile.sdk.rewarded.ServerSideVerificati
 import com.google.android.ump.ConsentInformation
 import com.google.android.ump.ConsentRequestParameters
 import com.google.android.ump.UserMessagingPlatform
-import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
 private const val TAG = "PlanifiaAds"
@@ -97,7 +96,6 @@ private class AdIds(
 class AdsPlugin(private val activity: Activity) : Plugin(activity) {
   private val ids by lazy { AdIds.from(activity) }
   private val consent: ConsentInformation by lazy { UserMessagingPlatform.getConsentInformation(activity) }
-  private val worker = Executors.newSingleThreadExecutor()
   private val initWaiters = mutableListOf<Invoke>()
   private var initStarted = false
   @Volatile private var sdkReady = false
@@ -131,10 +129,29 @@ class AdsPlugin(private val activity: Activity) : Plugin(activity) {
     for ((key, value) in pairs) put(key, value)
   }
 
+  /**
+   * Ejecuta en el hilo principal. Una excepción del SDK de anuncios fuera del comando cerraría la
+   * app; aquí se registra y, si se indica, se responde a la llamada pendiente.
+   */
+  private fun onUi(onError: ((Throwable) -> Unit)? = null, block: () -> Unit) {
+    activity.runOnUiThread {
+      try {
+        block()
+      } catch (error: Throwable) {
+        Log.e(TAG, "Error de anuncios", error)
+        try {
+          onError?.invoke(error)
+        } catch (cleanup: Throwable) {
+          Log.e(TAG, "Error al recuperar el estado de anuncios", cleanup)
+        }
+      }
+    }
+  }
+
   /** Pide el consentimiento (UMP) y sólo después inicializa el SDK de anuncios. */
   @Command
   fun initAds(invoke: Invoke) {
-    activity.runOnUiThread {
+    onUi({ invoke.resolve(state()) }) {
       val params = ConsentRequestParameters.Builder()
         .setAdMobAppId(ids.appId)
         .setTagForUnderAgeOfConsent(false)
@@ -167,8 +184,9 @@ class AdsPlugin(private val activity: Activity) : Plugin(activity) {
       if (initStarted) return
       initStarted = true
     }
-    // El SDK exige inicializarse fuera del hilo principal para evitar ANR.
-    worker.execute {
+    // El SDK exige inicializarse fuera del hilo principal para evitar ANR. Es un hilo propio y no
+    // un executor: el plugin vive todo el proceso, mientras que onDestroy llega con cada actividad.
+    Thread({
       try {
         val config = InitializationConfig.Builder(ids.appId)
           .setRequestConfiguration(
@@ -186,7 +204,7 @@ class AdsPlugin(private val activity: Activity) : Plugin(activity) {
         synchronized(initWaiters) { initStarted = false }
         flushInit()
       }
-    }
+    }, "planifia-ads-init").start()
   }
 
   private fun flushInit() {
@@ -202,7 +220,7 @@ class AdsPlugin(private val activity: Activity) : Plugin(activity) {
 
   @Command
   fun showPrivacyOptions(invoke: Invoke) {
-    activity.runOnUiThread {
+    onUi({ invoke.resolve(state()) }) {
       UserMessagingPlatform.showPrivacyOptionsForm(activity) { error ->
         if (error != null) Log.w(TAG, "Opciones de privacidad: ${error.message}")
         invoke.resolve(state())
@@ -219,14 +237,17 @@ class AdsPlugin(private val activity: Activity) : Plugin(activity) {
       invoke.resolve(result("shown" to false, "reason" to "not_ready"))
       return
     }
-    activity.runOnUiThread {
+    onUi({
+      removeBanner()
+      invoke.resolve(result("shown" to false, "reason" to "error"))
+    }) {
       val position = if (args.position == "top") "top" else "bottom"
       val existing = container
       if (existing != null && position == bannerPosition) {
         if (bannerLoaded) existing.visibility = View.VISIBLE
         invoke.resolve(result("shown" to bannerLoaded, "height" to currentHeight()))
         reportBanner()
-        return@runOnUiThread
+        return@onUi
       }
       removeBanner()
       val root = activity.findViewById<ViewGroup>(android.R.id.content)
@@ -271,8 +292,8 @@ class AdsPlugin(private val activity: Activity) : Plugin(activity) {
         BannerAdRequest.Builder(ids.banner, size).build(),
         object : AdLoadCallback<BannerAd> {
           override fun onAdLoaded(ad: BannerAd) {
-            activity.runOnUiThread {
-              if (adView !== view) return@runOnUiThread
+            onUi({ invoke.resolve(result("shown" to false, "reason" to "error")) }) {
+              if (adView !== view) return@onUi
               bannerLoaded = true
               frame.visibility = View.VISIBLE
               ViewCompat.getRootWindowInsets(frame)?.let { applyInsets(frame, it) }
@@ -284,7 +305,7 @@ class AdsPlugin(private val activity: Activity) : Plugin(activity) {
           }
 
           override fun onAdFailedToLoad(adError: LoadAdError) {
-            activity.runOnUiThread {
+            onUi({ invoke.resolve(result("shown" to false, "reason" to adError.code.name)) }) {
               if (adView === view) removeBanner()
               invoke.resolve(result("shown" to false, "reason" to adError.code.name))
             }
@@ -321,7 +342,7 @@ class AdsPlugin(private val activity: Activity) : Plugin(activity) {
 
   @Command
   fun hideBanner(invoke: Invoke) {
-    activity.runOnUiThread {
+    onUi({ invoke.resolve(result("shown" to false, "height" to 0)) }) {
       removeBanner()
       invoke.resolve(result("shown" to false, "height" to 0))
     }
@@ -396,7 +417,10 @@ class AdsPlugin(private val activity: Activity) : Plugin(activity) {
         preloadInterstitial()
       }
     }
-    activity.runOnUiThread { ad.show(activity) }
+    onUi({
+      if (finished.compareAndSet(false, true)) invoke.resolve(result("shown" to false, "reason" to "error"))
+      ad.destroy()
+    }) { ad.show(activity) }
   }
 
   // ---------- Recompensado (los créditos los acredita el servidor vía SSV) ----------
@@ -472,7 +496,12 @@ class AdsPlugin(private val activity: Activity) : Plugin(activity) {
         preloadRewarded()
       }
     }
-    activity.runOnUiThread {
+    onUi({
+      if (finished.compareAndSet(false, true)) {
+        invoke.resolve(result("shown" to false, "earned" to false, "reason" to "error"))
+      }
+      ad.destroy()
+    }) {
       ad.show(
         activity,
         object : OnUserEarnedRewardListener {
@@ -485,12 +514,13 @@ class AdsPlugin(private val activity: Activity) : Plugin(activity) {
     }
   }
 
+  // Tauri crea el plugin una vez por proceso y avisa onDestroy de cada actividad: aquí sólo se
+  // liberan los anuncios cargados; el SDK y el consentimiento siguen disponibles.
   override fun onDestroy(activity: AppCompatActivity) {
-    activity.runOnUiThread { removeBanner() }
+    onUi { removeBanner() }
     interstitial?.destroy()
     rewarded?.destroy()
     interstitial = null
     rewarded = null
-    worker.shutdown()
   }
 }

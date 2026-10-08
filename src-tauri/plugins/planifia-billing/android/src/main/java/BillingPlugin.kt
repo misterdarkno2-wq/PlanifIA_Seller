@@ -70,18 +70,21 @@ class BillingPlugin(private val activity: Activity) : Plugin(activity), Purchase
   private val details = ConcurrentHashMap<String, ProductDetails>()
   private val waiters = mutableListOf<(BillingResult?) -> Unit>()
   private var connecting = false
-  private var created = false
   private var pendingPurchase: Invoke? = null
+  private var current: BillingClient? = null
 
   // La reconexión automática de Billing 8+ reintenta sola cuando el servicio de Play se cae.
-  private val client: BillingClient by lazy {
-    created = true
-    BillingClient.newBuilder(activity.applicationContext)
-      .setListener(this)
-      .enablePendingPurchases(PendingPurchasesParams.newBuilder().enableOneTimeProducts().build())
-      .enableAutoServiceReconnection()
-      .build()
-  }
+  // Tauri crea el plugin una vez por proceso y avisa onDestroy de cada actividad; un cliente
+  // cerrado con endConnection() no se puede reutilizar, así que se crea otro cuando haga falta.
+  private val client: BillingClient
+    get() = synchronized(this) {
+      current ?: BillingClient.newBuilder(activity.applicationContext)
+        .setListener(this)
+        .enablePendingPurchases(PendingPurchasesParams.newBuilder().enableOneTimeProducts().build())
+        .enableAutoServiceReconnection()
+        .build()
+        .also { current = it }
+    }
 
   private fun ok(result: BillingResult?) = result == null || result.responseCode == BillingResponseCode.OK
 
@@ -422,6 +425,8 @@ class BillingPlugin(private val activity: Activity) : Plugin(activity), Purchase
   }
 
   override fun onDestroy(activity: AppCompatActivity) {
-    if (created) client.endConnection()
+    val closing = synchronized(this) { current.also { current = null } }
+    synchronized(waiters) { connecting = false }
+    closing?.endConnection()
   }
 }
