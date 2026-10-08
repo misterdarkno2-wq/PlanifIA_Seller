@@ -215,7 +215,7 @@ npx.cmd supabase functions deploy admob-ssv
 
 ## 9. Compilar el AAB firmado y subir la versión
 
-La versión ya quedó en **2.2.1 (versionCode 20201)** en `src-tauri/tauri.conf.json`. Play rechaza un versionCode repetido: súbelo en cada nueva subida, por ejemplo 20202.
+La versión ya quedó en **2.2.2 (versionCode 20202)** en `src-tauri/tauri.conf.json`. Play rechaza un versionCode repetido: súbelo en cada nueva subida, por ejemplo 20203.
 
 ```powershell
 powershell -ExecutionPolicy RemoteSigned -File .\scripts\android-aab.ps1
