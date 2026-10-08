@@ -13,6 +13,7 @@ import app.tauri.plugin.Invoke
 import app.tauri.plugin.JSArray
 import app.tauri.plugin.JSObject
 import app.tauri.plugin.Plugin
+import app.tauri.plugin.PluginManager
 import com.android.billingclient.api.AcknowledgePurchaseParams
 import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.BillingClient.BillingResponseCode
@@ -66,7 +67,11 @@ class ExternalArgs {
 }
 
 @TauriPlugin
-class BillingPlugin(private val activity: Activity) : Plugin(activity), PurchasesUpdatedListener {
+class BillingPlugin(private val created: Activity) : Plugin(created), PurchasesUpdatedListener {
+  // Tauri crea el plugin una vez, con la primera actividad. Si Android la destruye y crea otra (al
+  // volver a la app o por un cambio de configuración), PluginManager apunta a la actividad vigente.
+  private val activity: Activity
+    get() = PluginManager.activity ?: created
   private val details = ConcurrentHashMap<String, ProductDetails>()
   private val waiters = mutableListOf<(BillingResult?) -> Unit>()
   private var connecting = false
