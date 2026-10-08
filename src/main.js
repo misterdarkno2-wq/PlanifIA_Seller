@@ -54,10 +54,8 @@ import {
   verifyPlayPurchases,
 } from "./billing-cloud.js";
 import {
-  applyBannerHeight,
   createAdManager,
   isAndroidApp,
-  onAdsEvent,
 } from "./native-ads.js";
 import {
   createPlayStore,
@@ -116,7 +114,7 @@ aiJobs.subscribe(() => updateAiBadge());
 let monetization = null,
   monetizationUser = null,
   lastStoreCheck = 0;
-const ads = createAdManager({ onBannerHeight: applyBannerHeight });
+const ads = createAdManager();
 const playStore = isAndroidApp()
   ? createPlayStore({ verify: verifyPlayPurchases, onState: applyMonetization })
   : null;
@@ -165,7 +163,6 @@ function creditHint() {
     ? `Usar la IA cuesta ${cost} créditos. Tienes ${monetization.credits.balance}.`
     : `Usar la IA cuesta ${cost} créditos.`;
 }
-onAdsEvent("bannerChanged", ({ height }) => applyBannerHeight(height)).catch(() => {});
 onPurchasesUpdated((payload) => {
   // Compras completadas fuera del flujo (p. ej., un pago pendiente que se confirmó después).
   if (user && payload?.purchases?.length)
@@ -445,15 +442,12 @@ function modal(title, content) {
   document.body.append(dialog);
   $("[data-close]", dialog).onclick = closeModal;
   dialog.showModal();
-  // El banner nativo queda sobre el WebView: se oculta mientras hay un formulario abierto.
-  void ads.setModal(true);
   const current = dialog;
   dialog.addEventListener(
     "close",
     () => {
       current.remove();
       if (dialog === current) dialog = null;
-      void ads.setModal(Boolean(document.querySelector("dialog.modal[open]")));
     },
     { once: true },
   );
@@ -465,7 +459,6 @@ function closeModal() {
     dialog = null;
     old.close();
     old.remove();
-    void ads.setModal(Boolean(document.querySelector("dialog.modal[open]")));
   }
 }
 const alert = () => '<p class="error" role="alert" hidden></p>';
@@ -608,7 +601,6 @@ function render() {
   disposeBilling?.();
   disposeBilling = null;
   disposePets();
-  if (!user || !state) void ads.setRoute(null);
   if (!user) {
     landing();
     mountPets();
@@ -648,7 +640,6 @@ function render() {
   mountPets();
   mountBillingView();
   startMonetization();
-  void ads.setRoute(route);
 }
 function bindAdPrivacy() {
   const button = $("#ad-privacy");
@@ -833,14 +824,9 @@ function bindActions() {
             p_request_id: b.dataset.requestId,
           });
           const openGoal = dialog?.dataset.goalId;
-          const completing = task.status !== "completed";
           await refresh();
           if (openGoal) goalDetail(openGoal);
           celebrate(result, before);
-          const todays = liveTasks().filter((t) => t.scheduled_date === day());
-          if (completing && todays.length && todays.every((t) => t.status === "completed"))
-            // Pausa natural: el día quedó completo. Se espera a que termine la celebración.
-            setTimeout(() => void ads.naturalPause("day-complete"), 2500);
           if (
             m &&
             oldMilestone < 100 &&
@@ -1301,8 +1287,6 @@ function proposalEditor(response) {
         remainingDaily: fallbackDaily,
         ...response.constraints,
       });
-      // El primer plan es parte de la bienvenida: ahí nunca hay intersticial.
-      const firstPlan = !response.goal_id && state.goals.length === 0;
       await rpc("apply_goal_plan", {
         p_goal_id: response.goal_id,
         p_expected_version: response.expected_version,
@@ -1310,7 +1294,6 @@ function proposalEditor(response) {
         p_request_id: requestId,
       });
       await saved("Plan guardado. Tu siguiente paso ya tiene un lugar.");
-      void ads.naturalPause("plan-saved", { firstTime: firstPlan });
     });
   };
 }

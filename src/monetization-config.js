@@ -11,14 +11,6 @@ export const PLAY = {
   packageName: "cl.planifia.app",
 };
 
-export const ADS = {
-  // Máximo un intersticial cada 5 minutos, y sólo en pausas naturales.
-  interstitialIntervalMs: 5 * 60 * 1000,
-  interstitialPauses: ["plan-saved", "day-complete"],
-  // El banner sólo aparece en estas vistas; nunca en Planes/Mi plan, inicio de sesión ni registro.
-  bannerRoutes: ["today", "goals", "tasks", "calendar", "habits", "settings"],
-};
-
 export const LEGAL = {
   terms: "https://planifia.cl/terminos.html",
   privacy: "https://planifia.cl/privacidad.html",

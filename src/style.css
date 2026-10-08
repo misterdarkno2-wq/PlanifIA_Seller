@@ -1349,27 +1349,6 @@ code {
   }
 }
 
-/* Banner de AdMob (vista nativa sobre el WebView, sólo plan Gratis en Android).
-   El plugin informa su alto y la interfaz se corre hacia arriba para no quedar tapada. */
-.has-ad-banner .app-body main {
-  padding-bottom: calc(40px + var(--ad-banner-height, 0px));
-}
-.has-ad-banner #toast {
-  bottom: calc(24px + var(--ad-banner-height, 0px));
-}
-@media (max-width: 760px) {
-  /* El banner ya cubre la barra de gestos, así que la navegación no necesita ese margen. */
-  .has-ad-banner .sidebar {
-    bottom: var(--ad-banner-height, 0px);
-    padding-bottom: 6px;
-  }
-  .has-ad-banner .app-body main {
-    padding-bottom: calc(110px + var(--ad-banner-height, 0px));
-  }
-  .has-ad-banner #toast {
-    bottom: calc(96px + var(--ad-banner-height, 0px));
-  }
-}
 .credit-hint {
   margin: 10px 0 0;
 }

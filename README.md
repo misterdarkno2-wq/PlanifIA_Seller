@@ -106,11 +106,11 @@ npm.cmd run preview
 
 Desde **Planes** puedes comparar beneficios y precios de referencia. **Mi plan** permite consultar tu período vigente, uso e historial. La web informa que **las suscripciones se contratan desde la app de Google Play** y no inicia compras, renovaciones ni inscripciones de tarjetas con Transbank.
 
-La app Android vende Plus y Pro con Google Play Billing (Plus $900 y Pro $1.900 el primer mes) y paquetes de créditos; el servidor valida cada compra con la Google Play Developer API. El uso de IA se paga con **créditos**: 20 por uso, 60 de bienvenida, 1.000 (Plus) o 2.500 (Pro) por mes pagado, y créditos extra por anuncios recompensados e invitaciones. El plan Gratis muestra anuncios de AdMob en Android. Consulta [monetización](docs/monetizacion.md).
+La app Android vende Plus y Pro con Google Play Billing (Plus $900 y Pro $1.900 el primer mes) y paquetes de créditos; el servidor valida cada compra con la Google Play Developer API. El uso de IA se paga con **créditos**: 20 por uso, 60 de bienvenida, 1.000 (Plus) o 2.500 (Pro) por mes pagado, y créditos extra por anuncios recompensados e invitaciones. En Android, el plan Gratis solo tiene anuncios recompensados de AdMob que la persona elige ver para ganar créditos; no hay banner ni anuncios de pantalla completa. Consulta [monetización](docs/monetizacion.md).
 
 | Plan   | Precio mensual CLP (Google Play) | Metas activas | Créditos de IA | Anuncios |
 | ------ | -------------------------------: | ------------: | -------------: | -------- |
-| Gratis |                               $0 |             3 | 60 de bienvenida + ganados | Sí (Android) |
+| Gratis |                               $0 |             3 | 60 de bienvenida + ganados | Solo recompensados (Android) |
 | Plus   |   $900 el primer mes, luego $2.700 |            15 | 1.000 por mes pagado | No |
 | Pro    | $1.900 el primer mes, luego $4.900 |            50 | 2.500 por mes pagado | No |
 

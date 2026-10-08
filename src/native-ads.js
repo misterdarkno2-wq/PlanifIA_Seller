@@ -1,5 +1,4 @@
 import { isNative } from "./platform.js";
-import { ADS } from "./monetization-config.js";
 
 export const isAndroidApp = () =>
   isNative() && /Android/i.test(globalThis.navigator?.userAgent || "");
@@ -17,43 +16,16 @@ export async function onAdsEvent(event, handler) {
   return () => listener.unregister().catch(() => {});
 }
 
-const LAST_KEY = "planifia-ads-last-interstitial";
-
 /**
- * Reglas de anuncios: sólo plan Gratis, consentimiento UMP antes de cargar nada, banner fuera de
- * pagos y formularios, y como máximo un intersticial cada 5 minutos en pausas naturales.
+ * Reglas de anuncios: sólo plan Gratis, consentimiento UMP antes de cargar nada y únicamente
+ * anuncios recompensados que la persona elige ver para ganar créditos. Sin banner ni intersticiales.
  */
-export function createAdManager({
-  native = adsCommand,
-  now = () => Date.now(),
-  storage = globalThis.localStorage,
-  config = ADS,
-  onBannerHeight = () => {},
-  onError = () => {},
-} = {}) {
+export function createAdManager({ native = adsCommand, onError = () => {} } = {}) {
   let eligible = false,
     ready = false,
     starting = null,
-    route = null,
-    modalOpen = false,
-    bannerShown = false,
-    bannerBusy = Promise.resolve(),
     privacyRequired = false,
     testAds = false;
-  const routes = new Set(config.bannerRoutes);
-  const pauses = new Set(config.interstitialPauses);
-  const readLast = () => {
-    try {
-      return Number(storage?.getItem(LAST_KEY)) || 0;
-    } catch {
-      return 0;
-    }
-  };
-  const writeLast = (value) => {
-    try {
-      storage?.setItem(LAST_KEY, String(value));
-    } catch {}
-  };
   function start() {
     if (!eligible) return Promise.resolve(false);
     starting ||= native("init_ads")
@@ -61,10 +33,8 @@ export function createAdManager({
         ready = Boolean(state?.available && state.initialized && state.canRequestAds);
         privacyRequired = Boolean(state?.privacyOptionsRequired);
         testAds = Boolean(state?.testAds);
-        if (ready) {
-          native("load_interstitial").catch(() => {});
-          native("load_rewarded").catch(() => {});
-        } else starting = null;
+        if (ready) native("load_rewarded").catch(() => {});
+        else starting = null;
         return ready;
       })
       .catch((error) => {
@@ -73,24 +43,6 @@ export function createAdManager({
         return false;
       });
     return starting;
-  }
-  // Las llamadas al banner se encadenan para que mostrar/ocultar nunca se crucen.
-  function syncBanner() {
-    bannerBusy = bannerBusy.then(async () => {
-      const want = eligible && ready && routes.has(route) && !modalOpen;
-      if (want === bannerShown) return;
-      bannerShown = want;
-      try {
-        if (want) await native("show_banner", { position: "bottom" });
-        else {
-          await native("hide_banner");
-          onBannerHeight(0);
-        }
-      } catch (error) {
-        onError(error);
-      }
-    });
-    return bannerBusy;
   }
   return {
     get eligible() {
@@ -108,25 +60,6 @@ export function createAdManager({
     async setEligible(value) {
       eligible = Boolean(value);
       if (eligible) await start();
-      return syncBanner();
-    },
-    setRoute(name) {
-      route = name;
-      return syncBanner();
-    },
-    setModal(open) {
-      modalOpen = Boolean(open);
-      return syncBanner();
-    },
-    /** Pausa natural: plan guardado o día completado. Nunca en registro, pagos ni la primera vez. */
-    async naturalPause(reason, { firstTime = false } = {}) {
-      if (!eligible || firstTime || !pauses.has(reason)) return false;
-      if (!(await start())) return false;
-      const last = readLast();
-      if (last && now() - last < config.interstitialIntervalMs) return false;
-      const result = await native("show_interstitial").catch(() => null);
-      if (result?.shown) writeLast(now());
-      return Boolean(result?.shown);
     },
     /** Anuncio voluntario; el servidor acredita los créditos cuando AdMob confirma (SSV). */
     async rewarded(userId) {
@@ -145,10 +78,4 @@ export function createAdManager({
       return state;
     },
   };
-}
-
-export function applyBannerHeight(height) {
-  const value = Math.max(0, Math.round(Number(height) || 0));
-  document.documentElement.style.setProperty("--ad-banner-height", `${value}px`);
-  document.documentElement.classList.toggle("has-ad-banner", value > 0);
 }
