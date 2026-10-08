@@ -1,0 +1,76 @@
+name: Android en emulador
+# Compila el APK release (con R8, como el AAB de Google Play), lo abre en un emulador y
+# ejecuta los comandos nativos de anuncios y compras para detectar cierres de la app.
+on:
+  push:
+    branches: ["claude/**"]
+    paths:
+      - "src/**"
+      - "src-tauri/**"
+      - "scripts/android-*"
+      - "package*.json"
+      - ".github/workflows/android-smoke.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  emulador:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - run: rustup target add x86_64-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      # Sólo en esta copia de prueba: bloques de prueba de AdMob (nunca tráfico real desde el
+      # emulador), WebView depurable para ejecutar comandos y una clave de firma desechable.
+      - name: Preparar la copia de prueba
+        run: |
+          cp src-tauri/gen/android/app/src/debug/res/values/admob.xml src-tauri/gen/android/app/src/main/res/values/admob.xml
+          sed -i 's/^\(\s*\)super.onCreate(savedInstanceState)$/&\n\1WebView.setWebContentsDebuggingEnabled(true)/' src-tauri/gen/android/app/src/main/java/cl/planifia/app/MainActivity.kt
+          grep -q setWebContentsDebuggingEnabled src-tauri/gen/android/app/src/main/java/cl/planifia/app/MainActivity.kt
+          keytool -genkeypair -keystore "$RUNNER_TEMP/smoke.jks" -alias smoke -storepass smoke-pass -keypass smoke-pass \
+            -keyalg RSA -keysize 2048 -validity 2 -dname "CN=PlanifIA smoke"
+      - name: Compilar APK release x86_64
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          PLANIFIA_ANDROID_STORE_PASSWORD: smoke-pass
+          PLANIFIA_ANDROID_KEY_ALIAS: smoke
+          PLANIFIA_ANDROID_KEY_PASSWORD: smoke-pass
+        run: |
+          export NDK_HOME="$ANDROID_NDK_LATEST_HOME" PLANIFIA_ANDROID_KEYSTORE="$RUNNER_TEMP/smoke.jks"
+          npm run tauri -- android build --apk --target x86_64
+          mkdir -p artifacts
+          cp "$(find src-tauri/gen/android/app/build/outputs/apk -name '*release*.apk' | head -n 1)" artifacts/app-release.apk
+          ls -la artifacts
+      - name: Habilitar KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Abrir la app en el emulador
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: bash scripts/android-smoke.sh artifacts/app-release.apk
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-smoke
+          path: artifacts/
+          retention-days: 7
