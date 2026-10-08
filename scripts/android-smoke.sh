@@ -48,14 +48,21 @@ echo "== Comandos nativos (primera actividad)"
 commands
 check "después de los comandos nativos" "DURANTE LOS COMANDOS NATIVOS"
 
-echo "== Salir y volver: Android destruye la actividad y crea otra en el mismo proceso"
-adb shell settings put global always_finish_activities 1
+echo "== Salir y volver a la app"
 adb shell input keyevent KEYCODE_HOME
 sleep 5
 adb shell am start -W -n "$PKG/.MainActivity"
-sleep 15
-adb shell settings put global always_finish_activities 0
+sleep 10
 check "al volver a la app" "AL VOLVER A LA APP"
+
+# Cambiar el tamaño de letra no está en configChanges: Android destruye la actividad y crea otra en
+# el mismo proceso, como cuando el sistema la recrea. Los plugins de Tauri sobreviven a ese cambio.
+echo "== Recrear la actividad (cambio de tamaño de letra)"
+adb shell settings put system font_scale 1.15
+sleep 15
+adb shell settings put system font_scale 1.0
+sleep 15
+check "después de recrear la actividad" "AL RECREAR LA ACTIVIDAD"
 
 echo "== Comandos nativos (segunda actividad)"
 commands
