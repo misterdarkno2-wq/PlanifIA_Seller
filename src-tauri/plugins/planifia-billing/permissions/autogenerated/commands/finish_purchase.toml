@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-finish-purchase"
+description = "Enables the finish_purchase command without any pre-configured scope."
+commands.allow = ["finish_purchase"]
+
+[[permission]]
+identifier = "deny-finish-purchase"
+description = "Denies the finish_purchase command without any pre-configured scope."
+commands.deny = ["finish_purchase"]

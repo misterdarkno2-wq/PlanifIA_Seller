@@ -12,7 +12,7 @@
     "test:billing-ui": "node tests/billing-ui.mjs",
     "test:companion-ui": "node tests/companion-ui.mjs",
     "test:edge": "npx --yes deno test --allow-env --no-config --no-lock --node-modules-dir=none supabase/functions/",
-    "check:edge": "npx --yes deno check --no-config --no-lock --node-modules-dir=none supabase/functions/goal-plan/index.ts supabase/functions/billing/index.ts supabase/functions/billing-return/index.ts supabase/functions/billing-renew/index.ts",
+    "check:edge": "npx --yes deno check --no-config --no-lock --node-modules-dir=none supabase/functions/goal-plan/index.ts supabase/functions/billing/index.ts supabase/functions/billing-return/index.ts supabase/functions/billing-renew/index.ts supabase/functions/play-billing/index.ts supabase/functions/play-rtdn/index.ts supabase/functions/admob-ssv/index.ts",
     "test:live": "node tests/live.mjs",
     "tauri": "node scripts/tauri.mjs",
     "desktop:dev": "npm run tauri -- dev",

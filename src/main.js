@@ -1,5 +1,5 @@
 import "./style.css";
-import { authRedirect, downloadJson, installNativeBack } from "./platform.js";
+import { authRedirect, downloadJson, installNativeBack, watchSafeArea } from "./platform.js";
 import "./pet.css";
 import "./lumi-conversation.css";
 import { createLumiCompanion } from "./lumi-messages.js";
@@ -46,7 +46,25 @@ import {
   rememberBillingIntent,
   consumeBillingIntent,
 } from "./billing.js";
-import { invokeBilling, loadBillingCatalog } from "./billing-cloud.js";
+import {
+  invokeBilling,
+  loadBillingCatalog,
+  loadMonetization,
+  redeemReferral,
+  verifyPlayPurchases,
+} from "./billing-cloud.js";
+import {
+  applyBannerHeight,
+  createAdManager,
+  isAndroidApp,
+  onAdsEvent,
+} from "./native-ads.js";
+import {
+  createPlayStore,
+  getPremiumStatus,
+  onPurchasesUpdated,
+  rememberPlan,
+} from "./native-billing.js";
 import { validateProposal } from "../supabase/functions/_shared/plan.js";
 
 const app = document.querySelector("#app"),
@@ -93,6 +111,77 @@ const aiJobs = createAiJobMonitor({
   notify: toast,
 });
 aiJobs.subscribe(() => updateAiBadge());
+
+// Créditos y plan vigente. En Android, además, anuncios (sólo plan Gratis) y Google Play.
+let monetization = null,
+  monetizationUser = null,
+  lastStoreCheck = 0;
+const ads = createAdManager({ onBannerHeight: applyBannerHeight });
+const playStore = isAndroidApp()
+  ? createPlayStore({ verify: verifyPlayPurchases, onState: applyMonetization })
+  : null;
+function applyMonetization(next) {
+  if (!next || !user) return;
+  monetization = next;
+  rememberPlan(user.id, next.plan.id);
+  void ads.setEligible(next.plan.id === "free");
+  for (const hint of document.querySelectorAll("[data-credit-hint]"))
+    hint.textContent = creditHint();
+}
+async function refreshMonetization() {
+  if (!user) return null;
+  const owner = user.id;
+  const next = await loadMonetization();
+  if (user?.id === owner) applyMonetization(next);
+  return next;
+}
+// Al abrir la app: el plan guardado en el teléfono evita mostrar anuncios a quien paga
+// mientras el servidor y Google Play vuelven a verificar el estado real.
+function startMonetization() {
+  if (!user || monetizationUser === user.id) return;
+  monetizationUser = user.id;
+  const cached = getPremiumStatus(user.id);
+  if (cached.plan === "free") void ads.setEligible(true);
+  refreshMonetization()
+    .then(() => checkStore())
+    .catch(() => {});
+}
+async function checkStore(force = false) {
+  if (!playStore || !user || (!force && Date.now() - lastStoreCheck < 60000)) return;
+  lastStoreCheck = Date.now();
+  try {
+    const restored = await playStore.restore();
+    if (!restored.state) await refreshMonetization();
+  } catch {}
+}
+function stopMonetization() {
+  monetization = null;
+  monetizationUser = null;
+  void ads.setEligible(false);
+}
+function creditHint() {
+  const cost = monetization?.credits?.cost_per_use ?? 20;
+  return monetization
+    ? `Usar la IA cuesta ${cost} créditos. Tienes ${monetization.credits.balance}.`
+    : `Usar la IA cuesta ${cost} créditos.`;
+}
+onAdsEvent("bannerChanged", ({ height }) => applyBannerHeight(height)).catch(() => {});
+onPurchasesUpdated((payload) => {
+  // Compras completadas fuera del flujo (p. ej., un pago pendiente que se confirmó después).
+  if (user && payload?.purchases?.length)
+    playStore
+      ?.sync(payload.purchases, { skipRecent: true })
+      .then((result) => {
+        if (result.results?.some((r) => !r.error && (r.granted || r.active)))
+          toast("Google Play confirmó tu compra. Tu cuenta ya está al día.");
+      })
+      .catch(() => {});
+}).catch(() => {});
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && user) {
+    void checkStore();
+  }
+});
 function updateAiBadge() {
   const button = document.querySelector("#ai-jobs");
   if (!button) return;
@@ -194,6 +283,15 @@ function mountBillingView() {
       location.hash = "login";
     },
     notify: toast,
+    monetization: user
+      ? {
+          load: refreshMonetization,
+          redeem: redeemReferral,
+          store: playStore,
+          ads: isAndroidApp() ? ads : null,
+          userId: user.id,
+        }
+      : null,
   });
 }
 function billingDestination() {
@@ -284,6 +382,14 @@ function formError(form, error) {
   if (el) {
     el.textContent = errorMessage(error);
     el.hidden = false;
+    // Sin créditos: lleva a Mi plan, donde se ganan (anuncios, invitaciones) o se compran.
+    if (/créditos suficientes/.test(el.textContent)) {
+      const link = document.createElement("a");
+      link.href = "#subscription";
+      link.textContent = " Conseguir créditos →";
+      link.addEventListener("click", closeModal);
+      el.append(link);
+    }
   } else toast(errorMessage(error));
 }
 async function busy(button, action) {
@@ -339,12 +445,15 @@ function modal(title, content) {
   document.body.append(dialog);
   $("[data-close]", dialog).onclick = closeModal;
   dialog.showModal();
+  // El banner nativo queda sobre el WebView: se oculta mientras hay un formulario abierto.
+  void ads.setModal(true);
   const current = dialog;
   dialog.addEventListener(
     "close",
     () => {
       current.remove();
       if (dialog === current) dialog = null;
+      void ads.setModal(Boolean(document.querySelector("dialog.modal[open]")));
     },
     { once: true },
   );
@@ -356,6 +465,7 @@ function closeModal() {
     dialog = null;
     old.close();
     old.remove();
+    void ads.setModal(Boolean(document.querySelector("dialog.modal[open]")));
   }
 }
 const alert = () => '<p class="error" role="alert" hidden></p>';
@@ -473,7 +583,7 @@ function daysInputs(selected, prefix = "days") {
 }
 function settingsPage() {
   const p = state.profile;
-  return `<div class="page-heading"><div><h1>Tu ritmo y tus datos</h1><p class="muted">Los cambios se guardan en tu cuenta y se recuperan en otros dispositivos.</p></div></div><div class="settings-grid"><section class="panel pet-motion-panel"><h2>Lumi a tu ritmo</h2><p>Elige cómo te acompaña mientras organizas tus metas.</p>${petMotionControls()}${lumiConversationSettings(companion)}</section><section class="panel"><h2>Disponibilidad</h2><form id="profile-form"><label>Tu nombre<input name="name" value="${e(p.name)}" maxlength="80" required></label><label>Zona horaria<input name="timezone" value="${e(p.timezone)}" required placeholder="America/Santiago"></label><label>Minutos totales por semana<input name="minutes" type="number" min="30" max="3360" value="${p.weekly_minutes}" required></label>${daysInputs(p.available_days)}<p class="muted">La IA reparte este tiempo entre tus días disponibles, contando acciones y hábitos existentes.</p>${alert()}<button>Guardar disponibilidad</button></form></section><section class="panel"><h2>Conservar lo que ya hiciste</h2><p>Importa un archivo JSON de PlanifIA anterior. Verás el destino y el contenido antes de confirmar.</p><label class="file-label">Seleccionar exportación<input type="file" id="import-file" accept="application/json,.json"></label><button class="secondary" id="import-local">Buscar tareas guardadas en este navegador</button><p class="muted">Los archivos originales se conservan. Repetir la importación no crea actividades duplicadas. La XP histórica se conserva en el respaldo original, sin asignar recompensas nuevas.</p><h3>Importaciones guardadas</h3>${state.imports.map((i) => `<p>${e(i.source)} <button class="text-button" data-export-import="${i.id}">Descargar original</button></p>`).join("") || '<p class="muted">Todavía no hay importaciones.</p>'}<button class="secondary" id="export-data">Exportar mis datos</button></section><section class="panel danger-zone"><h2>Eliminar cuenta</h2><p>Borra de forma permanente tu cuenta y todos sus datos: metas, acciones, hábitos, Lumi, solicitudes de IA e importaciones. No se puede deshacer.</p><p class="muted">Te recomendamos exportar tus datos antes. Consulta la <a href="https://planifia.cl/privacidad.html" target="_blank" rel="noopener">política de privacidad</a>.</p><button class="danger" id="delete-account">Eliminar mi cuenta</button></section></div>`;
+  return `<div class="page-heading"><div><h1>Tu ritmo y tus datos</h1><p class="muted">Los cambios se guardan en tu cuenta y se recuperan en otros dispositivos.</p></div></div><div class="settings-grid"><section class="panel pet-motion-panel"><h2>Lumi a tu ritmo</h2><p>Elige cómo te acompaña mientras organizas tus metas.</p>${petMotionControls()}${lumiConversationSettings(companion)}</section><section class="panel"><h2>Disponibilidad</h2><form id="profile-form"><label>Tu nombre<input name="name" value="${e(p.name)}" maxlength="80" required></label><label>Zona horaria<input name="timezone" value="${e(p.timezone)}" required placeholder="America/Santiago"></label><label>Minutos totales por semana<input name="minutes" type="number" min="30" max="3360" value="${p.weekly_minutes}" required></label>${daysInputs(p.available_days)}<p class="muted">La IA reparte este tiempo entre tus días disponibles, contando acciones y hábitos existentes.</p>${alert()}<button>Guardar disponibilidad</button></form></section><section class="panel"><h2>Conservar lo que ya hiciste</h2><p>Importa un archivo JSON de PlanifIA anterior. Verás el destino y el contenido antes de confirmar.</p><label class="file-label">Seleccionar exportación<input type="file" id="import-file" accept="application/json,.json"></label><button class="secondary" id="import-local">Buscar tareas guardadas en este navegador</button><p class="muted">Los archivos originales se conservan. Repetir la importación no crea actividades duplicadas. La XP histórica se conserva en el respaldo original, sin asignar recompensas nuevas.</p><h3>Importaciones guardadas</h3>${state.imports.map((i) => `<p>${e(i.source)} <button class="text-button" data-export-import="${i.id}">Descargar original</button></p>`).join("") || '<p class="muted">Todavía no hay importaciones.</p>'}<button class="secondary" id="export-data">Exportar mis datos</button></section>${isAndroidApp() ? `<section class="panel"><h2>Anuncios y privacidad</h2><p>El plan Gratis muestra anuncios de Google AdMob. Plus y Pro no muestran anuncios.</p>${ads.privacyRequired ? '<button class="secondary" id="ad-privacy">Opciones de privacidad de anuncios</button>' : '<p class="muted">Puedes revisar tu consentimiento de anuncios aquí cuando tu región lo requiera.</p>'}</section>` : ""}<section class="panel danger-zone"><h2>Eliminar cuenta</h2><p>Borra de forma permanente tu cuenta y todos sus datos: metas, acciones, hábitos, Lumi, solicitudes de IA e importaciones. No se puede deshacer.</p><p class="muted">Te recomendamos exportar tus datos antes. Consulta la <a href="https://planifia.cl/privacidad.html" target="_blank" rel="noopener">política de privacidad</a>.</p><button class="danger" id="delete-account">Eliminar mi cuenta</button></section></div>`;
 }
 function shell(content) {
   const tab = location.hash.slice(1).split("?")[0] || "today";
@@ -498,6 +608,7 @@ function render() {
   disposeBilling?.();
   disposeBilling = null;
   disposePets();
+  if (!user || !state) void ads.setRoute(null);
   if (!user) {
     landing();
     mountPets();
@@ -533,8 +644,19 @@ function render() {
   $("#ai-jobs").onclick = aiJobsDialog;
   updateAiBadge();
   bindActions();
+  bindAdPrivacy();
   mountPets();
   mountBillingView();
+  startMonetization();
+  void ads.setRoute(route);
+}
+function bindAdPrivacy() {
+  const button = $("#ad-privacy");
+  if (button)
+    button.onclick = () =>
+      busy(button, () =>
+        ads.privacyOptions().then(() => toast("Tus preferencias de anuncios quedaron guardadas.")),
+      );
 }
 function landing() {
   const billingRoute = location.hash.slice(1).split("?")[0];
@@ -711,9 +833,14 @@ function bindActions() {
             p_request_id: b.dataset.requestId,
           });
           const openGoal = dialog?.dataset.goalId;
+          const completing = task.status !== "completed";
           await refresh();
           if (openGoal) goalDetail(openGoal);
           celebrate(result, before);
+          const todays = liveTasks().filter((t) => t.scheduled_date === day());
+          if (completing && todays.length && todays.every((t) => t.status === "completed"))
+            // Pausa natural: el día quedó completo. Se espera a que termine la celebración.
+            setTimeout(() => void ads.naturalPause("day-complete"), 2500);
           if (
             m &&
             oldMilestone < 100 &&
@@ -839,7 +966,7 @@ function goalForm(goal = null) {
   };
   const host = modal(
     goal ? "Editar mi meta" : "¿Qué quieres lograr?",
-    `<form id="goal-form"><label>Mi idea o meta<textarea name="title" rows="2" maxlength="160" required placeholder="Quiero hablar inglés con más confianza">${e(g.title)}</textarea></label><label>Mi punto de partida<textarea name="current_situation" maxlength="2000" placeholder="Qué haces ahora y qué te cuesta">${e(g.current_situation)}</textarea></label><label>El resultado que quiero ver<textarea name="outcome" maxlength="1000" placeholder="Por ejemplo, mantener una conversación de 10 minutos">${e(g.outcome)}</textarea></label><label>Área<select name="category">${options(CATEGORIES, g.category)}</select></label><div class="form-grid"><label>Minutos por semana para esta meta<input name="weekly_minutes" type="number" min="30" max="${state.profile.weekly_minutes}" value="${g.weekly_minutes}" required></label><label>Fecha objetivo · opcional<input name="target_date" type="date" value="${g.target_date || ""}"></label></div>${goal ? `<label>Descripción de la meta<textarea name="description" maxlength="3000">${e(g.description)}</textarea></label>` : ""}${goal ? '<label>¿Qué cambió para ajustar el plan?<textarea name="reason" maxlength="1000" placeholder="Tengo menos tiempo o quiero cambiar el enfoque"></textarea></label>' : ""}<p class="muted">La IA tendrá en cuenta tus ${state.profile.weekly_minutes} minutos semanales y las acciones que ya tienes. Revisarás la propuesta antes de guardarla.</p>${alert()}<div class="actions"><button type="button" id="ai-plan">✦ Proponer un plan con IA</button><button class="secondary">${goal ? "Guardar meta" : "Crear sin IA"}</button></div></form>`,
+    `<form id="goal-form"><label>Mi idea o meta<textarea name="title" rows="2" maxlength="160" required placeholder="Quiero hablar inglés con más confianza">${e(g.title)}</textarea></label><label>Mi punto de partida<textarea name="current_situation" maxlength="2000" placeholder="Qué haces ahora y qué te cuesta">${e(g.current_situation)}</textarea></label><label>El resultado que quiero ver<textarea name="outcome" maxlength="1000" placeholder="Por ejemplo, mantener una conversación de 10 minutos">${e(g.outcome)}</textarea></label><label>Área<select name="category">${options(CATEGORIES, g.category)}</select></label><div class="form-grid"><label>Minutos por semana para esta meta<input name="weekly_minutes" type="number" min="30" max="${state.profile.weekly_minutes}" value="${g.weekly_minutes}" required></label><label>Fecha objetivo · opcional<input name="target_date" type="date" value="${g.target_date || ""}"></label></div>${goal ? `<label>Descripción de la meta<textarea name="description" maxlength="3000">${e(g.description)}</textarea></label>` : ""}${goal ? '<label>¿Qué cambió para ajustar el plan?<textarea name="reason" maxlength="1000" placeholder="Tengo menos tiempo o quiero cambiar el enfoque"></textarea></label>' : ""}<p class="muted">La IA tendrá en cuenta tus ${state.profile.weekly_minutes} minutos semanales y las acciones que ya tienes. Revisarás la propuesta antes de guardarla.</p>${alert()}<div class="actions"><button type="button" id="ai-plan">✦ Proponer un plan con IA</button><button class="secondary">${goal ? "Guardar meta" : "Crear sin IA"}</button></div><p class="fine credit-hint" data-credit-hint>${e(creditHint())}</p></form>`,
   );
   const form = $("#goal-form", host);
   form.onsubmit = (event) => {
@@ -890,6 +1017,7 @@ function goalForm(goal = null) {
           goal_id: goal?.id || null,
         });
         aiJobs.refresh();
+        void refreshMonetization().catch(() => {});
         if (!waiting.isActive() || user?.id !== accountId) return;
         await new Promise((resolve) => {
           finishView = resolve;
@@ -904,6 +1032,8 @@ function goalForm(goal = null) {
               unsubscribe?.();
               waiting.dispose();
               resolve();
+              // Un error o una cancelación devuelve los créditos: se actualiza el saldo.
+              if (job.status !== "completed") void refreshMonetization().catch(() => {});
               if (job.status === "completed") {
                 releaseAiRequest(job.request_id);
                 proposalEditor({ ...job.result, job_id: job.id });
@@ -1171,6 +1301,8 @@ function proposalEditor(response) {
         remainingDaily: fallbackDaily,
         ...response.constraints,
       });
+      // El primer plan es parte de la bienvenida: ahí nunca hay intersticial.
+      const firstPlan = !response.goal_id && state.goals.length === 0;
       await rpc("apply_goal_plan", {
         p_goal_id: response.goal_id,
         p_expected_version: response.expected_version,
@@ -1178,6 +1310,7 @@ function proposalEditor(response) {
         p_request_id: requestId,
       });
       await saved("Plan guardado. Tu siguiente paso ya tiene un lugar.");
+      void ads.naturalPause("plan-saved", { firstTime: firstPlan });
     });
   };
 }
@@ -1208,6 +1341,7 @@ function importPreview(data) {
       );
     });
 }
+watchSafeArea();
 installNativeBack({
   modalOpen: () => Boolean(dialog?.open),
   closeModal,
@@ -1244,6 +1378,7 @@ if (cloud) {
         companion.end();
         companionVoice.dispose();
         aiJobs.stop();
+        stopMonetization();
         user = null;
         state = null;
         loadVersion++;

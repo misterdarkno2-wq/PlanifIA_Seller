@@ -10,6 +10,10 @@
         android:label="@string/app_name"
         android:theme="@style/Theme.planifia_seller"
         android:usesCleartextTraffic="${usesCleartextTraffic}">
+        <!-- ID de la app de AdMob: se edita en res/values/admob.xml -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="@string/admob_app_id" />
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode"
             android:launchMode="singleTask"

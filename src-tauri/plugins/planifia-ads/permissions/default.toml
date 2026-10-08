@@ -1,0 +1,17 @@
+"$schema" = "schemas/schema.json"
+
+[default]
+description = "Permite a la ventana principal mostrar anuncios de AdMob y gestionar el consentimiento."
+permissions = [
+  "allow-init-ads",
+  "allow-get-ads-state",
+  "allow-show-banner",
+  "allow-hide-banner",
+  "allow-load-interstitial",
+  "allow-show-interstitial",
+  "allow-load-rewarded",
+  "allow-show-rewarded",
+  "allow-show-privacy-options",
+  "allow-register-listener",
+  "allow-remove-listener",
+]

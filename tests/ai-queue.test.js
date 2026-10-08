@@ -151,14 +151,15 @@ test("Queue quotas are atomic, retries are idempotent, concurrent claims cannot 
   await service(db);
   await assert.rejects(() => enqueue(db), /diario/);
   await owner(db);
-  assert.equal(
+  assert.deepEqual(
     (
       await db.query(
-        "select generations from private.plan_ai_usage where user_id=$1",
+        "select reason,bonus_delta from private.credit_events where user_id=$1 and reason='ai_use'",
         [A],
       )
-    ).rows[0].generations,
-    1,
+    ).rows,
+    [{ reason: "ai_use", bonus_delta: -20 }],
+    "The rejected daily request does not charge credits",
   );
   await user(db, A);
   assert.deepEqual(

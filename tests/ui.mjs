@@ -309,6 +309,17 @@ try {
           added: existing ? 0 : body.p_data.items.length,
           skipped: existing ? body.p_data.items.length : 0,
         };
+      } else if (name === "monetization_state") {
+        result = {
+          plan: { id: "free", name: "Gratis", monthly_credits: 0, max_active_goals: 3 },
+          plans: [],
+          credits: { balance: 60, plan_available: 0, plan_allowance: 0, bonus: 60, cost_per_use: 20 },
+          ads: { reward: 10, today: 0, daily_limit: 5 },
+          referral: { code: "ABCD2345", inviter_reward: 40, invitee_reward: 20, monthly_limit: 10, rewarded_this_month: 0, can_redeem: true },
+          play_subscription: null,
+          products: [],
+          recent: [],
+        };
       } else throw new Error("Unknown fixture RPC " + name);
     } else result = data[url.pathname.split("/").at(-1)] ?? [];
     await route.fulfill({ status: 200, json: result });
@@ -1033,6 +1044,12 @@ try {
     reducedMotion: "reduce",
   });
   await mobile.route("https://supabase.example.test/**", fixture);
+  // Simula la barra de estado y la de gestos que MainActivity informa en Android.
+  await mobile.addInitScript(() => {
+    window.PlanifiaInsets = {
+      get: () => JSON.stringify({ top: 24, right: 0, bottom: 20, left: 0 }),
+    };
+  });
   const phone = await mobile.newPage();
   phone.on("pageerror", (e) => errors.push(e.message));
   await phone.clock.install();
@@ -1042,6 +1059,23 @@ try {
     path: "dist/qa/dashboard-mobile.png",
     fullPage: true,
   });
+  await phone.screenshot({ path: "dist/qa/dashboard-mobile-viewport.png" });
+  const touch = await phone.evaluate(() => {
+    const box = (el) => el.getBoundingClientRect();
+    return {
+      tabs: [...document.querySelectorAll(".sidebar nav a")].map((a) => box(a)),
+      header: [...document.querySelectorAll(".app-header .text-button")].map((b) => box(b)),
+    };
+  });
+  assert.equal(touch.tabs.length, 7);
+  for (const tab of touch.tabs) {
+    assert.ok(tab.height >= 48 && tab.width >= 44, "pestaña inferior demasiado pequeña");
+    assert.ok(tab.bottom <= 844 - 20, "pestaña inferior bajo la barra de gestos");
+  }
+  for (const button of touch.header) {
+    assert.ok(button.height >= 44, "botón superior demasiado pequeño");
+    assert.ok(button.top >= 24, "botón superior bajo la barra de estado");
+  }
   assert.equal(
     await phone.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,

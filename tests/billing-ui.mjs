@@ -705,6 +705,131 @@ try {
     noPurchase(calls);
     await page.close();
   }
+  // App Android: precios de Google Play, compra, créditos, anuncio recompensado e invitación.
+  // Tienda y AdMob simulados; no hay cobros ni anuncios reales.
+  {
+    const credits = (plan = "free") => ({
+      plan:
+        plan === "plus"
+          ? { id: "plus", name: "Plus", monthly_credits: 1000, max_active_goals: 15 }
+          : { id: "free", name: "Gratis", monthly_credits: 0, max_active_goals: 3 },
+      plans: catalog.map((p) => ({ ...p, monthly_credits: { free: 0, plus: 1000, pro: 2500 }[p.id] })),
+      credits:
+        plan === "plus"
+          ? { balance: 1060, plan_available: 1000, plan_allowance: 1000, bonus: 60, cost_per_use: 20, renews_at: "2030-02-28T15:00:00Z" }
+          : { balance: 60, plan_available: 0, plan_allowance: 0, bonus: 60, cost_per_use: 20 },
+      ads: { reward: 10, today: 0, daily_limit: 5 },
+      referral: { code: "ABCD2345", inviter_reward: 40, invitee_reward: 20, monthly_limit: 10, rewarded_this_month: 1, can_redeem: plan === "free", invited: false },
+      play_subscription:
+        plan === "plus"
+          ? { product_id: "planifia_plus", plan_id: "plus", state: "SUBSCRIPTION_STATE_ACTIVE", expiry_time: "2030-02-28T15:00:00Z", auto_renewing: true, active: true }
+          : null,
+      products: [
+        { product_id: "planifia_plus", kind: "subscription", plan_id: "plus", credits: null },
+        { product_id: "planifia_pro", kind: "subscription", plan_id: "pro", credits: null },
+        { product_id: "creditos_100", kind: "credits", plan_id: null, credits: 100 },
+        { product_id: "creditos_300", kind: "credits", plan_id: null, credits: 300 },
+        { product_id: "creditos_1000", kind: "credits", plan_id: null, credits: 1000 },
+      ],
+      recent: [{ reason: "welcome", delta: 60, created_at: periodStart }],
+    });
+    const offer = (regular, intro) => [
+      { basePlanId: "mensual", offerId: null, offerToken: "base", phases: [{ formattedPrice: regular, priceMicros: 1, recurrence: 1 }] },
+      { basePlanId: "mensual", offerId: "primer-mes", offerToken: "intro", phases: [{ formattedPrice: intro, priceMicros: 0, recurrence: 2, cycles: 1 }, { formattedPrice: regular, priceMicros: 1, recurrence: 1 }] },
+    ];
+    const products = [
+      { productId: "planifia_plus", type: "subs", offers: offer("$2.700", "$900") },
+      { productId: "planifia_pro", type: "subs", offers: offer("$4.900", "$1.900") },
+      { productId: "creditos_100", type: "inapp", oneTime: { formattedPrice: "$900" } },
+      { productId: "creditos_300", type: "inapp", oneTime: { formattedPrice: "$2.400" } },
+      { productId: "creditos_1000", type: "inapp", oneTime: { formattedPrice: "$6.900" } },
+    ];
+    const playHtml = (view, plan) => `<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Planes en Google Play</title><div id="fixture" style="max-width:1220px;margin:auto;padding:28px 18px"></div><script type="module">
+  import '/src/style.css';
+  import {renderBilling,mountBilling} from '/src/billing.js';
+  import {createPlayStore} from '/src/native-billing.js';
+  const root=document.querySelector('#fixture'),user={id:"user-fixture"};
+  let m=${JSON.stringify(credits(plan))};
+  const plus=${JSON.stringify(credits("plus"))};
+  window.playCalls=[];window.notes=[];window.adCalls=[];
+  const native=async(command,args)=>{window.playCalls.push([command,args]);
+    if(command==='get_products')return {available:true,products:${JSON.stringify(products)}};
+    if(command==='purchase')return {status:'purchased',purchases:[{productId:args.productId,purchaseToken:'token-'+args.productId+'-0001',state:'purchased',acknowledged:false}]};
+    if(command==='restore_purchases')return {available:true,purchases:[]};
+    return {ok:true};};
+  const store=createPlayStore({native,verify:async(list)=>{if(list[0].productId==='planifia_plus')m=plus;
+    return {results:list.map((p)=>({kind:p.productId.startsWith('creditos')?'credits':'subscription',purchaseToken:p.purchaseToken,active:true,acknowledged:true,granted:true,credits:100,consumed:true})),state:m};}});
+  const ads={ready:true,setEligible(){},rewarded:async(userId)=>{window.adCalls.push(userId);m={...m,ads:{...m.ads,today:1},credits:{...m.credits,balance:70,bonus:70}};return {shown:true,earned:true};}};
+  root.innerHTML=renderBilling({view:${JSON.stringify(view)},user});
+  mountBilling(root,{user,billing:async()=>(${JSON.stringify(initial())}),notify:(n)=>window.notes.push(n),
+    monetization:{load:async()=>m,redeem:async(code)=>{window.redeemed=code;return {ok:true,invitee_reward:20};},store,ads,userId:user.id}});
+</script></html>`;
+    const playPage = async (view, plan = "free") => {
+      const page = await browser.newPage({ viewport: { width: 1366, height: 1024 } });
+      page.on("pageerror", (error) => errors.push(error.message));
+      await page.route("**/play-fixture", (route) =>
+        route.fulfill({ contentType: "text/html", body: playHtml(view, plan) }),
+      );
+      await page.goto(`${origin}/play-fixture`);
+      return page;
+    };
+    const notes = (page) => page.evaluate(() => window.notes.join("\n"));
+    {
+      const page = await playPage("plans");
+      await page.locator("[data-play-paywall]").waitFor();
+      assert.equal(await page.locator("[data-google-play-notice]").isHidden(), true);
+      const plusCard = await page.locator('[data-plan-card="plus"]').innerText();
+      assert.match(plusCard, /\$900\s*el primer mes/);
+      assert.match(plusCard, /Luego \$2\.700 al mes/);
+      assert.match(plusCard, /1\.000 créditos de IA cada mes/);
+      assert.match(plusCard, /Sin anuncios/);
+      assert.match(await page.locator('[data-plan-card="pro"]').innerText(), /\$1\.900\s*el primer mes/);
+      assert.match(await page.locator(".billing-packs").innerText(), /300 créditos\s*\$2\.400/);
+      assert.match(await page.locator("[data-credits]").innerText(), /60\s*créditos/);
+      assert.match(await page.locator(".billing-legal").innerText(), /Términos de uso[\s\S]*Política de privacidad/);
+      await capture(page, "google-play-paywall-desktop");
+      await page.setViewportSize({ width: 390, height: 844 });
+      await capture(page, "google-play-paywall-mobile");
+
+      await page.locator('[data-play-buy="planifia_plus"]').click();
+      await page.waitForFunction(() => window.notes.some((n) => /activo/.test(n)));
+      const purchase = (await page.evaluate(() => window.playCalls)).find(([c]) => c === "purchase")[1];
+      assert.equal(purchase.accountId, "user-fixture", "La compra se liga a la cuenta de Supabase");
+      assert.equal(purchase.offerId, "primer-mes");
+      assert.equal(purchase.basePlanId, "mensual");
+      assert.equal(purchase.type, "subs");
+      await page.locator('[data-plan-card="plus"] [data-play-manage]').waitFor();
+      assert.equal(await page.locator("[data-rewarded-ad]").count(), 0, "Plus no ve anuncios recompensados");
+      await page.close();
+    }
+    {
+      const page = await playPage("subscription");
+      await page.locator("[data-credits]").waitFor();
+      await page.locator("[data-rewarded-ad]").click();
+      await page.waitForFunction(() => window.notes.some((n) => /\+10 créditos/.test(n)), null, { timeout: 15000 });
+      assert.deepEqual(await page.evaluate(() => window.adCalls), ["user-fixture"]);
+      assert.match(await page.locator("[data-credits]").innerText(), /70\s*créditos/);
+      await page.locator("[data-redeem-form] input").fill("abcd2345");
+      await page.locator("[data-redeem-form] button").click();
+      await page.waitForFunction(() => window.notes.some((n) => /Código aplicado/.test(n)));
+      assert.equal(await page.evaluate(() => window.redeemed), "abcd2345");
+      await page.setViewportSize({ width: 390, height: 844 });
+      await capture(page, "credits-free-mobile");
+      await page.close();
+    }
+    {
+      const page = await playPage("subscription", "plus");
+      await page.locator("[data-play-subscription]").waitFor();
+      const text = await page.locator("[data-play-subscription]").innerText();
+      assert.match(text, /Plus/);
+      assert.match(text, /Próxima renovación/);
+      assert.match(text, /Gestionar o cancelar en Google Play/);
+      await page.locator("[data-play-subscription] [data-play-manage]").click();
+      await page.waitForFunction(() => window.playCalls.some(([c]) => c === "manage_subscriptions"));
+      await capture(page, "google-play-subscription-plus-desktop");
+      await page.close();
+    }
+  }
   assert.deepEqual(
     errors,
     [],

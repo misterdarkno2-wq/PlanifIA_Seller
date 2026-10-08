@@ -13,3 +13,7 @@ supabase/.branches/
 exports/
 *.log
 play-assets/
+
+# Compilación y API de Tauri generadas en los plugins Android
+src-tauri/plugins/*/android/build/
+src-tauri/plugins/*/android/.tauri/

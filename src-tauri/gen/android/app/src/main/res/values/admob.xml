@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  IDs de Google AdMob de PlanifIA (cuenta pub-7813096396596933, app "PlanifIA" en AdMob).
+  ESTE ES EL ÚNICO ARCHIVO QUE DEBES EDITAR si cambias de app o de bloques de anuncios.
+
+    - admob_app_id: "ID de la app" (con ~).
+    - admob_banner_id: bloque "Banner inferior".
+    - admob_interstitial_id: bloque "Pausa natural".
+    - admob_rewarded_id: bloque "Créditos de IA" (recompensa 10 creditos).
+
+  Las compilaciones de depuración (npm run android:apk) usan siempre los IDs de prueba de
+  src/debug/res/values/admob.xml. Nunca hagas clic en tus propios anuncios reales: AdMob puede
+  suspender la cuenta.
+-->
+<resources>
+    <string name="admob_app_id" translatable="false">ca-app-pub-7813096396596933~5887633291</string>
+    <string name="admob_banner_id" translatable="false">ca-app-pub-7813096396596933/7123684189</string>
+    <string name="admob_interstitial_id" translatable="false">ca-app-pub-7813096396596933/4497520843</string>
+    <string name="admob_rewarded_id" translatable="false">ca-app-pub-7813096396596933/3062904262</string>
+</resources>

@@ -106,15 +106,15 @@ npm.cmd run preview
 
 Desde **Planes** puedes comparar beneficios y precios de referencia. **Mi plan** permite consultar tu período vigente, uso e historial. La web informa que **las suscripciones se contratan desde la app de Google Play** y no inicia compras, renovaciones ni inscripciones de tarjetas con Transbank.
 
-La app de Google Play está en preparación; el enlace se añadirá cuando exista una publicación real. Los pagos de Google Play todavía requieren integrar Billing en Android y validar/sincronizar compras desde el servidor. Los precios y ofertas definitivos se confirmarán en la app; la web no anuncia como vigente la campaña anterior de Transbank.
+La app Android vende Plus y Pro con Google Play Billing (Plus $900 y Pro $1.900 el primer mes) y paquetes de créditos; el servidor valida cada compra con la Google Play Developer API. El uso de IA se paga con **créditos**: 20 por uso, 60 de bienvenida, 1.000 (Plus) o 2.500 (Pro) por mes pagado, y créditos extra por anuncios recompensados e invitaciones. El plan Gratis muestra anuncios de AdMob en Android. Consulta [monetización](docs/monetizacion.md).
 
-| Plan   | Referencia mensual CLP | Metas activas | Generaciones IA/mes | Ajustes IA/mes |
-| ------ | ---------------------: | ------------: | ------------------: | -------------: |
-| Gratis |                     $0 |             3 |                   3 |              1 |
-| Plus   |                 $2.750 |            15 |                  30 |             15 |
-| Pro    |                 $4.990 |            50 |                 100 |             50 |
+| Plan   | Precio mensual CLP (Google Play) | Metas activas | Créditos de IA | Anuncios |
+| ------ | -------------------------------: | ------------: | -------------: | -------- |
+| Gratis |                               $0 |             3 | 60 de bienvenida + ganados | Sí (Android) |
+| Plus   |   $900 el primer mes, luego $2.700 |            15 | 1.000 por mes pagado | No |
+| Pro    | $1.900 el primer mes, luego $4.900 |            50 | 2.500 por mes pagado | No |
 
-Los beneficios y límites se editan en `public.plan_catalog`. Los tres planes conservan calendario, hábitos, Lumi y el historial de metas. Al superar el límite tras bajar de plan puedes consultar y editar tus datos; debes pausar alguna meta antes de activar otra. El consumo mensual reinicia el día 1 UTC y no se reinicia al cambiar de plan. Sigue existiendo el límite diario de protección de IA.
+Los beneficios y límites se editan en `public.plan_catalog`; costos y recompensas de créditos en `private.credit_settings`. Los tres planes conservan calendario, hábitos, Lumi y el historial de metas. Al superar el límite tras bajar de plan puedes consultar y editar tus datos; debes pausar alguna meta antes de activar otra. Los créditos del plan se renuevan con cada mes pagado y no se reinician al cambiar entre Plus y Pro. Sigue existiendo el límite diario de protección de IA.
 
 Se conserva la consulta de órdenes anteriores y la cancelación de futuros cobros de renovaciones ya autorizadas, manteniendo el acceso pagado. El backend de Transbank permanece en integración para los registros y pruebas existentes. Retirar los controles de la web no cancela automáticamente las autorizaciones ni deshabilita sus endpoints. Consulta [el estado de los pagos y el backend anterior](docs/billing.md).
 

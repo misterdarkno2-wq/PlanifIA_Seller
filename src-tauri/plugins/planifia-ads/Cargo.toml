@@ -1,0 +1,15 @@
+[package]
+name = "tauri-plugin-planifia-ads"
+version = "0.1.0"
+description = "Anuncios de Google AdMob (SDK Next-Gen y consentimiento UMP) para PlanifIA en Android"
+edition = "2024"
+rust-version = "1.90"
+links = "tauri-plugin-planifia-ads"
+publish = false
+
+[dependencies]
+tauri = { version = "2.12.1", default-features = false }
+serde_json = "1"
+
+[build-dependencies]
+tauri-plugin = { version = "2.7.1", features = ["build"] }

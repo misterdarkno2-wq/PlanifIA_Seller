@@ -1,0 +1,14 @@
+"$schema" = "schemas/schema.json"
+
+[default]
+description = "Permite a la ventana principal consultar productos, comprar y restaurar compras de Google Play."
+permissions = [
+  "allow-get-products",
+  "allow-purchase",
+  "allow-restore-purchases",
+  "allow-finish-purchase",
+  "allow-manage-subscriptions",
+  "allow-open-external",
+  "allow-register-listener",
+  "allow-remove-listener",
+]

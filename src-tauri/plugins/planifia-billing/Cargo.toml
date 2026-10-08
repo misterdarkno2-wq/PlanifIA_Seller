@@ -1,0 +1,15 @@
+[package]
+name = "tauri-plugin-planifia-billing"
+version = "0.1.0"
+description = "Google Play Billing Library 9.1.0 para las suscripciones y créditos de PlanifIA"
+edition = "2024"
+rust-version = "1.90"
+links = "tauri-plugin-planifia-billing"
+publish = false
+
+[dependencies]
+tauri = { version = "2.12.1", default-features = false }
+serde_json = "1"
+
+[build-dependencies]
+tauri-plugin = { version = "2.7.1", features = ["build"] }

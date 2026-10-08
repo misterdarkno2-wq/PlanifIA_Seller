@@ -493,3 +493,148 @@
     animation: none;
   }
 }
+
+/* Créditos de IA y compras de Google Play */
+.billing-credits .credits-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.billing-credits h2 {
+  margin: 0 0 8px;
+  font-size: clamp(22px, 2.6vw, 30px);
+}
+.billing-credits h2 strong {
+  color: var(--green);
+}
+.credit-split {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+}
+.credit-split > div {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--accent);
+}
+.credit-split dt {
+  font-size: 12px;
+  color: var(--muted);
+}
+.credit-split dd {
+  margin: 2px 0 0;
+  font-size: 20px;
+  font-weight: 700;
+}
+.credit-split dd small {
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.credit-ways {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-top: 22px;
+}
+.credit-way {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+.credit-way h3,
+.credit-way p {
+  margin: 0;
+}
+.credit-way p {
+  font-size: 14px;
+}
+.credit-way button {
+  align-self: flex-start;
+}
+.credit-way label {
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+}
+.credit-way input {
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+.referral-code strong {
+  font-family: ui-monospace, "Cascadia Mono", monospace;
+  font-size: 18px;
+  letter-spacing: 2px;
+  color: var(--dark);
+}
+.credit-history {
+  margin-top: 20px;
+}
+.credit-history summary {
+  cursor: pointer;
+  font-weight: 650;
+}
+.credit-history ul {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.credit-history li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+}
+.credit-history li small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+.credit-history .plus {
+  color: var(--green);
+}
+.credit-history .minus {
+  color: #9b4a2f;
+}
+.billing-packs h2 {
+  margin: 0 0 6px;
+}
+.billing-pack-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+.billing-pack-grid button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-height: 72px;
+}
+.billing-pack-grid button span {
+  font-size: 14px;
+}
+.billing-legal {
+  padding: 4px 2px 0;
+}
+.billing-legal .fine .text-button {
+  padding: 0;
+  font-size: inherit;
+}
+@media (max-width: 760px) {
+  .billing-credits .credits-head {
+    grid-template-columns: 1fr;
+  }
+  .credit-way button {
+    align-self: stretch;
+  }
+}

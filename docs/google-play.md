@@ -30,7 +30,7 @@ No uses tu cuenta personal. Mantén el servicio de IA encendido durante la revis
 
 ## 3. Anuncios
 
-Ya completado: **No, la app no contiene anuncios**.
+Desde la versión 2.2.0 el plan Gratis muestra anuncios de AdMob: cambia la respuesta a **Sí, mi app contiene anuncios** y declara el **ID de publicidad**. Los pasos completos (AdMob, productos de Play, cuentas de prueba, Seguridad de los datos y app-ads.txt) están en [monetización](monetizacion.md).
 
 ## 4. Clasificación de contenido
 

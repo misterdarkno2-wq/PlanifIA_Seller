@@ -20,6 +20,24 @@ export async function installNativeBack({ modalOpen, closeModal, goHome, onError
   window.addEventListener("pagehide", () => listener.unregister().catch(onError), { once: true });
 }
 
+// On Android the app draws under the status and gesture bars; MainActivity reports their size.
+export function watchSafeArea() {
+  const bridge = globalThis.window?.PlanifiaInsets;
+  if (!bridge) return;
+  const apply = () => {
+    try {
+      const insets = JSON.parse(bridge.get());
+      for (const side of ["top", "right", "bottom", "left"]) {
+        document.documentElement.style.setProperty(`--inset-${side}`, `${Math.round(Number(insets[side]) || 0)}px`);
+      }
+    } catch {
+      // Keep the CSS env() fallback.
+    }
+  };
+  apply();
+  window.addEventListener("planifia-insets", apply);
+}
+
 // Email links must open a publicly reachable website, never an APK's local origin.
 export function authRedirect(fragment = "") {
   const base = isNative() ? "https://planifia.cl/" : location.origin + location.pathname;
