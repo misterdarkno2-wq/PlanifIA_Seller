@@ -63,7 +63,10 @@ export function createPlayStore({ native = billingCommand, verify, onState = () 
       const purchase = purchases.find((p) => p.purchaseToken === result.purchaseToken);
       if (result.kind === "credits" && !result.consumed && !result.cancelled) {
         await native("finish_purchase", { purchaseToken: result.purchaseToken, consumable: true }).catch(() => {});
-      } else if (result.kind === "subscription" && result.active && !result.acknowledged && !purchase?.acknowledged) {
+      } else if (
+        ((result.kind === "subscription" && result.active) || (result.kind === "ad_free" && result.granted)) &&
+        !result.acknowledged && !purchase?.acknowledged
+      ) {
         await native("finish_purchase", { purchaseToken: result.purchaseToken, consumable: false }).catch(() => {});
       }
     }
@@ -89,7 +92,7 @@ export function createPlayStore({ native = billingCommand, verify, onState = () 
     async purchase(product, options) {
       const result = await native("purchase", {
         productId: product.product_id,
-        type: product.kind === "credits" ? "inapp" : "subs",
+        type: product.kind === "subscription" ? "subs" : "inapp",
         basePlanId: options.basePlanId ?? null,
         offerId: options.offerId ?? null,
         accountId: options.accountId,

@@ -226,6 +226,29 @@ test("Paquetes de créditos se acreditan una vez y un reembolso los descuenta si
   );
 });
 
+test("Quitar anuncios: compra única por cuenta, se restaura sin duplicar y un reembolso la anula", async (t) => {
+  const db = await setup(t);
+  assert.equal((await monetization(db)).ad_free, false);
+  await service(db);
+  const grant = (id, token = "noads-token-0001", product = "sin_anuncios") =>
+    one(db, "select public.play_grant_ad_free($1,$2,$3,'GPA.7',false) result", [id, token, product]);
+  assert.deepEqual(await grant(A), { granted: true, ad_free: true });
+  assert.deepEqual(await grant(A), { granted: false, ad_free: true }, "Restaurar no duplica");
+  await assert.rejects(() => grant(B), /otra cuenta/);
+  await assert.rejects(() => grant(A, "noads-token-0002", "creditos_100"), /desconocido/);
+  const state = await monetization(db);
+  assert.equal(state.ad_free, true);
+  assert.equal(state.plan.id, "free", "No cambia el plan ni da créditos");
+  assert.equal(state.credits.balance, 60);
+  assert.ok(state.products.some((p) => p.product_id === "sin_anuncios" && p.kind === "ad_free"));
+  assert.equal((await monetization(db, B)).ad_free, false);
+  await service(db);
+  assert.equal(await one(db, "select public.play_token_owner('noads-token-0001') result"), A);
+  assert.equal(await one(db, "select public.play_revoke_ad_free('noads-token-0001') result"), true);
+  assert.equal(await one(db, "select public.play_revoke_ad_free('noads-token-0001') result"), false);
+  assert.equal((await monetization(db)).ad_free, false);
+});
+
 test("Anuncios recompensados dan 10 créditos, una vez por transacción y hasta 5 por día", async (t) => {
   const db = await setup(t);
   await service(db);
@@ -321,6 +344,9 @@ test("El navegador no puede acreditar compras, anuncios ni leer tablas privadas"
     "select public.play_grant_credits('11111111-1111-4111-8111-111111111111','pack-token-0001','creditos_100',null,false)",
     "select public.play_apply_subscription('11111111-1111-4111-8111-111111111111','token-plus-0001','planifia_plus','SUBSCRIPTION_STATE_ACTIVE',now()+interval '1 day',true,null,null,false,'{}')",
     "select public.play_revoke_credits('x')",
+    "select public.play_grant_ad_free('11111111-1111-4111-8111-111111111111','noads-token-0001','sin_anuncios',null,false)",
+    "select public.play_revoke_ad_free('x')",
+    "select * from private.play_ad_free_purchases",
     "select public.enqueue_ai_job('11111111-1111-4111-8111-111111111111',gen_random_uuid(),'generation','{}','{}')",
     "select * from private.credit_accounts",
     "select * from private.play_subscriptions",

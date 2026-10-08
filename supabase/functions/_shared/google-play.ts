@@ -196,6 +196,13 @@ export const consumeProduct = (productId: string, token: string) =>
     "POST",
   );
 
+// Compras únicas que no se consumen (p. ej., quitar anuncios): sin acknowledge Google las reembolsa.
+export const acknowledgeProduct = (productId: string, token: string) =>
+  play(
+    `/purchases/products/${encodeURIComponent(productId)}/tokens/${tokenPath(token)}:acknowledge`,
+    "POST",
+  );
+
 export function resetPlayAuthCache() {
   cached = null;
 }

@@ -607,6 +607,15 @@
 .billing-packs h2 {
   margin: 0 0 6px;
 }
+.billing-noads {
+  margin-top: 18px;
+}
+.billing-noads h2 {
+  margin: 0 0 6px;
+}
+.billing-noads button {
+  margin-top: 12px;
+}
 .billing-pack-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));

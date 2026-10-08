@@ -1,5 +1,6 @@
 // Aplica en Supabase lo que Google Play confirma. Lo usan la app (play-billing) y los avisos RTDN (play-rtdn).
 import {
+  acknowledgeProduct,
   acknowledgeSubscription,
   consumeProduct,
   getProduct,
@@ -112,4 +113,41 @@ export async function syncCredits(admin: any, productId: string, token: string, 
     }
   }
   return { kind: "credits", productId, granted: granted?.granted === true, credits: granted?.credits, consumed };
+}
+
+// "Quitar anuncios": compra única para siempre. No se consume; se reconoce para que Google no la reembolse.
+export async function syncAdFree(admin: any, productId: string, token: string, expectedUser?: string) {
+  if ((await rpc(admin, "play_product_kind", { p_product: productId })) !== "ad_free") {
+    throw new PlayError("Esta compra no pertenece a PlanifIA.", 422);
+  }
+  const purchase = await getProduct(productId, token);
+  const user = await resolveOwner(admin, purchase.accountId, [token], expectedUser);
+  if (!user) return { kind: "ad_free", productId, skipped: true };
+  if (purchase.pending) return { kind: "ad_free", productId, pending: true, acknowledged: false };
+  if (!purchase.purchased) return { kind: "ad_free", productId, cancelled: true, acknowledged: purchase.acknowledged };
+  await rpc(admin, "play_grant_ad_free", {
+    p_user: user,
+    p_token: token,
+    p_product: productId,
+    p_order: purchase.orderId,
+    p_test: purchase.test,
+  });
+  let acknowledged = purchase.acknowledged;
+  if (!acknowledged) {
+    try {
+      await acknowledgeProduct(productId, token);
+      acknowledged = true;
+    } catch (error) {
+      console.error("play acknowledge failed", error instanceof Error ? error.message : error);
+    }
+  }
+  return { kind: "ad_free", productId, granted: true, acknowledged };
+}
+
+// Compras únicas que llegan por RTDN o desde la app: paquete de créditos o quitar anuncios.
+export async function syncOneTime(admin: any, productId: string, token: string, expectedUser?: string) {
+  const kind = await rpc(admin, "play_product_kind", { p_product: productId });
+  return kind === "ad_free"
+    ? syncAdFree(admin, productId, token, expectedUser)
+    : syncCredits(admin, productId, token, expectedUser);
 }

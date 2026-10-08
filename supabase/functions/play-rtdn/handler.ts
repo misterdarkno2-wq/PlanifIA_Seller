@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.58.0";
 import { packageName, PlayError } from "../_shared/google-play.ts";
-import { PRODUCT_ID, PURCHASE_TOKEN, syncCredits, syncSubscription } from "../_shared/play-sync.ts";
+import { PRODUCT_ID, PURCHASE_TOKEN, syncOneTime, syncSubscription } from "../_shared/play-sync.ts";
 
 // Avisos en tiempo real de Google Play (Pub/Sub push). El contenido del aviso no se cree:
 // sólo indica qué token volver a consultar en Google.
@@ -40,11 +40,15 @@ export async function handlePlayRtdn(req: Request) {
       oneTime && oneTime.notificationType === 1 &&
       PURCHASE_TOKEN.test(oneTime.purchaseToken || "") && PRODUCT_ID.test(oneTime.sku || "")
     ) {
-      await syncCredits(admin, oneTime.sku, oneTime.purchaseToken);
+      await syncOneTime(admin, oneTime.sku, oneTime.purchaseToken);
     } else if (voided && PURCHASE_TOKEN.test(voided.purchaseToken || "")) {
-      const rpc = voided.productType === 1 ? "play_revoke_subscription" : "play_revoke_credits";
-      const { error } = await admin.rpc(rpc, { p_token: voided.purchaseToken });
-      if (error) throw new PlayError("No pudimos registrar el reembolso.", 503, true);
+      // productType 1 = suscripción; 2 = compra única (paquete de créditos o quitar anuncios).
+      const rpcs = voided.productType === 1 ? ["play_revoke_subscription"] : ["play_revoke_credits", "play_revoke_ad_free"];
+      for (const name of rpcs) {
+        const { data, error } = await admin.rpc(name, { p_token: voided.purchaseToken });
+        if (error) throw new PlayError("No pudimos registrar el reembolso.", 503, true);
+        if (data === true) break;
+      }
     }
     return new Response("OK", { status: 200 });
   } catch (error) {

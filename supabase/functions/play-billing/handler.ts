@@ -3,7 +3,7 @@ import { PlayError } from "../_shared/google-play.ts";
 import {
   PRODUCT_ID,
   PURCHASE_TOKEN,
-  syncCredits,
+  syncOneTime,
   syncSubscription,
 } from "../_shared/play-sync.ts";
 
@@ -61,8 +61,8 @@ export async function handlePlayBilling(req: Request) {
       try {
         const kind = (await admin.rpc("play_product_kind", { p_product: p.productId })).data;
         results.push(
-          kind === "credits"
-            ? await syncCredits(admin, p.productId, p.purchaseToken, user.id)
+          kind === "credits" || kind === "ad_free"
+            ? await syncOneTime(admin, p.productId, p.purchaseToken, user.id)
             : await syncSubscription(admin, p.purchaseToken, user.id),
         );
       } catch (error) {

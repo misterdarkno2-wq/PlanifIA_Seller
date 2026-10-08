@@ -6,7 +6,7 @@ Esta guía explica cómo funciona la monetización de PlanifIA en la app de Goog
 
 | Plan | Precio en Google Play | Créditos de IA | Metas activas | Anuncios |
 | --- | --- | --- | --- | --- |
-| Gratis | $0 | 60 de bienvenida + los que ganes | 3 | Sólo recompensados voluntarios (desde la 2.2.3 no hay banner ni intersticial) |
+| Gratis | $0 | 60 de bienvenida + los que ganes | 3 | Video al usar la IA (máx. 1 cada 5 min, nunca en el primer plan) + recompensados voluntarios. Sin banner. La compra única "Quitar anuncios" ($2.900) quita los videos |
 | Plus | Primer mes $900, luego $2.700/mes | 1.000 cada mes pagado | 15 | No |
 | Pro | Primer mes $1.900, luego $4.900/mes | 2.500 cada mes pagado | 50 | No |
 
@@ -58,7 +58,7 @@ En escritorio (`npm run desktop:dev`) los plugins responden "no disponible" y la
 | --- | --- |
 | App "PlanifIA" (Android) | `ca-app-pub-7813096396596933~5887633291` |
 | Banner "Banner inferior" (sin uso desde la 2.2.3) | `ca-app-pub-7813096396596933/7123684189` |
-| Intersticial "Pausa natural" (sin uso desde la 2.2.3) | `ca-app-pub-7813096396596933/4497520843` |
+| Intersticial "Pausa natural" (video al usar la IA) | `ca-app-pub-7813096396596933/4497520843` |
 | Recompensado "Créditos de IA" (10 `creditos`) | `ca-app-pub-7813096396596933/3062904262` |
 
 Ya están en `admob.xml` y en `supabase/functions/.env.local` (`ADMOB_REWARDED_AD_UNIT`). El perfil de pagos está completo y el mensaje de consentimiento europeo "PlanifIA - Consentimiento Europa" está publicado (botones Consentir, No consentir y Gestionar opciones; política `https://planifia.cl/privacidad.html`).
@@ -115,6 +115,7 @@ Pasos originales, por si necesitas repetirlos:
    | `creditos_100` | 100 créditos de IA | $900 |
    | `creditos_300` | 300 créditos de IA | $2.400 |
    | `creditos_1000` | 1.000 créditos de IA | $6.900 |
+   | `sin_anuncios` | Quitar anuncios | $2.900 (no se consume: es para siempre) |
 
    Actívalos. La app los consume tras acreditarlos, así se pueden comprar varias veces.
 4. Los productos solo aparecen en la app cuando una versión que contiene Play Billing está publicada en algún canal (la prueba cerrada sirve) y la instalaste desde Play.
@@ -215,7 +216,7 @@ npx.cmd supabase functions deploy admob-ssv
 
 ## 9. Compilar el AAB firmado y subir la versión
 
-La versión ya quedó en **2.2.3 (versionCode 20203)** en `src-tauri/tauri.conf.json`. Play rechaza un versionCode repetido: súbelo en cada nueva subida, por ejemplo 20204.
+La versión ya quedó en **2.2.4 (versionCode 20204)** en `src-tauri/tauri.conf.json`. Play rechaza un versionCode repetido: súbelo en cada nueva subida, por ejemplo 20205.
 
 Antes de compilar el AAB, el workflow **Android en emulador** (`.github/workflows/android-smoke.yml`) compila el APK release con R8, lo abre en un emulador y prueba anuncios y compras. Corre solo en `main` y en las ramas `claude/**`. La 2.2.1 se cerraba al abrir por R8 (constructores de WorkManager/Room); la regla está en `src-tauri/gen/android/app/proguard-rules.pro`.
 
@@ -237,7 +238,8 @@ Instala la app desde el enlace de prueba cerrada con una cuenta de prueba de lic
 - [ ] Con una VPN o un emulador en un país del EEE aparece el formulario de consentimiento antes de cualquier anuncio.
 - [ ] En **Ajustes → Anuncios y privacidad** se puede volver a abrir el formulario.
 - [ ] Al rechazar el consentimiento no aparecen anuncios.
-- [ ] No aparece ningún banner ni anuncio de pantalla completa al navegar, guardar un plan o completar el día. El único anuncio es el recompensado que se elige en **Mi plan**.
+- [ ] No aparece ningún banner. En el plan Gratis, al crear o ajustar un plan con IA aparece un video, como máximo uno cada 5 minutos y nunca en el primer plan.
+- [ ] Con **Quitar anuncios** comprado (Mi plan → Planes), la IA ya no muestra videos y el anuncio voluntario para ganar créditos sigue disponible. **Restaurar compras** lo recupera en otro teléfono.
   - [ ] Nunca más de uno cada 5 minutos.
 - [ ] En **Mi plan → Ver anuncio**, al terminar el anuncio el saldo sube 10 créditos en unos segundos.
   - [ ] El sexto anuncio del día ya no está disponible.

@@ -730,7 +730,9 @@ try {
         { product_id: "creditos_100", kind: "credits", plan_id: null, credits: 100 },
         { product_id: "creditos_300", kind: "credits", plan_id: null, credits: 300 },
         { product_id: "creditos_1000", kind: "credits", plan_id: null, credits: 1000 },
+        { product_id: "sin_anuncios", kind: "ad_free", plan_id: null, credits: null },
       ],
+      ad_free: false,
       recent: [{ reason: "welcome", delta: 60, created_at: periodStart }],
     });
     const offer = (regular, intro) => [
@@ -743,6 +745,7 @@ try {
       { productId: "creditos_100", type: "inapp", oneTime: { formattedPrice: "$900" } },
       { productId: "creditos_300", type: "inapp", oneTime: { formattedPrice: "$2.400" } },
       { productId: "creditos_1000", type: "inapp", oneTime: { formattedPrice: "$6.900" } },
+      { productId: "sin_anuncios", type: "inapp", oneTime: { formattedPrice: "$2.900" } },
     ];
     const playHtml = (view, plan) => `<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Planes en Google Play</title><div id="fixture" style="max-width:1220px;margin:auto;padding:28px 18px"></div><script type="module">
   import '/src/style.css';
@@ -758,8 +761,9 @@ try {
     if(command==='restore_purchases')return {available:true,purchases:[]};
     return {ok:true};};
   const store=createPlayStore({native,verify:async(list)=>{if(list[0].productId==='planifia_plus')m=plus;
-    return {results:list.map((p)=>({kind:p.productId.startsWith('creditos')?'credits':'subscription',purchaseToken:p.purchaseToken,active:true,acknowledged:true,granted:true,credits:100,consumed:true})),state:m};}});
-  const ads={ready:true,setEligible(){},rewarded:async(userId)=>{window.adCalls.push(userId);m={...m,ads:{...m.ads,today:1},credits:{...m.credits,balance:70,bonus:70}};return {shown:true,earned:true};}};
+    if(list[0].productId==='sin_anuncios')m={...m,ad_free:true};
+    return {results:list.map((p)=>({kind:p.productId.startsWith('creditos')?'credits':p.productId==='sin_anuncios'?'ad_free':'subscription',purchaseToken:p.purchaseToken,active:true,acknowledged:true,granted:true,credits:100,consumed:true})),state:m};}});
+  const ads={ready:true,setEligible(){},setAdFree(v){window.adFree=v;},rewarded:async(userId)=>{window.adCalls.push(userId);m={...m,ads:{...m.ads,today:1},credits:{...m.credits,balance:70,bonus:70}};return {shown:true,earned:true};}};
   root.innerHTML=renderBilling({view:${JSON.stringify(view)},user});
   mountBilling(root,{user,billing:async()=>(${JSON.stringify(initial())}),notify:(n)=>window.notes.push(n),
     monetization:{load:async()=>m,redeem:async(code)=>{window.redeemed=code;return {ok:true,invitee_reward:20};},store,ads,userId:user.id}});
@@ -791,6 +795,8 @@ try {
       await page.setViewportSize({ width: 390, height: 844 });
       await capture(page, "google-play-paywall-mobile");
 
+      assert.match(await page.locator("[data-ad-free-offer]").innerText(), /Quitar anuncios por \$2\.900/);
+      assert.match(await page.locator('[data-plan-card="free"]').innerText(), /Video de anuncio al usar la IA/);
       await page.locator('[data-play-buy="planifia_plus"]').click();
       await page.waitForFunction(() => window.notes.some((n) => /activo/.test(n)));
       const purchase = (await page.evaluate(() => window.playCalls)).find(([c]) => c === "purchase")[1];
@@ -800,6 +806,21 @@ try {
       assert.equal(purchase.type, "subs");
       await page.locator('[data-plan-card="plus"] [data-play-manage]').waitFor();
       assert.equal(await page.locator("[data-rewarded-ad]").count(), 0, "Plus no ve anuncios recompensados");
+      assert.equal(await page.locator("[data-ad-free-offer]").count(), 0, "Plus ya no tiene anuncios que quitar");
+      await page.close();
+    }
+    {
+      const page = await playPage("plans");
+      await page.locator("[data-ad-free-offer]").waitFor();
+      await page.locator('[data-play-buy="sin_anuncios"]').click();
+      await page.waitForFunction(() => window.notes.some((n) => /quitamos los videos/.test(n)));
+      const purchase = (await page.evaluate(() => window.playCalls)).find(([c]) => c === "purchase")[1];
+      assert.equal(purchase.type, "inapp", "Quitar anuncios es una compra única");
+      assert.equal(purchase.productId, "sin_anuncios");
+      await page.locator("[data-ad-free]").waitFor();
+      assert.equal(await page.evaluate(() => window.adFree), true);
+      assert.equal(await page.locator("[data-ad-free-offer]").count(), 0);
+      await capture(page, "google-play-ad-free-desktop");
       await page.close();
     }
     {

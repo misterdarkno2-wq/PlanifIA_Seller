@@ -126,7 +126,7 @@ function benefitRows(plan, escape) {
   return `<li><strong>${escape(count.goals)}</strong> metas activas</li>${
     Number(plan.monthly_credits) > 0
       ? `<li><strong>${number(plan.monthly_credits)}</strong> créditos de IA cada mes</li><li>Sin anuncios</li>`
-      : "<li><strong>60</strong> créditos de bienvenida</li><li>Gana créditos con anuncios o invitando</li>"
+      : "<li><strong>60</strong> créditos de bienvenida</li><li>Gana créditos con anuncios o invitando</li><li>Video de anuncio al usar la IA</li>"
   }`;
 }
 
@@ -292,12 +292,13 @@ function playPlans(state, m, catalog, escape) {
   const plans = m.plans || state.plans;
   const subs = (m.products || []).filter((p) => p.kind === "subscription");
   const packs = (m.products || []).filter((p) => p.kind === "credits");
+  const noAds = (m.products || []).find((p) => p.kind === "ad_free");
   const free = plans.find((p) => p.id === "free");
   const card = (plan, product) => {
     const info = product ? describeSubscription(catalog[product.product_id]) : null;
     const current = m.plan?.id === plan.id;
     const price = !product
-      ? `<p class="billing-price"><strong>${money(0)}</strong><span>siempre</span></p><p class="billing-price-note">Con anuncios. Sin medio de pago.</p>`
+      ? `<p class="billing-price"><strong>${money(0)}</strong><span>siempre</span></p><p class="billing-price-note">Con anuncios en video al usar la IA. Sin medio de pago.</p>`
       : info.available
         ? info.introPrice
           ? `<p class="billing-price"><strong>${escape(info.introPrice)}</strong><span>el primer mes</span></p><p class="billing-price-note">Luego ${escape(info.regularPrice)} al mes. Cancela cuando quieras.</p>`
@@ -327,6 +328,16 @@ function playPlans(state, m, catalog, escape) {
               return `<button class="secondary" data-play-buy="${escape(pack.product_id)}" ${price ? "" : "disabled"}><strong>${number(pack.credits)} créditos</strong><span>${price ? escape(price) : "Precio no disponible"}</span></button>`;
             })
             .join("")}</div></section>`
+        : ""
+    }
+    ${
+      noAds && !active
+        ? m.ad_free
+          ? '<section class="billing-noads panel" data-ad-free><h2>Sin anuncios para siempre ✓</h2><p class="muted">Ya compraste "Quitar anuncios": la IA no muestra videos en tu cuenta. El anuncio voluntario para ganar créditos sigue disponible si lo quieres.</p></section>'
+          : (() => {
+              const price = catalog[noAds.product_id]?.oneTime?.formattedPrice;
+              return `<section class="billing-noads panel" data-ad-free-offer><h2>Quitar anuncios</h2><p class="muted">Pago único, para siempre y sin suscripción. Quita los videos al usar la IA; puedes seguir viendo anuncios voluntarios para ganar créditos.</p><button data-play-buy="${escape(noAds.product_id)}" ${price ? "" : "disabled"}>${price ? `Quitar anuncios por ${escape(price)}` : "Precio no disponible"}</button></section>`;
+            })()
         : ""
     }
     <section class="billing-legal"><div class="billing-actions"><button class="secondary" data-play-restore>Restaurar compras</button><button class="text-button" data-play-manage="${escape(active?.product_id || "")}">Gestionar o cancelar suscripción</button></div>
@@ -479,7 +490,7 @@ export function mountBilling(
     const result = await store
       .products(
         products.filter((p) => p.kind === "subscription").map((p) => p.product_id),
-        products.filter((p) => p.kind === "credits").map((p) => p.product_id),
+        products.filter((p) => p.kind !== "subscription").map((p) => p.product_id),
       )
       .catch(() => null);
     if (result?.available)
@@ -506,6 +517,8 @@ export function mountBilling(
     const results = result.sync?.results || [];
     const failed = results.find((r) => r.error);
     if (failed) throw new Error(failed.error);
+    if (results.some((r) => r.kind === "ad_free" && r.granted))
+      return "Listo: quitamos los videos de anuncios de tu cuenta para siempre.";
     const granted = results.find((r) => r.kind === "credits");
     if (granted) return `Listo: sumamos ${number(granted.credits)} créditos a tu cuenta.`;
     if (results.some((r) => r.kind === "subscription" && r.active))
@@ -550,6 +563,7 @@ export function mountBilling(
     await reloadCredits();
     notify(purchaseMessage(result));
     if (credits?.plan?.id !== "free") ads?.setEligible(false);
+    if (credits?.ad_free) ads?.setAdFree?.(true);
   };
   const restore = async () => {
     const result = await store.restore();
@@ -563,6 +577,7 @@ export function mountBilling(
         : "No encontramos compras vigentes en esta cuenta de Google.",
     );
     if (credits?.plan?.id !== "free") ads?.setEligible(false);
+    if (credits?.ad_free) ads?.setAdFree?.(true);
   };
   const watchAd = async () => {
     const before = Number(credits?.ads?.today) || 0;

@@ -14,6 +14,7 @@ function fakeNative(overrides = {}) {
     if (overrides[command]) return overrides[command](args);
     if (command === "init_ads")
       return { available: true, initialized: true, canRequestAds: true, privacyOptionsRequired: false };
+    if (command === "show_interstitial") return { shown: true };
     if (command === "show_rewarded") return { shown: true, earned: true };
     return { loaded: true };
   };
@@ -31,15 +32,49 @@ test("Sin plan Gratis confirmado no se inicializa AdMob ni se muestra ningún an
   assert.deepEqual(names(), []);
 });
 
-test("Sólo anuncios recompensados: nunca banner ni intersticial", async () => {
+test("Nunca hay banner; el consentimiento UMP va antes que cualquier anuncio", async () => {
   const { native, names } = fakeNative();
-  const ads = createAdManager({ native });
+  const ads = createAdManager({ native, storage: memory() });
   await ads.setEligible(true);
-  assert.deepEqual(names().slice(0, 1), ["init_ads"], "El consentimiento UMP va antes que cualquier anuncio");
+  ads.setAdFree(false);
+  assert.deepEqual(names().slice(0, 1), ["init_ads"]);
   await ads.rewarded("user-1");
+  await ads.aiVideo();
+  assert.ok(!names().some((n) => /banner/.test(n)), names().join(","));
+});
+
+test("Video al usar la IA: nunca el primer plan y máximo uno cada 5 minutos, aunque se reinicie la app", async () => {
+  let clock = 1_000_000;
+  const { native, names } = fakeNative();
+  const storage = memory();
+  const ads = createAdManager({ native, storage, now: () => clock });
+  await ads.setEligible(true);
+  assert.equal(await ads.aiVideo(), false, "Sin confirmar si compró Quitar anuncios, no hay video");
+  ads.setAdFree(false);
+  assert.equal(await ads.aiVideo({ firstTime: true }), false);
+  assert.equal(await ads.aiVideo(), true);
+  clock += 4 * 60 * 1000;
+  assert.equal(await ads.aiVideo(), false);
+  clock += 61 * 1000;
+  assert.equal(await ads.aiVideo(), true);
+  assert.equal(names().filter((n) => n === "show_interstitial").length, 2);
+  const again = createAdManager({ native, storage, now: () => clock + 1000 });
+  await again.setEligible(true);
+  again.setAdFree(false);
+  assert.equal(await again.aiVideo(), false);
+});
+
+test("Quitar anuncios y los planes pagados no muestran videos; el recompensado sigue disponible", async () => {
+  const { native, names } = fakeNative();
+  const ads = createAdManager({ native, storage: memory() });
+  await ads.setEligible(true);
+  ads.setAdFree(true);
+  assert.equal(await ads.aiVideo(), false);
+  assert.deepEqual(await ads.rewarded("user-1"), { shown: true, earned: true });
   await ads.setEligible(false);
-  assert.ok(!names().some((n) => /banner|interstitial/.test(n)), names().join(","));
-  assert.equal("setRoute" in ads || "naturalPause" in ads, false);
+  ads.setAdFree(false);
+  assert.equal(await ads.aiVideo(), false, "Plus/Pro");
+  assert.ok(!names().includes("show_interstitial"));
 });
 
 test("Sin consentimiento (canRequestAds=false) no se piden anuncios", async () => {
