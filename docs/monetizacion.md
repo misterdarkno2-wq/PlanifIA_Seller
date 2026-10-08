@@ -215,7 +215,9 @@ npx.cmd supabase functions deploy admob-ssv
 
 ## 9. Compilar el AAB firmado y subir la versión
 
-La versión ya quedó en **2.2.1 (versionCode 20201)** en `src-tauri/tauri.conf.json`. Play rechaza un versionCode repetido: súbelo en cada nueva subida, por ejemplo 20202.
+La versión ya quedó en **2.2.2 (versionCode 20202)** en `src-tauri/tauri.conf.json`. Play rechaza un versionCode repetido: súbelo en cada nueva subida, por ejemplo 20203.
+
+Antes de compilar el AAB, el workflow **Android en emulador** (`.github/workflows/android-smoke.yml`) compila el APK release con R8, lo abre en un emulador y prueba anuncios y compras. Corre solo en `main` y en las ramas `claude/**`. La 2.2.1 se cerraba al abrir por R8 (constructores de WorkManager/Room); la regla está en `src-tauri/gen/android/app/proguard-rules.pro`.
 
 ```powershell
 powershell -ExecutionPolicy RemoteSigned -File .\scripts\android-aab.ps1
