@@ -367,10 +367,13 @@ small,
   align-items: center;
   gap: 13px;
 }
-.sidebar nav a span {
+.sidebar nav a > span[aria-hidden]:first-child {
   font-size: 20px;
   width: 22px;
   text-align: center;
+}
+.sidebar nav .nav-short {
+  display: none;
 }
 .sidebar nav a[aria-current] {
   color: #146f5d;
@@ -1183,7 +1186,7 @@ code {
     border-radius: 14px;
     white-space: nowrap;
   }
-  .sidebar nav a span {
+  .sidebar nav a > span[aria-hidden]:first-child {
     font-size: 22px;
     width: auto;
     line-height: 1;
@@ -1351,4 +1354,22 @@ code {
 
 .credit-hint {
   margin: 10px 0 0;
+}
+/* Ocho pestañas en teléfonos angostos: nombres cortos y letra algo menor para que no se crucen. */
+@media (max-width: 430px) {
+  .sidebar nav a {
+    font-size: 10.5px;
+    letter-spacing: -0.1px;
+  }
+  .sidebar nav .nav-long {
+    display: none;
+  }
+  .sidebar nav .nav-short {
+    display: inline;
+  }
+}
+@media (max-width: 370px) {
+  .sidebar nav a {
+    font-size: 9.5px;
+  }
 }

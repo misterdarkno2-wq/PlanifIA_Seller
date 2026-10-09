@@ -27,9 +27,11 @@ export function watchSafeArea() {
   const apply = () => {
     try {
       const insets = JSON.parse(bridge.get());
-      for (const side of ["top", "right", "bottom", "left"]) {
+      for (const side of ["top", "right", "bottom", "left", "ime"]) {
         document.documentElement.style.setProperty(`--inset-${side}`, `${Math.round(Number(insets[side]) || 0)}px`);
       }
+      // Teclado abierto: la ventana no cambia de tamaño, así que la interfaz sube sus campos.
+      document.documentElement.classList.toggle("keyboard-open", Number(insets.ime) > 0);
     } catch {
       // Keep the CSS env() fallback.
     }

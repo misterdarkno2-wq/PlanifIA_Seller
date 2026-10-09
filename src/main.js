@@ -2,6 +2,8 @@ import "./style.css";
 import { authRedirect, downloadJson, installNativeBack, watchSafeArea } from "./platform.js";
 import "./pet.css";
 import "./lumi-conversation.css";
+import "./lumi-chat.css";
+import { lumiChatPage, mountLumiChat } from "./lumi-chat.js";
 import { createLumiCompanion } from "./lumi-messages.js";
 import { createLumiVoice } from "./lumi-voice.js";
 import {
@@ -110,6 +112,7 @@ const aiJobs = createAiJobMonitor({
 });
 aiJobs.subscribe(() => updateAiBadge());
 
+let lumiChat = null;
 // Créditos y plan vigente. En Android, además, anuncios (sólo plan Gratis) y Google Play.
 let monetization = null,
   monetizationUser = null,
@@ -126,6 +129,7 @@ function applyMonetization(next) {
   ads.setAdFree(next.ad_free === true);
   for (const hint of document.querySelectorAll("[data-credit-hint]"))
     hint.textContent = creditHint();
+  lumiChat?.refreshCredits();
 }
 async function refreshMonetization() {
   if (!user) return null;
@@ -585,14 +589,16 @@ function shell(content) {
     ["today", "Hoy", "☀"],
     ["goals", "Metas", "◎"],
     ["tasks", "Acciones", "✓"],
-    ["calendar", "Calendario", "▦"],
+    ["calendar", "Calendario", "▦", "Agenda"],
     ["habits", "Hábitos", "↻"],
+    ["lumi", "Lumi", "✦"],
     ["subscription", "Mi plan", "◇"],
     ["settings", "Ajustes", "⚙"],
   ]
     .map(
-      ([id, label, icon]) =>
-        `<a href="#${id}" ${tab === id ? 'aria-current="page"' : ""}><span aria-hidden="true">${icon}</span>${label}</a>`,
+      ([id, label, icon, short]) =>
+        // En teléfonos angostos algunas pestañas usan un nombre corto para que quepan las 8.
+        `<a href="#${id}" ${tab === id ? 'aria-current="page"' : ""} ${short ? `aria-label="${label}"` : ""}><span aria-hidden="true">${icon}</span>${short ? `<span class="nav-long">${label}</span><span class="nav-short" aria-hidden="true">${short}</span>` : label}</a>`,
     )
     .join(
       "",
@@ -626,6 +632,7 @@ function render() {
         calendar: calendarPage,
         habits: habitsPage,
         settings: settingsPage,
+        lumi: () => lumiChatPage({ stage: state.pet.stage, name: state.profile.name, escape: e }),
         plans: () => renderBilling({ view: "plans", user, escape: e }),
         subscription: () =>
           renderBilling({ view: "subscription", user, escape: e }),
@@ -640,7 +647,22 @@ function render() {
   bindAdPrivacy();
   mountPets();
   mountBillingView();
+  mountLumiChatView();
   startMonetization();
+}
+// Chat con Lumi: el saldo lo informa el servidor; los saludos y animaciones locales siguen gratis.
+function mountLumiChatView() {
+  lumiChat?.dispose();
+  lumiChat = mountLumiChat(app, {
+    companion,
+    voice: companionVoice,
+    credits: () =>
+      monetization ? { balance: monetization.credits.balance, chat_cost: monetization.credits.chat_cost } : null,
+    onCredits: (balance) => {
+      if (monetization) monetization = { ...monetization, credits: { ...monetization.credits, balance } };
+      void refreshMonetization().catch(() => {});
+    },
+  });
 }
 function bindAdPrivacy() {
   const button = $("#ad-privacy");

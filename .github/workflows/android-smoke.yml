@@ -3,7 +3,7 @@ name: Android en emulador
 # ejecuta los comandos nativos de anuncios y compras para detectar cierres de la app.
 on:
   push:
-    branches: ["main", "claude/**"]
+    branches: ["main", "claude/**", "feature/**"]
     paths:
       - "src/**"
       - "src-tauri/**"

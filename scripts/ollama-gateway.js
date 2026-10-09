@@ -10,6 +10,12 @@ const OLLAMA_PRELOAD_URL = "http://127.0.0.1:11434/api/generate";
 const MAX_BODY = 96 * 1024;
 const MAX_MESSAGE_CHARS = 24000;
 const MAX_SCHEMA_CHARS = 16000;
+const MAX_CHAT_CHARS = 8000;
+const CHAT_PATH = "/v1/lumi/chat";
+const MODEL_NAME = /^[A-Za-z0-9_./:-]+$/;
+const KEEP_ALIVE = /^(-1|0|\d{1,5}[smh])$/;
+// Ollama sólo acepta duraciones con unidad o números; -1 debe ir como número.
+const keepAliveValue = (value) => (/^-?\d+$/.test(String(value)) ? Number(value) : value);
 const digest = (value) => createHash("sha256").update(value).digest();
 
 class GatewayError extends Error {
@@ -39,15 +45,34 @@ export function gatewayConfig(env = process.env) {
     );
   // "-1" mantiene el modelo en VRAM; recargarlo desde disco cuesta 10-15 s por solicitud.
   const keepAlive = env.OLLAMA_KEEP_ALIVE || "-1";
-  if (!/^(-1|0|\d{1,5}[smh])$/.test(keepAlive))
+  if (!KEEP_ALIVE.test(keepAlive))
     throw new Error(
       "Configura OLLAMA_KEEP_ALIVE como -1 (siempre cargado), 0 o una duración como 30m.",
     );
+  // Modo rápido del chat de Lumi: un modelo pequeño propio o, si no hay, el principal con
+  // salida corta. Nunca pasa por la cola de planes.
+  const chatModel = env.OLLAMA_CHAT_MODEL || model;
+  if (chatModel.length > 200 || !MODEL_NAME.test(chatModel))
+    throw new Error("Configura OLLAMA_CHAT_MODEL con el nombre exacto de un modelo instalado.");
+  const chatKeepAlive = env.CHAT_KEEP_ALIVE || "30m";
+  if (!KEEP_ALIVE.test(chatKeepAlive))
+    throw new Error("Configura CHAT_KEEP_ALIVE como -1, 0 o una duración como 30m.");
+  const numCtx = boundedInteger(env.OLLAMA_NUM_CTX, 8192, 2048, 16384, "OLLAMA_NUM_CTX");
   return {
     secret,
     model,
-    // Ollama sólo acepta duraciones con unidad o números; -1 debe ir como número.
-    keepAlive: /^-?\d+$/.test(keepAlive) ? Number(keepAlive) : keepAlive,
+    keepAlive: keepAliveValue(keepAlive),
+    chatModel,
+    // Con el mismo modelo se usan su contexto y keep_alive: otro num_ctx obligaría a Ollama a
+    // recargarlo (10-15 s) cada vez que se alternan el chat y los planes.
+    chatNumCtx:
+      chatModel === model
+        ? numCtx
+        : boundedInteger(env.CHAT_NUM_CTX, 2048, 1024, 8192, "CHAT_NUM_CTX"),
+    chatKeepAlive: chatModel === model ? keepAliveValue(keepAlive) : keepAliveValue(chatKeepAlive),
+    chatMaxTokens: boundedInteger(env.CHAT_MAX_TOKENS, 220, 32, 512, "CHAT_MAX_TOKENS"),
+    chatTimeoutMs: boundedInteger(env.CHAT_TIMEOUT_MS, 30000, 1000, 60000, "CHAT_TIMEOUT_MS"),
+    chatConcurrency: boundedInteger(env.CHAT_CONCURRENCY, 2, 1, 4, "CHAT_CONCURRENCY"),
     concurrency: boundedInteger(
       env.GATEWAY_CONCURRENCY,
       1,
@@ -70,13 +95,7 @@ export function gatewayConfig(env = process.env) {
       6000,
       "GATEWAY_MAX_TOKENS",
     ),
-    numCtx: boundedInteger(
-      env.OLLAMA_NUM_CTX,
-      8192,
-      2048,
-      16384,
-      "OLLAMA_NUM_CTX",
-    ),
+    numCtx,
   };
 }
 
@@ -256,6 +275,46 @@ function ollamaRequest(input, config) {
   };
 }
 
+/** Chat de Lumi: sólo texto, sin JSON Schema, con contexto y salida cortos. */
+function chatRequest(input, config) {
+  if (!input || typeof input !== "object" || Array.isArray(input))
+    throw new GatewayError(422, "Envía un objeto de solicitud.");
+  if (Object.keys(input).some((key) => !["messages", "temperature"].includes(key)))
+    throw new GatewayError(422, "La solicitud contiene opciones no admitidas.");
+  if (!Array.isArray(input.messages) || !input.messages.length || input.messages.length > 16)
+    throw new GatewayError(422, "Envía entre uno y dieciséis mensajes de texto.");
+  let chars = 0;
+  const messages = input.messages.map((message) => {
+    if (
+      !message ||
+      typeof message !== "object" ||
+      Object.keys(message).some((key) => !["role", "content"].includes(key)) ||
+      !["system", "user", "assistant"].includes(message.role) ||
+      typeof message.content !== "string" ||
+      !message.content.trim()
+    )
+      throw new GatewayError(422, "Los mensajes deben contener solamente role y content de texto.");
+    chars += message.content.length;
+    return { role: message.role, content: message.content };
+  });
+  if (chars > MAX_CHAT_CHARS)
+    throw new GatewayError(413, "Los mensajes superan el tamaño permitido.");
+  const temperature = input.temperature ?? 0.7;
+  if (typeof temperature !== "number" || !Number.isFinite(temperature) || temperature < 0 || temperature > 1)
+    throw new GatewayError(422, "La temperatura debe estar entre cero y uno.");
+  return {
+    model: config.chatModel,
+    messages,
+    stream: false,
+    think: false,
+    keep_alive: config.chatKeepAlive,
+    options: { temperature, num_ctx: config.chatNumCtx, num_predict: config.chatMaxTokens },
+  };
+}
+
+// Algunos modelos dejan su razonamiento entre etiquetas aunque se pida think:false.
+const chatReply = (content) => content.replace(/<think>[\s\S]*?(<\/think>|$)/gi, "").trim();
+
 async function readOllama(response, signal) {
   if (!response.ok)
     throw new GatewayError(
@@ -293,14 +352,14 @@ async function readOllama(response, signal) {
 }
 
 /** Loads the model with the same num_ctx as real requests so the first plan does not wait for disk. */
-export async function preloadModel(config, fetchImpl = globalThis.fetch) {
+export async function preloadModel(config, fetchImpl = globalThis.fetch, { chat = false } = {}) {
   const response = await fetchImpl(OLLAMA_PRELOAD_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: config.model,
-      keep_alive: config.keepAlive,
-      options: { num_ctx: config.numCtx },
+      model: chat ? config.chatModel : config.model,
+      keep_alive: chat ? config.chatKeepAlive : config.keepAlive,
+      options: { num_ctx: chat ? config.chatNumCtx : config.numCtx },
     }),
     signal: AbortSignal.timeout(120000),
   });
@@ -319,12 +378,20 @@ export function createGatewayServer(options) {
     OLLAMA_NUM_CTX: options.numCtx,
     OLLAMA_KEEP_ALIVE: options.keepAlive,
     GATEWAY_CONCURRENCY: options.concurrency,
+    OLLAMA_CHAT_MODEL: options.chatModel,
+    CHAT_NUM_CTX: options.chatModel && options.chatModel !== options.model ? options.chatNumCtx : undefined,
+    CHAT_MAX_TOKENS: options.chatMaxTokens,
+    CHAT_TIMEOUT_MS: options.chatTimeoutMs,
+    CHAT_KEEP_ALIVE:
+      options.chatModel && options.chatModel !== options.model ? options.chatKeepAlive : undefined,
+    CHAT_CONCURRENCY: options.chatConcurrency,
   });
   const fetchImpl = options.fetchImpl ?? globalThis.fetch;
   const expectedSecret = digest(config.secret);
   let activeSlots = 0;
+  let chatSlots = 0;
   const server = createServer(async (req, res) => {
-    if (req.url !== "/v1/chat/completions")
+    if (req.url !== "/v1/chat/completions" && req.url !== CHAT_PATH)
       return json(res, 404, { error: "Ruta no disponible." });
     if (req.method !== "POST")
       return json(
@@ -355,6 +422,7 @@ export function createGatewayServer(options) {
         { error: "La solicitud supera el tamaño permitido." },
         { Connection: "close" },
       );
+    if (req.url === CHAT_PATH) return handleChat(req, res);
     let ownsSlot = false;
     let timeout;
     let abortOnClose;
@@ -472,6 +540,89 @@ export function createGatewayServer(options) {
       }
     }
   });
+  // Chat de Lumi: plazas propias para no esperar a los planes ni bloquearlos.
+  async function handleChat(req, res) {
+    let ownsSlot = false;
+    let timeout;
+    let abortOnClose;
+    let generation;
+    try {
+      const body = chatRequest(await readBody(req), config);
+      // Con un solo modelo, Ollama atiende de a una generación: mientras se prepara un plan el
+      // chat respondería en minutos. Mejor avisar de inmediato (el servidor devuelve los créditos).
+      if (config.chatModel === config.model && activeSlots >= config.concurrency)
+        return json(
+          res,
+          429,
+          { error: "Lumi está terminando un plan. Inténtalo en un minuto." },
+          { "Retry-After": "30" },
+        );
+      if (chatSlots >= config.chatConcurrency)
+        return json(
+          res,
+          429,
+          { error: "Lumi está atendiendo otras conversaciones. Inténtalo en unos segundos." },
+          { "Retry-After": "5" },
+        );
+      chatSlots++;
+      ownsSlot = true;
+      const controller = new AbortController();
+      abortOnClose = () => {
+        if (!res.writableEnded) controller.abort(new Error("Disconnected"));
+      };
+      res.on("close", abortOnClose);
+      const expired = new Promise((_, reject) => {
+        timeout = setTimeout(() => {
+          reject(new GatewayError(504, "Lumi tardó demasiado en responder."));
+          controller.abort(new Error("Timeout"));
+        }, config.chatTimeoutMs);
+      });
+      generation = (async () => {
+        const upstream = await fetchImpl(OLLAMA_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+          redirect: "error",
+        });
+        const result = await readOllama(upstream, controller.signal);
+        // Una respuesta cortada por el límite de salida sigue siendo útil en un chat.
+        if (result.done !== true || !["stop", "length", undefined].includes(result.done_reason))
+          throw new GatewayError(502, "Lumi no terminó su respuesta.");
+        const reply =
+          typeof result.message?.content === "string" ? chatReply(result.message.content) : "";
+        if (!reply) throw new GatewayError(502, "Lumi devolvió una respuesta vacía.");
+        const completion = { reply, model: config.chatModel };
+        if (Number.isInteger(result.prompt_eval_count) && Number.isInteger(result.eval_count))
+          completion.usage = {
+            prompt_tokens: result.prompt_eval_count,
+            completion_tokens: result.eval_count,
+          };
+        return completion;
+      })();
+      json(res, 200, await Promise.race([generation, expired]));
+    } catch (error) {
+      const controlled = error instanceof GatewayError;
+      json(
+        res,
+        controlled ? error.status : 502,
+        {
+          error: controlled
+            ? error.message
+            : "No pudimos comunicarnos con Ollama. Comprueba que está abierto.",
+        },
+        error?.status === 413 || error?.status === 408 ? { Connection: "close" } : {},
+      );
+    } finally {
+      clearTimeout(timeout);
+      if (abortOnClose) res.off("close", abortOnClose);
+      // Igual que en los planes: la plaza se libera cuando Ollama termina de verdad.
+      if (ownsSlot) {
+        await generation?.catch(() => {});
+        chatSlots--;
+      }
+    }
+  }
   server.requestTimeout = 15000;
   server.headersTimeout = 10000;
   server.keepAliveTimeout = 5000;
@@ -519,6 +670,11 @@ export async function startGateway() {
       preloadModel(config).then(
         () => console.log(`Modelo cargado en la GPU (keep_alive ${config.keepAlive}).`),
         () => console.error("No pudimos precargar el modelo; se cargará con la primera solicitud."),
+      );
+    if (config.chatModel !== config.model && config.chatKeepAlive !== 0)
+      preloadModel(config, undefined, { chat: true }).then(
+        () => console.log(`Chat de Lumi: ${config.chatModel} cargado (keep_alive ${config.chatKeepAlive}).`),
+        () => console.error("No pudimos precargar el modelo del chat; se cargará con el primer mensaje."),
       );
     try {
       worker = startConfiguredWorker(config);

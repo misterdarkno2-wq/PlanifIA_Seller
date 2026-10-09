@@ -1,0 +1,185 @@
+/* "Hablar con Lumi": Lumi grande arriba, la conversación y el campo de texto abajo. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+.lumi-chat {
+  display: grid;
+  gap: 16px;
+  max-width: 760px;
+  margin: 0 auto;
+}
+.lumi-chat-stage {
+  display: grid;
+  grid-template-columns: minmax(120px, 210px) 1fr;
+  align-items: center;
+  gap: 18px;
+}
+.lumi-chat-portrait {
+  width: 100%;
+  overflow: hidden;
+  isolation: isolate;
+}
+.lumi-chat-bubble {
+  position: relative;
+  padding: 18px 22px;
+  background: #fff;
+  border: 2px solid #246d61;
+  border-radius: 30px 34px 32px 12px;
+  box-shadow: 0 5px 0 #dceee4;
+}
+.lumi-chat-bubble p {
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.45;
+  white-space: pre-line;
+}
+/* Pensando: Lumi se balancea suave y la burbuja late mientras llega la respuesta. */
+.lumi-chat-stage.is-thinking .lumi-chat-portrait {
+  animation: lumi-chat-think 1.6s ease-in-out infinite;
+  transform-origin: 50% 90%;
+}
+.lumi-chat-stage.is-thinking .lumi-chat-bubble {
+  animation: lumi-chat-pulse 1.6s ease-in-out infinite;
+}
+@keyframes lumi-chat-think {
+  0%,
+  100% {
+    transform: rotate(0deg) translateY(0);
+  }
+  50% {
+    transform: rotate(-3deg) translateY(-4px);
+  }
+}
+@keyframes lumi-chat-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.72;
+  }
+}
+.lumi-chat-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.lumi-chat-head h1 {
+  margin: 0;
+  font-size: 26px;
+}
+.lumi-chat-log {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-height: 60px;
+}
+.lumi-chat-message {
+  max-width: 85%;
+  padding: 10px 14px;
+  border-radius: 18px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.lumi-chat-message p {
+  margin: 0;
+  white-space: pre-line;
+}
+.lumi-chat-user {
+  align-self: flex-end;
+  background: var(--green);
+  color: #fff;
+  border-bottom-right-radius: 6px;
+}
+.lumi-chat-user.is-pending {
+  opacity: 0.7;
+}
+.lumi-chat-lumi {
+  align-self: flex-start;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-bottom-left-radius: 6px;
+}
+.lumi-chat-form {
+  position: sticky;
+  bottom: 12px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px 10px;
+  padding: 12px;
+  background: #fbfdf9;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: 0 -6px 20px #183c3b12;
+  z-index: 5;
+}
+.lumi-chat-form textarea {
+  resize: none;
+  min-height: 48px;
+  max-height: 140px;
+  font: inherit;
+}
+.lumi-chat-form button {
+  align-self: end;
+  min-height: 48px;
+}
+.lumi-chat-form .error,
+.lumi-chat-form .fine {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.lumi-chat-note {
+  margin: 0;
+}
+@media (max-width: 760px) {
+  .lumi-chat-stage {
+    grid-template-columns: 112px 1fr;
+    gap: 10px;
+  }
+  .lumi-chat-bubble {
+    padding: 14px 16px;
+  }
+  .lumi-chat-bubble p {
+    font-size: 0.98rem;
+  }
+  .lumi-chat-head h1 {
+    font-size: 22px;
+  }
+  /* Encima de la barra de navegación inferior y de la barra de gestos. */
+  .lumi-chat-form {
+    bottom: calc(84px + var(--safe-bottom));
+  }
+  /* Android con el teclado abierto: la ventana no se achica, así que el campo sube sobre él. */
+  .keyboard-open .sidebar {
+    display: none;
+  }
+  .keyboard-open .lumi-chat-form {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: var(--inset-ime, 0px);
+    border-radius: 18px 18px 0 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lumi-chat-stage.is-thinking .lumi-chat-portrait,
+  .lumi-chat-stage.is-thinking .lumi-chat-bubble {
+    animation: none;
+  }
+}
+/* Lumi en modo tranquilo: sin balanceo al pensar. */
+.lumi-chat-stage.is-thinking:has(.lumi-art[data-lumi-motion="calm"]) .lumi-chat-portrait {
+  animation: none;
+}

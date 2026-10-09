@@ -11,6 +11,7 @@ Esta guía explica cómo funciona la monetización de PlanifIA en la app de Goog
 | Pro | Primer mes $1.900, luego $4.900/mes | 2.500 cada mes pagado | 50 | No |
 
 - **Cada uso de IA** (crear o ajustar un plan) cuesta **20 créditos**. Si la IA falla o cancelas antes de que empiece, se devuelven.
+- **Cada mensaje a Lumi** (sección **Hablar con Lumi**) cuesta **5 créditos** (`chat_cost`). Si Lumi no responde (PC apagado, error, tiempo agotado o un plan en curso) se devuelven. Límites: 6 mensajes por minuto y 200 por día (`chat_per_minute`, `chat_per_day`). Se guardan los últimos 100 mensajes (`chat_history`).
 - Los créditos del plan **se renuevan cada mes pagado y no se acumulan**. Cambiar entre Plus y Pro no reinicia el mes, para que nadie pueda regalarse créditos cambiando de plan.
 - Los créditos **extra no vencen** y se gastan después de los del plan:
   - **Anuncio recompensado:** +10 créditos, hasta 5 por día (hora de Chile). Solo en el plan Gratis.
@@ -216,7 +217,7 @@ npx.cmd supabase functions deploy admob-ssv
 
 ## 9. Compilar el AAB firmado y subir la versión
 
-La versión ya quedó en **2.2.4 (versionCode 20204)** en `src-tauri/tauri.conf.json`. Play rechaza un versionCode repetido: súbelo en cada nueva subida, por ejemplo 20205.
+La versión ya quedó en **2.3.0 (versionCode 20300)** en `src-tauri/tauri.conf.json`. Play rechaza un versionCode repetido: súbelo en cada nueva subida, por ejemplo 20301.
 
 Antes de compilar el AAB, el workflow **Android en emulador** (`.github/workflows/android-smoke.yml`) compila el APK release con R8, lo abre en un emulador y prueba anuncios y compras. Corre solo en `main` y en las ramas `claude/**`. La 2.2.1 se cerraba al abrir por R8 (constructores de WorkManager/Room); la regla está en `src-tauri/gen/android/app/proguard-rules.pro`.
 

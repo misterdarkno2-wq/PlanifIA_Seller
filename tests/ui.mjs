@@ -133,11 +133,24 @@ try {
       },
     ],
   };
+  let chatBalance = 60,
+    chatFail = null;
+  const chatMessages = [];
   async function fixture(route) {
     const request = route.request(),
       url = new URL(request.url()),
       body = request.postDataJSON() || {};
     let result;
+    // Chat con Lumi: la función cobra 5 créditos y responde; el historial vive en la "base".
+    if (url.pathname.endsWith("/functions/v1/lumi-chat")) {
+      if (chatFail) return route.fulfill({ status: chatFail.status, json: { error: chatFail.error } });
+      chatBalance -= 5;
+      const reply = `¡Qué bueno que me escribas! Vamos con un paso pequeño: ${body.text.trim().split(/\s+/).slice(0, 4).join(" ")}.`;
+      chatMessages.push({ id: chatMessages.length + 1, role: "user", content: body.text }, { id: chatMessages.length + 2, role: "lumi", content: reply });
+      return route.fulfill({ status: 200, json: { reply, credits: chatBalance } });
+    }
+    if (url.pathname.endsWith("/rest/v1/lumi_chat_messages"))
+      return route.fulfill({ status: 200, json: [...chatMessages].reverse() });
     if (url.pathname.startsWith("/auth/v1/")) {
       if (url.pathname.endsWith("/signup")) result = { user, session: null };
       else if (url.pathname.endsWith("/logout"))
@@ -167,6 +180,7 @@ try {
         });
       }
       if (name === 'delete_my_account') { deletedWith = body.p_confirm; result = true; }
+      else if (name === 'lumi_chat_clear') { result = chatMessages.length; chatMessages.length = 0; }
       else if (name === 'get_ai_jobs') result = jobs;
       else if (name === 'cancel_ai_job') { const job=jobs.find(j=>j.id===body.p_id);job.status='cancelled';result=job; }
       else if (name === "pet_state") result = pet();
@@ -313,7 +327,7 @@ try {
         result = {
           plan: { id: "free", name: "Gratis", monthly_credits: 0, max_active_goals: 3 },
           plans: [],
-          credits: { balance: 60, plan_available: 0, plan_allowance: 0, bonus: 60, cost_per_use: 20 },
+          credits: { balance: chatBalance, plan_available: 0, plan_allowance: 0, bonus: chatBalance, cost_per_use: 20, chat_cost: 5 },
           ads: { reward: 10, today: 0, daily_limit: 5 },
           referral: { code: "ABCD2345", inviter_reward: 40, invitee_reward: 20, monthly_limit: 10, rewarded_this_month: 0, can_redeem: true },
           play_subscription: null,
@@ -1067,7 +1081,7 @@ try {
       header: [...document.querySelectorAll(".app-header .text-button")].map((b) => box(b)),
     };
   });
-  assert.equal(touch.tabs.length, 7);
+  assert.equal(touch.tabs.length, 8);
   for (const tab of touch.tabs) {
     assert.ok(tab.height >= 48 && tab.width >= 44, "pestaña inferior demasiado pequeña");
     assert.ok(tab.bottom <= 844 - 20, "pestaña inferior bajo la barra de gestos");
@@ -1076,6 +1090,47 @@ try {
     assert.ok(button.height >= 44, "botón superior demasiado pequeño");
     assert.ok(button.top >= 24, "botón superior bajo la barra de estado");
   }
+  // Hablar con Lumi: 5 créditos por mensaje, Enter envía, Shift+Enter salta de línea.
+  await phone.evaluate(() => (location.hash = "lumi"));
+  await phone.locator("[data-lumi-chat]").waitFor();
+  const chatCost = phone.locator("[data-lumi-chat-cost]");
+  await phone.waitForFunction(() => /Tienes 60/.test(document.querySelector("[data-lumi-chat-cost]")?.textContent));
+  assert.match(await chatCost.innerText(), /Cada mensaje usa 5 créditos · Tienes 60/);
+  assert.equal(await phone.locator('.sidebar nav a[href="#lumi"][aria-current="page"]').count(), 1);
+  assert.equal(await phone.locator(".lumi-chat-portrait .lumi-art").count(), 1, "Lumi grande con su animación");
+  const chatInput = phone.locator("#lumi-chat-input");
+  await chatInput.fill("Quiero ordenar mi semana");
+  await chatInput.press("Shift+Enter");
+  assert.ok((await chatInput.inputValue()).endsWith(String.fromCharCode(10)), "Shift+Enter hace salto de línea sin enviar");
+  await chatInput.press("Enter");
+  await phone.locator(".lumi-chat-lumi").waitFor();
+  await phone.waitForFunction(() => /Tienes 55/.test(document.querySelector("[data-lumi-chat-cost]").textContent));
+  assert.equal(await chatInput.inputValue(), "");
+  assert.equal(await phone.locator(".lumi-chat-user").count(), 1);
+  const chatLayout = await phone.evaluate(() => {
+    const form = document.querySelector(".lumi-chat-form").getBoundingClientRect();
+    const nav = document.querySelector(".sidebar").getBoundingClientRect();
+    return { formBottom: form.bottom, navTop: nav.top, overflow: document.documentElement.scrollWidth > innerWidth };
+  });
+  assert.ok(chatLayout.formBottom <= chatLayout.navTop, "El campo de texto queda sobre la barra inferior");
+  assert.equal(chatLayout.overflow, false);
+  await phone.screenshot({ path: "dist/qa/lumi-chat-mobile.png" });
+  // Sin créditos: el error lleva a Mi plan.
+  chatFail = { status: 402, error: "No tienes créditos suficientes. Cada mensaje a Lumi cuesta 5 créditos; consigue más en Mi plan." };
+  await chatInput.fill("¿Me ayudas?");
+  await phone.locator("[data-lumi-chat-send]").click();
+  await phone.locator('.lumi-chat-form [role=alert] a[href="#subscription"]').waitFor();
+  assert.equal(await phone.locator(".lumi-chat-user").count(), 1, "El mensaje no enviado no queda en la conversación");
+  assert.equal(await chatInput.inputValue(), "¿Me ayudas?", "El texto se conserva para reintentar");
+  chatFail = { status: 503, error: "Lumi está descansando, inténtalo más tarde. No se descontaron créditos." };
+  await phone.locator("[data-lumi-chat-send]").click();
+  await phone.waitForFunction(() => /descansando/.test(document.querySelector(".lumi-chat-form [role=alert]").textContent));
+  chatFail = null;
+  await phone.locator("[data-lumi-chat-clear]").click();
+  assert.equal(await phone.locator(".lumi-chat-message").count(), 2, "Borrar pide confirmación");
+  await phone.locator("[data-lumi-chat-clear]").click();
+  await phone.waitForFunction(() => !document.querySelector(".lumi-chat-message"));
+  await phone.evaluate(() => (location.hash = "today"));
   assert.equal(
     await phone.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,

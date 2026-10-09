@@ -391,3 +391,150 @@ test("El modelo queda residente en VRAM y se precarga con el mismo contexto", as
     options: { num_ctx: config.numCtx },
   });
 });
+
+const chat = (overrides = {}) => ({
+  messages: [
+    { role: "system", content: "Eres Lumi." },
+    { role: "user", content: "Hola Lumi" },
+  ],
+  ...overrides,
+});
+const chatReply = (content = "¡Hola! Vamos paso a paso.", extra = {}) =>
+  Response.json({ done: true, done_reason: "stop", message: { content }, prompt_eval_count: 30, eval_count: 9, ...extra });
+
+test("Chat de Lumi: modo rápido con el modelo principal usa su contexto y salida corta", async (t) => {
+  let sent;
+  const { call } = await fixture(t, async (url, init) => {
+    sent = JSON.parse(init.body);
+    return chatReply("<think>planeo</think>¡Hola! Vamos paso a paso.");
+  });
+  const response = await call(chat(), {}, "/v1/lumi/chat");
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    reply: "¡Hola! Vamos paso a paso.",
+    model,
+    usage: { prompt_tokens: 30, completion_tokens: 9 },
+  });
+  assert.equal(sent.model, model);
+  assert.equal(sent.think, false);
+  assert.equal(sent.stream, false);
+  assert.equal(sent.format, undefined, "El chat es texto, no JSON Schema");
+  assert.deepEqual(sent.options, { temperature: 0.7, num_ctx: 8192, num_predict: 220 });
+  assert.equal(sent.keep_alive, -1, "Mismo keep_alive que los planes: no se descarga ni recarga");
+});
+
+test("Chat de Lumi: un modelo pequeño propio usa CHAT_NUM_CTX, CHAT_MAX_TOKENS y CHAT_KEEP_ALIVE", async (t) => {
+  let sent;
+  const { call } = await fixture(
+    t,
+    async (url, init) => {
+      sent = JSON.parse(init.body);
+      return chatReply("Texto cortado", { done_reason: "length" });
+    },
+    { chatModel: "qwen3:4b-instruct", chatNumCtx: 2048, chatMaxTokens: 120, chatKeepAlive: "30m" },
+  );
+  const response = await call(chat({ temperature: 0.5 }), {}, "/v1/lumi/chat");
+  assert.equal(response.status, 200, "Una respuesta cortada por longitud sigue sirviendo");
+  assert.equal(sent.model, "qwen3:4b-instruct");
+  assert.equal(sent.keep_alive, "30m");
+  assert.deepEqual(sent.options, { temperature: 0.5, num_ctx: 2048, num_predict: 120 });
+  let preload;
+  await preloadModel(
+    gatewayConfig({ GATEWAY_SECRET: secret, OLLAMA_MODEL: model, OLLAMA_CHAT_MODEL: "qwen3:4b-instruct" }),
+    async (url, init) => ((preload = JSON.parse(init.body)), Response.json({ done: true })),
+    { chat: true },
+  );
+  assert.deepEqual(preload, { model: "qwen3:4b-instruct", keep_alive: "30m", options: { num_ctx: 2048 } });
+});
+
+test("Chat de Lumi: exige secreto, valida mensajes y no acepta otro modelo ni opciones", async (t) => {
+  let calls = 0;
+  const { call } = await fixture(t, async () => (calls++, chatReply()));
+  assert.equal((await call(chat(), { Authorization: "Bearer " + "x".repeat(40) }, "/v1/lumi/chat")).status, 401);
+  for (const body of [
+    chat({ model: "otro:7b" }),
+    chat({ response_format: { type: "json_schema" } }),
+    chat({ messages: [] }),
+    chat({ messages: [{ role: "tool", content: "x" }] }),
+    chat({ messages: [{ role: "user", content: "   " }] }),
+    chat({ temperature: 2 }),
+  ])
+    assert.equal((await call(body, {}, "/v1/lumi/chat")).status, 422, JSON.stringify(body));
+  assert.equal(
+    (await call(chat({ messages: [{ role: "user", content: "x".repeat(8001) }] }), {}, "/v1/lumi/chat")).status,
+    413,
+  );
+  assert.equal(calls, 0);
+  assert.equal((await call(chat(), {}, "/v1/lumi/other")).status, 404);
+});
+
+test("Chat de Lumi: respuestas vacías o fallos no inventan texto y el timeout libera la plaza", async (t) => {
+  let mode = "empty";
+  const { call } = await fixture(
+    t,
+    async (url, init) => {
+      if (mode === "empty") return chatReply("<think>solo pienso</think>");
+      if (mode === "error") return new Response("boom", { status: 500 });
+      return new Promise((_, reject) => init.signal.addEventListener("abort", () => reject(init.signal.reason)));
+    },
+    { chatTimeoutMs: 1000 },
+  );
+  assert.equal((await call(chat(), {}, "/v1/lumi/chat")).status, 502);
+  mode = "error";
+  assert.equal((await call(chat(), {}, "/v1/lumi/chat")).status, 502);
+  mode = "hang";
+  const timedOut = await call(chat(), {}, "/v1/lumi/chat");
+  assert.equal(timedOut.status, 504);
+  mode = "empty";
+  assert.equal((await call(chat(), {}, "/v1/lumi/chat")).status, 502, "La plaza quedó libre");
+});
+
+test("Chat de Lumi: no espera a un plan que ocupa el mismo modelo y tiene plazas propias", async (t) => {
+  let release;
+  const planRunning = new Promise((resolve) => (release = resolve));
+  const { call } = await fixture(t, async (url, init) => {
+    const body = JSON.parse(init.body);
+    if (body.format) {
+      await planRunning;
+      return success();
+    }
+    return chatReply();
+  });
+  const plan = call();
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  const busy = await call(chat(), {}, "/v1/lumi/chat");
+  assert.equal(busy.status, 429);
+  assert.match((await busy.json()).error, /terminando un plan/);
+  release();
+  assert.equal((await plan).status, 200);
+  assert.equal((await call(chat(), {}, "/v1/lumi/chat")).status, 200);
+});
+
+test("Chat de Lumi con modelo propio: atiende mientras se genera un plan, con su propio límite", async (t) => {
+  let release;
+  const planRunning = new Promise((resolve) => (release = resolve));
+  let hold;
+  const chatHeld = new Promise((resolve) => (hold = resolve));
+  const { call } = await fixture(
+    t,
+    async (url, init) => {
+      const body = JSON.parse(init.body);
+      if (body.format) {
+        await planRunning;
+        return success();
+      }
+      await chatHeld;
+      return chatReply();
+    },
+    { chatModel: "qwen3:4b-instruct", chatConcurrency: 1 },
+  );
+  const plan = call();
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  const first = call(chat(), {}, "/v1/lumi/chat");
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal((await call(chat(), {}, "/v1/lumi/chat")).status, 429, "Plaza del chat ocupada");
+  hold();
+  assert.equal((await first).status, 200, "El chat no esperó al plan");
+  release();
+  assert.equal((await plan).status, 200);
+});

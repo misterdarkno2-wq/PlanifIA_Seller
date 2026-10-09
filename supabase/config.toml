@@ -28,3 +28,6 @@ verify_jwt = false
 
 [functions.admob-ssv]
 verify_jwt = false
+
+[functions.lumi-chat]
+verify_jwt = false
