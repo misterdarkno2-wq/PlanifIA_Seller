@@ -20,8 +20,8 @@
     "desktop:build": "npm run tauri -- build --no-bundle",
     "android:init": "npm run tauri -- android init --ci",
     "android:apk": "npm run tauri -- android build --debug --apk --target aarch64 x86_64",
-    "android:release": "npm run tauri -- android build --apk --target aarch64",
-    "android:aab": "npm run tauri -- android build --aab --target aarch64 armv7",
+    "android:release": "npm run tauri -- android build --apk --target aarch64 armv7 x86_64",
+    "android:aab": "npm run tauri -- android build --aab --target aarch64 armv7 x86_64",
     "android:dev": "npm run tauri -- android dev"
   },
   "dependencies": {

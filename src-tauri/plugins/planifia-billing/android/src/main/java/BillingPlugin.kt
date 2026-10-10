@@ -13,6 +13,7 @@ import app.tauri.plugin.Invoke
 import app.tauri.plugin.JSArray
 import app.tauri.plugin.JSObject
 import app.tauri.plugin.Plugin
+import app.tauri.plugin.PluginManager
 import com.android.billingclient.api.AcknowledgePurchaseParams
 import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.BillingClient.BillingResponseCode
@@ -66,22 +67,28 @@ class ExternalArgs {
 }
 
 @TauriPlugin
-class BillingPlugin(private val activity: Activity) : Plugin(activity), PurchasesUpdatedListener {
+class BillingPlugin(private val created: Activity) : Plugin(created), PurchasesUpdatedListener {
+  // Tauri crea el plugin una vez por proceso, con la primera actividad. Al cerrar con Atrás y volver
+  // a abrir (o si Android recrea la actividad) el proceso sigue y PluginManager apunta a la vigente.
+  private val activity: Activity
+    get() = PluginManager.activity ?: created
   private val details = ConcurrentHashMap<String, ProductDetails>()
   private val waiters = mutableListOf<(BillingResult?) -> Unit>()
   private var connecting = false
-  private var created = false
   private var pendingPurchase: Invoke? = null
+  private var current: BillingClient? = null
 
   // La reconexión automática de Billing 8+ reintenta sola cuando el servicio de Play se cae.
-  private val client: BillingClient by lazy {
-    created = true
-    BillingClient.newBuilder(activity.applicationContext)
-      .setListener(this)
-      .enablePendingPurchases(PendingPurchasesParams.newBuilder().enableOneTimeProducts().build())
-      .enableAutoServiceReconnection()
-      .build()
-  }
+  // Un cliente cerrado con endConnection() no se puede reutilizar: se crea otro cuando haga falta.
+  private val client: BillingClient
+    get() = synchronized(this) {
+      current ?: BillingClient.newBuilder(activity.applicationContext)
+        .setListener(this)
+        .enablePendingPurchases(PendingPurchasesParams.newBuilder().enableOneTimeProducts().build())
+        .enableAutoServiceReconnection()
+        .build()
+        .also { current = it }
+    }
 
   private fun ok(result: BillingResult?) = result == null || result.responseCode == BillingResponseCode.OK
 
@@ -448,7 +455,10 @@ class BillingPlugin(private val activity: Activity) : Plugin(activity), Purchase
     open(url, invoke)
   }
 
+  // onDestroy llega con cada actividad, no al final del proceso.
   override fun onDestroy(activity: AppCompatActivity) {
-    if (created) guard(null, "onDestroy") { client.endConnection() }
+    val closing = synchronized(this) { current.also { current = null } }
+    synchronized(waiters) { connecting = false }
+    guard(null, "onDestroy") { closing?.endConnection() }
   }
 }

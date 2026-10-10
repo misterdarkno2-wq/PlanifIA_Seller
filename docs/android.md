@@ -9,7 +9,7 @@ Instala Node, Rust con las herramientas C++ de Visual Studio, Android Studio, JD
 ```powershell
 cd C:\Users\Admin\Downloads\PlanifIA_Seller
 npm.cmd ci
-rustup target add aarch64-linux-android x86_64-linux-android
+rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
 npm.cmd run build
 npm.cmd run android:apk
 ```

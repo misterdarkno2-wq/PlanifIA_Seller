@@ -17,6 +17,7 @@ import app.tauri.annotation.TauriPlugin
 import app.tauri.plugin.Invoke
 import app.tauri.plugin.JSObject
 import app.tauri.plugin.Plugin
+import app.tauri.plugin.PluginManager
 import com.google.android.libraries.ads.mobile.sdk.MobileAds
 import com.google.android.libraries.ads.mobile.sdk.banner.AdSize
 import com.google.android.libraries.ads.mobile.sdk.banner.AdView
@@ -93,7 +94,11 @@ private class AdIds(
 }
 
 @TauriPlugin
-class AdsPlugin(private val activity: Activity) : Plugin(activity) {
+class AdsPlugin(private val created: Activity) : Plugin(created) {
+  // Tauri crea el plugin una vez por proceso, con la primera actividad. Al cerrar con Atrás y volver
+  // a abrir (o si Android recrea la actividad) el proceso sigue y PluginManager apunta a la vigente.
+  private val activity: Activity
+    get() = PluginManager.activity ?: created
   private val ids by lazy { AdIds.from(activity) }
   private val consent: ConsentInformation by lazy { UserMessagingPlatform.getConsentInformation(activity) }
   private val initWaiters = mutableListOf<Invoke>()
@@ -516,8 +521,10 @@ class AdsPlugin(private val activity: Activity) : Plugin(activity) {
     }
   }
 
+  // onDestroy llega con cada actividad, no al final del proceso: sólo se quita el banner de la
+  // actividad que se destruye. El SDK y el consentimiento siguen para la que la reemplace.
   override fun onDestroy(activity: AppCompatActivity) {
-    activity.runOnUiThread { guard(null, "onDestroy") { removeBanner() } }
+    activity.runOnUiThread { guard(null, "onDestroy") { if (container?.context === activity) removeBanner() } }
     guard(null, "onDestroy") {
       interstitial?.destroy()
       rewarded?.destroy()
