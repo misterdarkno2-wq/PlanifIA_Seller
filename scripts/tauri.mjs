@@ -1,4 +1,4 @@
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -24,6 +24,8 @@ if (process.platform === "win32") {
 if (process.argv[2] === "android") {
   for (const variable of ["JAVA_HOME", "ANDROID_HOME", "NDK_HOME"])
     if (!env[variable] || !existsSync(env[variable])) throw new Error(`Configura ${variable}: consulta docs/android.md.`);
+  // wry inserta este código en su RustWebViewClient: recupera la app si el WebView se cae.
+  env.WRY_RUSTWEBVIEWCLIENT_CLASS_EXTENSION = readFileSync(join(root, "scripts/android-webview-client.kt"), "utf8");
 }
 const cli = join(root, "node_modules/@tauri-apps/cli/tauri.js");
 const child = spawn(process.execPath, [cli, ...process.argv.slice(2)], { cwd: root, env, stdio: "inherit", windowsHide: true });

@@ -1,8 +1,10 @@
 // Ejecuta en el WebView de la app (vía DevTools) los comandos nativos que la app usa al iniciar
-// sesión: anuncios y compras. Uso: node scripts/android-cdp.mjs 9222 [render]
+// sesión: anuncios y compras. Uso: node scripts/android-cdp.mjs 9222 [render|crash]
 // Con "render" sólo comprueba que la interfaz se haya dibujado (sale con 1 si la pantalla está vacía).
+// Con "crash" hace caer el proceso del WebView, como cuando Android lo cierra por falta de memoria.
 const port = process.argv[2] || "9222";
 const renderOnly = process.argv[3] === "render";
+const crashOnly = process.argv[3] === "crash";
 const targets = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
 // Los anuncios de AdMob abren sus propios WebView: se elige siempre el de la app.
 const page =
@@ -47,6 +49,13 @@ async function run(label, expression, timeoutMs = 30000) {
 const invoke = (command, args = {}) =>
   `window.__TAURI_INTERNALS__.invoke(${JSON.stringify(command)}, ${JSON.stringify(args)})`;
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+if (crashOnly) {
+  send("Page.crash");
+  await wait(3000);
+  console.log("[cdp] se pidió la caída del proceso del WebView.");
+  process.exit(0);
+}
 
 const rendered = await send("Runtime.evaluate", {
   // Sólo ES5: en un WebView antiguo la comprobación debe responder, no fallar al interpretarse.

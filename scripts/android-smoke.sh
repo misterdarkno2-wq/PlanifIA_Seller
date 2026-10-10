@@ -101,10 +101,17 @@ adb shell settings put system font_scale 1.0
 sleep 15
 check "después de recrear la actividad" "5-recrear"
 
+# Android puede matar el proceso del WebView por falta de memoria. Sin onRenderProcessGone
+# (scripts/android-webview-client.kt) eso cerraba la app entera.
+echo "== Caída del proceso del WebView"
+cdp crash || true
+sleep 20
+check "tras la caída del WebView" "6-webview-caido"
+
 echo "== Comandos nativos (actividad nueva)"
 cdp || true
 sleep 10
-check "después de repetir los comandos" "6-final"
+check "después de repetir los comandos" "7-final"
 
 report
 exit $STATUS

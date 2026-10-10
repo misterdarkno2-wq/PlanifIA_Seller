@@ -52,6 +52,8 @@ jobs:
         run: |
           export NDK_HOME="$ANDROID_NDK_LATEST_HOME" PLANIFIA_ANDROID_KEYSTORE="$RUNNER_TEMP/smoke.jks"
           npm run tauri -- android build --apk --target x86_64
+          grep -q onRenderProcessGone "$(find src-tauri/gen/android/app/src/main -name RustWebViewClient.kt | head -n 1)" \
+            || { echo "::error::No se insertó onRenderProcessGone en RustWebViewClient"; exit 1; }
           mkdir -p artifacts
           cp "$(find src-tauri/gen/android/app/build/outputs/apk -name '*release*.apk' | head -n 1)" artifacts/app-release.apk
           ls -la artifacts
