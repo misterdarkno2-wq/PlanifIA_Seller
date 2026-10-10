@@ -75,6 +75,13 @@ adb shell dumpsys webviewupdate | grep -E "Current WebView package|versionName" 
 sleep 60
 
 adb install -r "$APK" || { echo "No se pudo instalar el APK"; exit 1; }
+# Android 17 prepara la carpeta de datos de la app un momento después de instalarla. Abrirla en
+# ese instante (sólo posible desde adb) cerraba el WebView con «webview_data.lock: ENOENT».
+for _ in $(seq 1 30); do
+  adb shell run-as "$PKG" ls -d /data/user/0/"$PKG" >/dev/null 2>&1 && break
+  sleep 1
+done
+sleep 5
 adb logcat -c
 adb logcat -b events -c
 
