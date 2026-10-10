@@ -55,6 +55,18 @@ jobs:
           mkdir -p artifacts
           cp "$(find src-tauri/gen/android/app/build/outputs/apk -name '*release*.apk' | head -n 1)" artifacts/app-release.apk
           ls -la artifacts
+      # Android 15+ con páginas de 16 KB no carga librerías alineadas a 4 KB (la app se cierra al abrir).
+      - name: Comprobar alineación de 16 KB
+        run: |
+          ZIPALIGN="$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -n 1)zipalign"
+          "$ZIPALIGN" -c -P 16 -v 4 artifacts/app-release.apk | grep -E "\.so|Verification"
+          unzip -o -q artifacts/app-release.apk 'lib/*' -d "$RUNNER_TEMP/apk"
+          READELF="$(find "$ANDROID_NDK_LATEST_HOME" -name llvm-readelf -type f | head -n 1)"
+          for so in "$RUNNER_TEMP"/apk/lib/*/*.so; do
+            align=$("$READELF" -lW "$so" | awk '$1 == "LOAD" { print $NF }' | sort -u | paste -sd ' ')
+            echo "$so: $align"
+            case "$so" in */arm64-v8a/*|*/x86_64/*) [ "$align" = "0x4000" ] || { echo "::error::$so no está alineada a 16 KB"; exit 1; } ;; esac
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: apk-release
@@ -69,8 +81,15 @@ jobs:
       fail-fast: false
       matrix:
         # 26 = minSdk (Android 8). 37 = targetSdk (Android 17): activa los cambios de
-        # comportamiento que sólo aplican a apps que apuntan a esa versión.
-        api-level: [26, 29, 33, 35, 36, 37]
+        # comportamiento que sólo aplican a apps que apuntan a esa versión. Google publica esa
+        # imagen como "android-37.0": con "37" sdkmanager no la encuentra y el trabajo falla.
+        api-level: [26, 29, 33, 35, 36, "37.0"]
+        target: [google_apis]
+        include:
+          # Páginas de memoria de 16 KB (teléfonos con Android 15 o más nuevos): una .so alineada
+          # a 4 KB no carga y la app se cierra al abrir.
+          - api-level: "37.0"
+            target: google_apis_ps16k
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -85,18 +104,18 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - name: Abrir la app en Android API ${{ matrix.api-level }}
+      - name: Abrir la app en Android API ${{ matrix.api-level }} (${{ matrix.target }})
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ matrix.api-level }}
           arch: x86_64
-          target: google_apis
+          target: ${{ matrix.target }}
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: bash scripts/android-smoke.sh artifacts/app-release.apk
       - if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: android-smoke-api${{ matrix.api-level }}
+          name: android-smoke-api${{ matrix.api-level }}-${{ matrix.target }}
           path: artifacts/android-smoke/
           retention-days: 7
