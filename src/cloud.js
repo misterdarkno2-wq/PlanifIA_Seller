@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { requestSignal } from "./platform.js";
 const url = import.meta.env.VITE_SUPABASE_URL?.trim();
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim();
 export const missing = [
@@ -15,17 +16,14 @@ export const cloud = missing.length
         detectSessionInUrl: true,
       },
       global: {
-        fetch: async (url, options = {}) => {
-          const timeout = AbortSignal.timeout(
-            String(url).includes("/functions/") ? 140000 : 25000,
-          );
-          return fetch(url, {
+        fetch: async (url, options = {}) =>
+          fetch(url, {
             ...options,
-            signal: options.signal
-              ? AbortSignal.any([options.signal, timeout])
-              : timeout,
-          });
-        },
+            signal: requestSignal(
+              String(url).includes("/functions/") ? 140000 : 25000,
+              options.signal,
+            ),
+          }),
       },
     });
 export async function checked(promise) {

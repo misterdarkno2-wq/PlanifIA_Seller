@@ -53,7 +53,7 @@ class MainActivity : TauriActivity() {
   }
 
   /**
-   * public/compat-check.js lo usa cuando el WebView del teléfono es demasiado antiguo para la app:
+   * public/compat.js lo usa cuando el WebView del teléfono es demasiado antiguo para la app:
    * abre la ficha de "Android System WebView" en Google Play (o en el navegador si no hay Play).
    */
   private inner class SystemBridge {

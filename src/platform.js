@@ -1,5 +1,21 @@
 export const isNative = () => Boolean(globalThis.window?.__TAURI_INTERNALS__);
 
+// Señal con tiempo límite para fetch. AbortSignal.timeout llegó en Chrome 103 y AbortSignal.any en
+// Chrome 116: un WebView más antiguo (Android 8 y 9 sin actualizar) fallaba en cada consulta.
+export function requestSignal(ms, signal, api = globalThis.AbortSignal) {
+  if (typeof api?.timeout === "function" && (!signal || typeof api.any === "function")) {
+    const timeout = api.timeout(ms);
+    return signal ? api.any([signal, timeout]) : timeout;
+  }
+  const controller = new AbortController();
+  const abort = (reason) => { if (!controller.signal.aborted) controller.abort(reason); };
+  const timer = setTimeout(() => abort(new DOMException("signal timed out", "TimeoutError")), ms);
+  controller.signal.addEventListener("abort", () => clearTimeout(timer), { once: true });
+  if (signal?.aborted) abort(signal.reason);
+  else signal?.addEventListener("abort", () => abort(signal.reason), { once: true });
+  return controller.signal;
+}
+
 export function backAction({ modalOpen, hash, canGoBack }) {
   if (modalOpen) return "modal";
   if (["", "#home", "#today"].includes(hash)) return "exit";

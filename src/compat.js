@@ -1,6 +1,7 @@
 // Android usa el WebView del teléfono. Si Google Play no lo ha actualizado, faltan funciones
-// recientes y la app quedaba en blanco o sin conexión. Vite traduce la sintaxis (build.target en
-// vite.config.js); aquí se completan las pocas funciones del navegador que la app necesita.
+// recientes y la app quedaba en blanco. Vite traduce la sintaxis (build.target en vite.config.js);
+// aquí se completan las pocas funciones del navegador que la app usa (las señales de fetch están
+// en requestSignal de platform.js).
 // Debe ser el primer import de main.js.
 
 if (!Array.prototype.at) {
@@ -20,29 +21,6 @@ if (!Object.hasOwn) {
     writable: true,
     value: (object, key) => Object.prototype.hasOwnProperty.call(object, key),
   });
-}
-
-if (typeof AbortSignal !== "undefined") {
-  if (!AbortSignal.timeout) {
-    AbortSignal.timeout = (ms) => {
-      const controller = new AbortController();
-      setTimeout(() => controller.abort(new DOMException("La solicitud tardó demasiado.", "TimeoutError")), ms);
-      return controller.signal;
-    };
-  }
-  if (!AbortSignal.any) {
-    AbortSignal.any = (signals) => {
-      const controller = new AbortController();
-      for (const signal of signals) {
-        if (signal.aborted) {
-          controller.abort(signal.reason);
-          break;
-        }
-        signal.addEventListener("abort", () => controller.abort(signal.reason), { once: true });
-      }
-      return controller.signal;
-    };
-  }
 }
 
 if (globalThis.crypto && !crypto.randomUUID) {
