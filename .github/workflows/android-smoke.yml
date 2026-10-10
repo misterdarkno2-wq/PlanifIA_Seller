@@ -80,7 +80,7 @@ jobs:
   emulador:
     needs: compilar
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 75
     strategy:
       fail-fast: false
       matrix:
@@ -117,6 +117,10 @@ jobs:
           api-level: ${{ matrix.api-level }}
           arch: x86_64
           target: ${{ matrix.target }}
+          # Las imágenes de Android 17 tardan más de 10 min en arrancar con los valores por defecto.
+          cores: 4
+          ram-size: 4096M
+          emulator-boot-timeout: 1500
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: bash scripts/android-smoke.sh artifacts/app-release.apk
