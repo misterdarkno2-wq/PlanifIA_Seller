@@ -4,7 +4,11 @@
 const port = process.argv[2] || "9222";
 const renderOnly = process.argv[3] === "render";
 const targets = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
-const page = targets.find((t) => t.type === "page") || targets[0];
+// Los anuncios de AdMob abren sus propios WebView: se elige siempre el de la app.
+const page =
+  targets.find((t) => t.type === "page" && /^https?:\/\/tauri\.localhost/.test(t.url)) ||
+  targets.find((t) => t.type === "page") ||
+  targets[0];
 if (!page) throw new Error("El WebView no expone ninguna página.");
 
 const ws = new WebSocket(page.webSocketDebuggerUrl);
@@ -31,7 +35,7 @@ async function run(label, expression, timeoutMs = 30000) {
   const code = `(async () => {
     const limit = new Promise((_, fail) => setTimeout(() => fail(new Error("sin respuesta en ${timeoutMs} ms")), ${timeoutMs}));
     try { return JSON.stringify(await Promise.race([${expression}, limit])); }
-    catch (error) { return "ERROR: " + (error?.message || error); }
+    catch (error) { return "ERROR: " + ((error && error.message) || error); }
   })()`;
   const reply = await Promise.race([
     send("Runtime.evaluate", { expression: code, awaitPromise: true, returnByValue: true }),
@@ -45,12 +49,18 @@ const invoke = (command, args = {}) =>
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const rendered = await send("Runtime.evaluate", {
-  expression: `JSON.stringify({
-    url: location.href,
-    webview: navigator.userAgent.match(/Chrome\\/[\\d.]+/)?.[0] || navigator.userAgent,
-    nodes: document.querySelector("#app")?.childElementCount || 0,
-    text: (document.body?.innerText || "").trim().length,
-  })`,
+  // Sólo ES5: en un WebView antiguo la comprobación debe responder, no fallar al interpretarse.
+  expression: `(function () {
+    var app = document.querySelector("#app");
+    var chrome = navigator.userAgent.match(/Chrome\\/[\\d.]+/);
+    return JSON.stringify({
+      url: location.href,
+      webview: chrome ? chrome[0] : navigator.userAgent,
+      nodes: app ? app.childElementCount : 0,
+      text: document.body ? document.body.innerText.trim().length : 0,
+      aviso: Boolean(document.querySelector("#compat-warning")),
+    });
+  })()`,
   returnByValue: true,
 });
 const view = JSON.parse(rendered?.result?.result?.value || "{}");

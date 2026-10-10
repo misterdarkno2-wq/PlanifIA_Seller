@@ -1,6 +1,9 @@
 package cl.planifia.app
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
 import android.graphics.Color
+import android.net.Uri
 import android.os.Bundle
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
@@ -29,6 +32,7 @@ class MainActivity : TauriActivity() {
    */
   override fun onWebViewCreate(webView: WebView) {
     webView.addJavascriptInterface(InsetsBridge(), "PlanifiaInsets")
+    webView.addJavascriptInterface(SystemBridge(), "PlanifiaSystem")
     ViewCompat.setOnApplyWindowInsetsListener(webView) { view, insets ->
       val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
       val ime = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
@@ -46,5 +50,26 @@ class MainActivity : TauriActivity() {
   private inner class InsetsBridge {
     @JavascriptInterface
     fun get(): String = insetsJson
+  }
+
+  /**
+   * public/compat-check.js lo usa cuando el WebView del teléfono es demasiado antiguo para la app:
+   * abre la ficha de "Android System WebView" en Google Play (o en el navegador si no hay Play).
+   */
+  private inner class SystemBridge {
+    @JavascriptInterface
+    fun openWebViewUpdate() {
+      val id = "com.google.android.webview"
+      runOnUiThread {
+        try {
+          startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$id")))
+        } catch (error: ActivityNotFoundException) {
+          try {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$id")))
+          } catch (ignored: ActivityNotFoundException) {
+          }
+        }
+      }
+    }
   }
 }

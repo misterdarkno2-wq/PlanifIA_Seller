@@ -1,3 +1,4 @@
+import "./compat.js";
 import "./style.css";
 import { authRedirect, downloadJson, installNativeBack, watchSafeArea } from "./platform.js";
 import "./pet.css";
