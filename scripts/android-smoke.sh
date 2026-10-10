@@ -11,6 +11,8 @@ mkdir -p "$OUT"
 STATUS=0
 RESULTS=""
 DEVICE="API $(adb shell getprop ro.build.version.sdk | tr -d '\r'), páginas de $(adb shell getconf PAGE_SIZE | tr -d '\r') bytes"
+WEBVIEW="$(adb shell dumpsys webviewupdate | grep -m 1 "Current WebView package" | tr -d '\r')"
+LASTPID=""
 
 # Los registros y artefactos de Actions piden iniciar sesión; las anotaciones son públicas.
 annotate() {
@@ -28,7 +30,15 @@ report() {
   echo "::group::Registro filtrado (logcat)"
   grep -E "AndroidRuntime|FATAL|panicked|Fatal signal|backtrace|  #[0-9]+ pc|DEBUG   :|PlanifiaAds|PlanifiaBilling|Tauri|RustStdout|chromium.*Uncaught|Console|E/.*$PKG|W/Ads|I/Ads|E/Ads|BillingClient" "$OUT/logcat.txt" | tail -n 400
   echo "::endgroup::"
-  annotate notice "Resultado ($DEVICE)" "$RESULTS"
+  annotate notice "Resultado ($DEVICE)" "$WEBVIEW"$'\n'"$RESULTS"
+  # Si el proceso murió, todo lo que escribió antes de morir (sin filtrar) y lo que dijo el sistema.
+  [ -n "$LASTPID" ] || LASTPID=$(adb logcat -b events -d | grep "am_proc_start" | grep "$PKG" | tail -n 1 | sed -E 's/.*\[[0-9]+,([0-9]+),.*/\1/')
+  if [ -n "$LASTPID" ] && ! alive; then
+    annotate warning "Registro del proceso $LASTPID antes de cerrarse ($DEVICE)" "$( {
+      adb logcat -b events -d | grep -E "am_(kill|crash|anr|proc_died|wtf)|lowmemory" | grep -i planifia
+      grep -E "^[0-9-]+ [0-9:.]+ +$LASTPID |ActivityManager.*($PKG|$LASTPID)|lowmemorykiller|libc +: Fatal|DEBUG +:" "$OUT/logcat.txt" | tail -n 120
+    } | cut -c1-260)"
+  fi
   local errors
   errors=$( { adb logcat -b events -d | grep -E "am_crash|am_anr|am_proc_died" | grep -i planifia
     grep -E "AndroidRuntime|FATAL|Fatal signal|panicked|UnsatisfiedLink|dlopen failed|chromium.*Uncaught|Planifia(Ads|Billing).*(rror|xception)" "$OUT/logcat.txt"; } | cut -c1-300 | head -n 60)
@@ -50,13 +60,21 @@ note() { echo "RESULTADO: $1"; RESULTS+="$1"$'\n'; }
 fail() { note "$1"; STATUS=1; }
 check() {
   local label="$1"
+  local output view
   adb exec-out screencap -p > "$OUT/$2.png"
   if ! alive; then fail "LA APP SE CERRÓ ($label)."; report; exit 1; fi
-  if cdp render; then note "la app está abierta y dibujada ($label)."
-  else fail "LA APP ESTÁ ABIERTA PERO SIN INTERFAZ ($label)."; fi
+  LASTPID=$(adb shell pidof "$PKG" | tr -d '\r')
+  output=$(cdp render 2>&1)
+  local code=$?
+  echo "$output"
+  view=$(echo "$output" | grep -E "páginas:|interfaz:|Sin depuración|Error" | head -n 3 | cut -c1-220 | paste -sd ' ')
+  if [ "$code" -eq 0 ]; then note "la app está abierta y dibujada ($label). $view"
+  else fail "LA APP ESTÁ ABIERTA PERO SIN INTERFAZ ($label). $view"; fi
 }
 open_app() {
   adb shell am start -W -n "$PKG/.MainActivity"
+  sleep 2
+  LASTPID=$(adb shell pidof "$PKG" | tr -d '\r')
   sleep "${1:-15}"
 }
 

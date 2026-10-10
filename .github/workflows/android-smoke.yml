@@ -114,6 +114,8 @@ jobs:
           target: ${{ matrix.target }}
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          # Las imágenes de Android 17 tardan más de 10 minutos en arrancar en el runner.
+          emulator-boot-timeout: 1500
           script: bash scripts/android-smoke.sh artifacts/app-release.apk
       - if: always()
         uses: actions/upload-artifact@v4

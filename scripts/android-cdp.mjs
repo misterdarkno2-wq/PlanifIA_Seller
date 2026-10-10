@@ -4,7 +4,12 @@
 const port = process.argv[2] || "9222";
 const renderOnly = process.argv[3] === "render";
 const targets = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
-const page = targets.find((t) => t.type === "page") || targets[0];
+// Los anuncios de AdMob abren sus propios WebView en el mismo proceso: se elige la página de la app.
+const page =
+  targets.find((t) => t.type === "page" && /tauri\.localhost/.test(t.url)) ||
+  targets.find((t) => t.type === "page") ||
+  targets[0];
+console.log(`[cdp] páginas: ${targets.map((t) => `${t.type} ${t.url.slice(0, 60)}`).join(" | ")}`);
 if (!page) throw new Error("El WebView no expone ninguna página.");
 
 const ws = new WebSocket(page.webSocketDebuggerUrl);
