@@ -26,12 +26,12 @@ report() {
   adb logcat -b events -d | grep -E "wm_on_(create|destroy|resume|stop)_called|am_crash|am_proc_died|am_anr" | grep -i planifia | tail -n 40
   echo "::endgroup::"
   echo "::group::Registro filtrado (logcat)"
-  grep -E "AndroidRuntime|FATAL|panicked|Fatal signal|backtrace|  #[0-9]+ pc|DEBUG   :|PlanifiaAds|PlanifiaBilling|Tauri|RustStdout|chromium.*Uncaught|Console|E/.*$PKG|W/Ads|I/Ads|E/Ads|BillingClient" "$OUT/logcat.txt" | tail -n 400
+  grep -E "AndroidRuntime|FATAL|panicked|Fatal signal|backtrace|  #[0-9]+ pc|DEBUG   :|PlanifiaAds|PlanifiaBilling|PlanifiaWebView|aw_browser_terminator|Tauri|RustStdout|chromium.*Uncaught|Console|E/.*$PKG|W/Ads|I/Ads|E/Ads|BillingClient" "$OUT/logcat.txt" | tail -n 400
   echo "::endgroup::"
   annotate notice "Resultado ($DEVICE)" "$RESULTS"
   local errors
   errors=$( { adb logcat -b events -d | grep -E "am_crash|am_anr|am_proc_died" | grep -i planifia
-    grep -E "AndroidRuntime|FATAL|Fatal signal|panicked|UnsatisfiedLink|dlopen failed|chromium.*Uncaught|Planifia(Ads|Billing).*(rror|xception)" "$OUT/logcat.txt"; } | cut -c1-300 | head -n 60)
+    grep -E "AndroidRuntime|FATAL|Fatal signal|panicked|UnsatisfiedLink|dlopen failed|chromium.*Uncaught|aw_browser_terminator|PlanifiaWebView|Planifia(Ads|Billing).*(rror|xception)" "$OUT/logcat.txt"; } | cut -c1-300 | head -n 60)
   if [ -n "$errors" ]; then annotate warning "Errores en logcat ($DEVICE)" "$errors"; fi
 }
 cdp() {
