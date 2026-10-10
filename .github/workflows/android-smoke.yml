@@ -81,6 +81,10 @@ jobs:
     needs: compilar
     runs-on: ubuntu-latest
     timeout-minutes: 75
+    # Las imágenes de Android 17 (37.x) se reinician solas en los runners de GitHub (vold
+    # commitChanges, sys.boot_completed de nuevo tras abrir la app) y el emulador aborta al tomar
+    # capturas. Su resultado se publica igual, pero no bloquea: Android 17 se verifica en un teléfono.
+    continue-on-error: ${{ startsWith(matrix.api-level, '37') }}
     strategy:
       fail-fast: false
       matrix:

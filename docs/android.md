@@ -63,6 +63,8 @@ Los betatesters reportaron que la app no abría. El workflow **Android en emulad
 | Tauri crea los plugins una vez por proceso. Al recrear la actividad seguían usando la anterior y Billing un cliente cerrado. | El banner dejaba de responder y las compras fallaban tras volver a la app. | `PluginManager.activity` en `AdsPlugin.kt` y `BillingPlugin.kt`; Billing crea un cliente nuevo cuando hace falta. |
 | El APK release era sólo arm64. | Un teléfono de 32 bits no podía instalar el APK directo. | `android:release` y `android:aab` compilan arm64, armv7 y x86_64. |
 
+Resultado del 10 de octubre de 2026 (APK release x86_64): API 26, 29, 33, 35, 36 y 36 con 16 KB pasan todas las etapas; en 26 y 29, con el WebView de fábrica (69 y 74), se muestra el aviso de actualización. Android 17 (37.0 y 37.2) no pudo verificarse en el emulador de GitHub, porque esa imagen se reinicia sola durante la prueba; queda como prueba informativa y debe comprobarse en un teléfono con Android 17. Las pruebas usan emulador x86_64; arm64 y armv7 sólo se compilan.
+
 La alineación de 16 KB de `libapp_lib.so` se comprueba en cada compilación del workflow. Antes de subir una versión, revisa también **Android vitals → Fallos y ANR** y el **informe previo al lanzamiento** en Play Console.
 
 **Límites externos:** Google Play Billing y AdMob están integrados con plugins propios (`src-tauri/plugins/`); para vender y mostrar anuncios reales debes completar la configuración de AdMob, Play Console, Google Cloud y Supabase descrita en [monetización](monetizacion.md). El SMTP propio de Supabase requiere un dominio de correo verificado para registros públicos; las pruebas administrativas no acreditan entrega de correos. La IA requiere que el servicio del PC esté encendido.
