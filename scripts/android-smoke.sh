@@ -52,8 +52,12 @@ check() {
   local label="$1"
   adb exec-out screencap -p > "$OUT/$2.png"
   if ! alive; then fail "LA APP SE CERRÓ ($label)."; report; exit 1; fi
-  if cdp render; then note "la app está abierta y dibujada ($label)."
-  else fail "LA APP ESTÁ ABIERTA PERO SIN INTERFAZ ($label)."; fi
+  cdp render
+  case $? in
+    0) note "la app está abierta y dibujada ($label)." ;;
+    3) note "WebView antiguo: se muestra el aviso para actualizarlo ($label)." ;;
+    *) fail "LA APP ESTÁ ABIERTA PERO SIN INTERFAZ ($label)." ;;
+  esac
 }
 open_app() {
   adb shell am start -W -n "$PKG/.MainActivity"

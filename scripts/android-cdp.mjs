@@ -76,11 +76,14 @@ const view = JSON.parse(rendered?.result?.result?.value || "{}");
 console.log(`[cdp] interfaz: ${JSON.stringify(view)}`);
 if (renderOnly) {
   ws.close();
-  if (!(view.nodes > 0 && view.text > 0)) {
-    console.log("[cdp] LA INTERFAZ NO SE DIBUJÓ (pantalla en blanco).");
-    process.exit(1);
+  if (view.nodes > 0 && view.text > 0) process.exit(0);
+  // WebView anterior a Chrome 87: public/compat.js explica cómo actualizarlo (código 3).
+  if (view.aviso) {
+    console.log("[cdp] se muestra el aviso para actualizar Android System WebView.");
+    process.exit(3);
   }
-  process.exit(0);
+  console.log("[cdp] LA INTERFAZ NO SE DIBUJÓ (pantalla en blanco).");
+  process.exit(1);
 }
 await run("márgenes", 'Promise.resolve(window.PlanifiaInsets ? window.PlanifiaInsets.get() : "sin puente")');
 await run("ads init_ads", invoke("plugin:planifia-ads|init_ads"), 60000);
