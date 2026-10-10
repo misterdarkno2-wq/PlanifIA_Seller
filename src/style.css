@@ -6,7 +6,7 @@
   font-synthesis: none;
   --green: #10796c;
   --dark: #173d3a;
-  --muted: #677c77;
+  --muted: #536b65;
   --line: #dce6df;
   --accent: #eef5e8;
   --surface: #fff;
@@ -334,6 +334,15 @@ small,
   text-align: center;
   color: var(--muted);
   font-size: 13px;
+}
+.landing-footer nav {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+}
+.landing-footer nav a {
+  padding: 8px 0;
 }
 .app-shell {
   display: grid;

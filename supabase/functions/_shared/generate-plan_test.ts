@@ -189,6 +189,7 @@ Deno.test(
     );
     assert(calls === 2);
     assert(error.message.includes("meta incompleta"));
+    assert(error.retryable === false, "La cola no debe repetir dos propuestas ya inválidas");
   },
 );
 

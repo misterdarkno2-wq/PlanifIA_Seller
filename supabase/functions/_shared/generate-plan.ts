@@ -2,10 +2,12 @@ import { fitSchedule, PLAN_SCHEMA, SYSTEM, validateProposal } from "./plan.js";
 
 export class PlanGenerationError extends Error {
   readonly status: number;
-  constructor(status: number, message: string) {
+  readonly retryable: boolean;
+  constructor(status: number, message: string, retryable = [429, 502, 504].includes(status)) {
     super(message);
     this.name = "PlanGenerationError";
     this.status = status;
+    this.retryable = retryable;
   }
 }
 
@@ -97,6 +99,7 @@ export async function generateValidatedPlan({
     throw new PlanGenerationError(
       502,
       "El tiempo máximo de IA está mal configurado.",
+      false,
     );
   let url: URL;
   try {
@@ -105,6 +108,7 @@ export async function generateValidatedPlan({
     throw new PlanGenerationError(
       502,
       "La dirección del proveedor de IA está mal configurada.",
+      false,
     );
   }
   if (
@@ -122,6 +126,7 @@ export async function generateValidatedPlan({
     throw new PlanGenerationError(
       502,
       "La conexión segura con el proveedor de IA está incompleta.",
+      false,
     );
   const deadline = performance.now() + budgetMs;
   const effectiveWeekly = Array.from({ length: 4 }, (_, index) =>
@@ -201,6 +206,7 @@ export async function generateValidatedPlan({
           throw new PlanGenerationError(
             502,
             "El proveedor de IA rechazó la solicitud. Revisa el modelo y su configuración.",
+            response.status >= 500,
           );
         }
         let result;
@@ -217,6 +223,7 @@ export async function generateValidatedPlan({
           throw new PlanGenerationError(
             502,
             "La IA no terminó la propuesta. Inténtalo con una meta más acotada.",
+            false,
           );
         const text = result.choices[0].message?.content;
         if (typeof text !== "string" || text.length > 128000)
@@ -253,5 +260,6 @@ export async function generateValidatedPlan({
   throw new PlanGenerationError(
     502,
     `La IA no pudo ajustar una propuesta válida. ${problem}`,
+    false,
   );
 }

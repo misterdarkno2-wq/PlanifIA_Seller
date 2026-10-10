@@ -27,7 +27,7 @@ export const lumiChatApi = {
       try {
         detail = await error.context?.json();
       } catch {}
-      throw new Error(detail?.error || "Lumi está descansando, inténtalo más tarde. No se descontaron créditos.");
+      throw new Error(detail?.error || "No pudimos confirmar la respuesta. Revisa la conversación y tu saldo antes de volver a enviar.");
     }
     return data;
   },
@@ -85,11 +85,21 @@ export function mountLumiChat(root, {
   const textMotion = matchMedia("(prefers-reduced-motion: reduce)");
   const petMotion = getPetMotionSettings();
   let disposed = false,
+    loading = true,
+    clearing = false,
     sending = false,
     textTimer,
     talkTimer,
     mouth,
     clearArmed;
+
+  function updateControls() {
+    send.disabled = loading || clearing || sending;
+    clear.disabled = loading || clearing || sending;
+    input.readOnly = loading || clearing || sending;
+    send.textContent = loading ? "Cargando…" : sending ? "Lumi piensa…" : "Enviar";
+    log.setAttribute("aria-busy", String(loading || clearing || sending));
+  }
 
   function refreshCredits() {
     const c = credits();
@@ -168,15 +178,13 @@ export function mountLumiChat(root, {
   }
   async function submit() {
     const text = input.value.trim();
-    if (sending || disposed) return;
+    if (loading || clearing || sending || disposed) return;
     if (!text) return input.focus();
     if (text.length > LUMI_CHAT_MAX) return showError(`Escribe un mensaje de hasta ${LUMI_CHAT_MAX} caracteres.`);
     voice?.unlock?.();
     sending = true;
     alert.hidden = true;
-    send.disabled = true;
-    send.textContent = "Lumi piensa…";
-    input.readOnly = true;
+    updateControls();
     const mine = item("user", text).closest("li");
     mine.classList.add("is-pending");
     thinking(true);
@@ -197,13 +205,11 @@ export function mountLumiChat(root, {
       mine.remove();
       thinking(false);
       say.textContent = "Aquí sigo. Puedes intentarlo de nuevo cuando quieras.";
-      showError(error.message || "Lumi está descansando, inténtalo más tarde. No se descontaron créditos.");
+      showError(error.message || "No pudimos confirmar la respuesta. Revisa la conversación y tu saldo antes de volver a enviar.");
     } finally {
       if (!disposed) {
         sending = false;
-        send.disabled = false;
-        send.textContent = "Enviar";
-        input.readOnly = false;
+        updateControls();
         refreshCredits();
         input.focus({ preventScroll: true });
       }
@@ -222,6 +228,7 @@ export function mountLumiChat(root, {
   };
   // Borrar pide una segunda confirmación en el mismo botón (sin diálogos del sistema).
   const onClear = async () => {
+    if (loading || clearing || sending || disposed) return;
     if (!clearArmed) {
       clearArmed = setTimeout(() => {
         clearArmed = null;
@@ -233,18 +240,27 @@ export function mountLumiChat(root, {
     clearTimeout(clearArmed);
     clearArmed = null;
     clear.textContent = "Borrar conversación";
+    clearing = true;
+    updateControls();
     try {
       await api.clear();
+      if (disposed) return;
+      stopTalking();
       log.replaceChildren();
+      say.removeAttribute("aria-label");
       say.textContent = "Listo, empezamos de nuevo. ¿Qué tienes en mente?";
     } catch (error) {
-      showError(error.message || "No pudimos borrar la conversación.");
+      if (!disposed) showError(error.message || "No pudimos borrar la conversación.");
+    } finally {
+      clearing = false;
+      if (!disposed) updateControls();
     }
   };
   form.addEventListener("submit", onSubmit);
   input.addEventListener("keydown", onKey);
   clear.addEventListener("click", onClear);
   refreshCredits();
+  updateControls();
   api
     .load()
     .then((messages) => {
@@ -253,7 +269,11 @@ export function mountLumiChat(root, {
       const last = [...messages].reverse().find((m) => m.role === "lumi");
       if (last) say.textContent = last.content;
     })
-    .catch((error) => !disposed && showError(error.message));
+    .catch((error) => !disposed && showError(error.message))
+    .finally(() => {
+      loading = false;
+      if (!disposed) updateControls();
+    });
   // En pantallas con teclado físico se enfoca el campo; en el teléfono no se abre el teclado solo.
   if (matchMedia("(pointer: fine)").matches) input.focus({ preventScroll: true });
   return {

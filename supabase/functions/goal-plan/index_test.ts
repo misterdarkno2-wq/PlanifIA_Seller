@@ -4,7 +4,7 @@ import { handleGoalPlan } from "./handler.ts";
 function assert(condition: unknown, message = "Assertion failed") {
   if (!condition) throw new Error(message);
 }
-function setup() {
+function setup(records: Record<string, Record<string, unknown>[]> = {}) {
   const savedFetch = globalThis.fetch;
   let enqueueBody: Record<string, unknown> | null = null;
   let providerCalls = 0,
@@ -71,7 +71,14 @@ function setup() {
     if (url.includes("/rpc/reserve_plan_ai")) {
       return Response.json(monthlyQuota);
     }
-    if (url.includes("/rest/v1/")) return Response.json([]);
+    if (url.includes("/rest/v1/")) {
+      const parsed = new URL(url), table = parsed.pathname.split("/").at(-1)!;
+      const rows = records[table] || [];
+      if (parsed.searchParams.has("id")) return Response.json(rows.find((r) => `eq.${r.id}` === parsed.searchParams.get("id")));
+      const offset = Number(parsed.searchParams.get("offset") || 0);
+      const page = rows.slice(offset, offset + 400);
+      return Response.json(page, { headers: { "Content-Range": page.length ? `${offset}-${offset + page.length - 1}/${rows.length}` : `*/${rows.length}` } });
+    }
     if (url.startsWith("https://ai.example.test")) {
       providerCalls++;
       return Response.json({
@@ -129,6 +136,7 @@ function setup() {
 const request = (
   token: string | null = "test-valid-session",
   origin = "https://web.example.test",
+  extra = {},
 ) =>
   new Request("https://function.example.test", {
     method: "POST",
@@ -145,8 +153,28 @@ const request = (
       weekly_minutes: 140,
       current_situation: "Principiante",
       outcome: "Presentarme",
+      ...extra,
     }),
   });
+
+Deno.test("La solicitud incluye páginas completas y logros de una meta pausada sin IDs de tareas", async () => {
+  const goalId = "33333333-3333-4333-8333-333333333333";
+  const tasks = Array.from({ length: 1201 }, (_, index) => ({
+    id: `task-${index}`, user_id: "private-owner", goal_id: index === 1200 ? goalId : null, title: `Logro ${index}`,
+    description: "Ya realizado", area: "Inglés", status: index === 1200 ? "completed" : "pending", minutes: 5,
+    priority: "medium", scheduled_date: "2020-01-01", deadline: null, completed_at: "2020-01-01T12:00:00Z",
+  }));
+  const fixture = setup({ tasks, goals: [{ id: goalId, title: "Inglés", status: "paused", version: 7 }] });
+  try {
+    assert((await handleGoalPlan(request("test-valid-session", "https://web.example.test", { goal_id: goalId }))).status === 202);
+    const payload = fixture.submission()!.p_payload as { requestData: { completed_actions: Record<string, unknown>[] }; expected_version: number };
+    const actions = payload.requestData.completed_actions;
+    assert(actions.length === 1 && actions[0].title === "Logro 1200");
+    assert(actions[0].completed_at === tasks[0].completed_at && actions[0].area === "Inglés");
+    assert(!("id" in actions[0]) && !("user_id" in actions[0]));
+    assert(payload.expected_version === 7, "La versión para aprobar sigue fuera del contexto del modelo");
+  } finally { fixture.close(); }
+});
 
 Deno.test(
   "JWT ausente, vencido y origen no autorizado nunca llaman al proveedor",

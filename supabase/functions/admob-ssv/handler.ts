@@ -66,8 +66,18 @@ export async function verifyAdmobCallback(rawQuery: string, keys: Map<string, Cr
   const at = rawQuery.indexOf("&signature=");
   if (at < 0) return null;
   const message = rawQuery.slice(0, at);
-  const params = new URLSearchParams(rawQuery);
-  const signature = params.get("signature"), keyId = params.get("key_id");
+  // Google appends only signature and key_id after the signed bytes. Never
+  // authorize a reward using fields appended to that unsigned suffix.
+  const suffix = rawQuery.slice(at + 1);
+  if (!/^signature=[^&]+&key_id=\d+$/.test(suffix)) return null;
+  const params = new URLSearchParams(message);
+  const seen = new Set<string>();
+  for (const name of params.keys()) {
+    if (seen.has(name) || name === "signature" || name === "key_id") return null;
+    seen.add(name);
+  }
+  const signatureParams = new URLSearchParams(suffix);
+  const signature = signatureParams.get("signature"), keyId = signatureParams.get("key_id");
   const key = keyId ? keys.get(keyId) : undefined;
   if (!signature || !key) return null;
   let valid = false;

@@ -64,7 +64,7 @@ export function startAiWorker({
             (!controller.signal.aborted ||
               !/cancelado/.test(controller.signal.reason?.message || "")) &&
             (!(error instanceof PlanGenerationError) ||
-              [429, 502, 504].includes(error.status));
+              error.retryable);
         } finally {
           clearInterval(pulse);
           pulse = null;

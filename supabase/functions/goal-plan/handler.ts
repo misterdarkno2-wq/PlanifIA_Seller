@@ -1,4 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.58.0";
+import { completedAction, planningGoal, readContextRows } from "../_shared/plan-context.ts";
+import { BodyTooLarge, readRequestText } from "../_shared/request-body.ts";
 
 const json = (data: unknown, status: number, headers: HeadersInit) =>
   Response.json(data, { status, headers });
@@ -61,7 +63,7 @@ export async function handleGoalPlan(req: Request) {
         headers,
       );
     }
-    const raw = await req.text();
+    const raw = await readRequestText(req, 80000);
     if (raw.length > 20000) {
       return json(
         { error: "La descripción es demasiado larga." },
@@ -155,26 +157,26 @@ export async function handleGoalPlan(req: Request) {
       }
       goal = r.data;
     }
-    const [taskResult, habitResult, goalResult] = await Promise.all([
-      client.from("tasks").select("*"),
-      client.from("habits").select("*"),
-      client.from("goals").select("id,status"),
+    const [calendarTasks, calendarHabits, calendarGoals] = await Promise.all([
+      readContextRows((from, to) => client.from("tasks")
+        .select("id,goal_id,title,description,area,status,minutes,priority,scheduled_date,deadline,completed_at", { count: "exact" })
+        .neq("status", "cancelled").order("id").range(from, to)),
+      readContextRows((from, to) => client.from("habits")
+        .select("id,goal_id,active,days,minutes", { count: "exact" })
+        .eq("active", true).order("id").range(from, to)),
+      readContextRows((from, to) => client.from("goals")
+        .select("id,status", { count: "exact" }).order("id").range(from, to)),
     ]);
-    if (taskResult.error || habitResult.error || goalResult.error) {
-      throw new Error(
-        "No pudimos consultar tu calendario. Inténtalo de nuevo.",
-      );
-    }
     const active = new Set(
-      goalResult.data.filter((g) => g.status === "active").map((g) => g.id),
+      calendarGoals.filter((g) => g.status === "active").map((g) => g.id),
     );
-    const tasks = taskResult.data.filter(
+    const tasks = calendarTasks.filter(
       (t) =>
         t.status !== "cancelled" &&
         (!t.goal_id || active.has(t.goal_id)) &&
         !(t.goal_id === goal?.id && t.status === "pending"),
     );
-    const habits = habitResult.data.filter(
+    const habits = calendarHabits.filter(
       (h) => h.active && (!h.goal_id || active.has(h.goal_id)),
     );
     const remainingDaily: Record<string, number> = {};
@@ -232,10 +234,10 @@ export async function handleGoalPlan(req: Request) {
       p_payload: {
         requestData: {
           ...clientInput,
-          current_goal: goal,
-          completed_actions: tasks.filter(
+          current_goal: planningGoal(goal),
+          completed_actions: calendarTasks.filter(
             (t) => t.goal_id === goal?.id && t.status === "completed",
-          ),
+          ).map(completedAction),
         },
         limits,
         goal_id: goal?.id || null,
@@ -255,6 +257,8 @@ export async function handleGoalPlan(req: Request) {
     }
     return json({ job: queued.data }, 202, headers);
   } catch (error) {
+    if (error instanceof BodyTooLarge)
+      return json({ error: "La descripción es demasiado larga." }, 413, headers);
     const message =
       error instanceof Error ? error.message : "No pudimos crear la propuesta.";
     if (

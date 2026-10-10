@@ -43,6 +43,15 @@ Deno.test("AdMob SSV: sólo una firma auténtica sobre la consulta exacta acredi
   assert(await verifyAdmobCallback(valid.replace("tx-1", "tx-2"), keys) === null, "Alterar la consulta invalida");
   assert(await verifyAdmobCallback(valid.replace("key_id=3335741209", "key_id=1"), keys) === null);
   assert(await verifyAdmobCallback(query, keys) === null, "Sin firma no hay recompensa");
+  const withoutUser = await signed(query.split("&user_id=")[0], pair.privateKey);
+  assert(await verifyAdmobCallback(`${withoutUser}&user_id=${USER}`, keys) === null,
+    "Un usuario añadido fuera de la firma no puede recibir créditos");
+  assert(await verifyAdmobCallback(`${valid}&transaction_id=another`, keys) === null,
+    "No acepta parámetros de recompensa fuera de la firma");
+  assert(await verifyAdmobCallback(`${valid}&key_id=3335741209`, keys) === null,
+    "No acepta claves duplicadas");
+  assert(await verifyAdmobCallback(await signed(`${query}&user_id=${USER}`, pair.privateKey), keys) === null,
+    "Tampoco acepta datos firmados ambiguos");
 
   const exported = new Uint8Array(await crypto.subtle.exportKey("spki", pair.publicKey));
   const oldFetch = globalThis.fetch;
@@ -70,6 +79,8 @@ Deno.test("AdMob SSV: sólo una firma auténtica sobre la consulta exacta acredi
     assert((await ok.json()).granted === true);
     const forged = await handleAdmobSsv(new Request(`https://x.test/functions/v1/admob-ssv?${valid.replace("tx-1", "tx-9")}`));
     assert(forged.status === 400);
+    const unsignedUser = await handleAdmobSsv(new Request(`https://x.test/functions/v1/admob-ssv?${withoutUser}&user_id=${USER}`));
+    assert(unsignedUser.status === 400, "El controlador tampoco acredita campos no firmados");
     const consoleCheck = await handleAdmobSsv(
       new Request(`https://x.test/functions/v1/admob-ssv?${await signed("ad_network=1&ad_unit=2&timestamp=3&transaction_id=t", pair.privateKey)}`),
     );

@@ -690,7 +690,7 @@ function landing() {
     mountBillingView();
     return;
   }
-  app.innerHTML = `<header class="landing-header"><a href="#home">${logo()}</a><div><a href="#plans">Planes</a><a href="#login">Iniciar sesión</a><a class="button" href="#register">Empezar</a></div></header><main id="main"><section class="hero"><div><p class="eyebrow">DALE FORMA A LO QUE TE IMPORTA</p><h1>Tus metas.<br>Un plan claro.<br><em>Un paso a la vez.</em></h1><p>Convierte lo que quieres lograr en acciones que caben en tu vida. La IA te ayuda a dividir el camino; tú eliges el ritmo.</p><div class="hero-actions"><a class="button" href="#register">Crear mi primera meta →</a><a href="#how">Cómo funciona</a></div><p class="fine">Para proyectos, aprendizaje, bienestar y todo lo que empieza con una idea.</p></div><div class="hero-example"><span class="example-label">UN EJEMPLO DE TU PRÓXIMO PASO</span><div class="example-goal"><span class="tag">Aprendizaje</span><h2>Hablar inglés con más confianza</h2><p>Un camino en acciones pequeñas.</p><div class="example-action"><span>✓</span><div><strong>Practicar una presentación de 2 minutos</strong><p>Hoy · 15 minutos · A mi ritmo</p></div></div></div><div class="hero-pet">${portrait(2)}<div><strong>Lumi crece contigo</strong><p>Cada acción completada suma experiencia.</p></div></div></div></section><section class="how" id="how"><p class="eyebrow">DEL «ALGÚN DÍA» AL SIGUIENTE PASO</p><h2>Una idea tiene por dónde empezar.</h2><div class="three-columns"><article><span>01</span><h3>Cuenta qué quieres lograr</h3><p>Tu punto de partida, el resultado que buscas y el tiempo que tienes.</p></article><article><span>02</span><h3>Revisa un plan a tu medida</h3><p>La IA propone hitos, prioridades y acciones. Puedes editarlos antes de guardar.</p></article><article><span>03</span><h3>Avanza y ajusta el camino</h3><p>Organiza tu calendario, registra lo que haces y cambia el plan cuando lo necesites.</p></article></div></section><section class="examples"><h2>Un lugar para distintas metas.</h2><div>${["Aprender un idioma", "Lanzar mi proyecto", "Preparar una carrera", "Crear un hábito de lectura"].map((t) => `<button class="secondary" data-example="${e(t)}">${e(t)} ↗</button>`).join("")}</div></section>${missing.length ? `<section class="setup-note" role="status"><h2>La conexión con la nube está pendiente.</h2><p>Falta configurar ${missing.map((x) => `<code>${x}</code>`).join(" y ")} y aplicar las migraciones de Supabase. El registro, tus datos y la IA se habilitarán al conectar el proyecto.</p></section>` : ""}<footer class="landing-footer">PlanifIA · Un paso posible vale más que un plan imposible.</footer></main>`;
+  app.innerHTML = `<header class="landing-header"><a href="#home">${logo()}</a><div><a href="#plans">Planes</a><a href="#login">Iniciar sesión</a><a class="button" href="#register">Empezar</a></div></header><main id="main"><section class="hero"><div><p class="eyebrow">DALE FORMA A LO QUE TE IMPORTA</p><h1>Tus metas.<br>Un plan claro.<br><em>Un paso a la vez.</em></h1><p>Convierte lo que quieres lograr en acciones que caben en tu vida. La IA te ayuda a dividir el camino; tú eliges el ritmo.</p><div class="hero-actions"><a class="button" href="#register">Crear mi primera meta →</a><a href="#how">Cómo funciona</a></div><p class="fine">Para proyectos, aprendizaje, bienestar y todo lo que empieza con una idea.</p></div><div class="hero-example"><span class="example-label">UN EJEMPLO DE TU PRÓXIMO PASO</span><div class="example-goal"><span class="tag">Aprendizaje</span><h2>Hablar inglés con más confianza</h2><p>Un camino en acciones pequeñas.</p><div class="example-action"><span>✓</span><div><strong>Practicar una presentación de 2 minutos</strong><p>Hoy · 15 minutos · A mi ritmo</p></div></div></div><div class="hero-pet">${portrait(2)}<div><strong>Lumi crece contigo</strong><p>Cada acción completada suma experiencia.</p></div></div></div></section><section class="how" id="how"><p class="eyebrow">DEL «ALGÚN DÍA» AL SIGUIENTE PASO</p><h2>Una idea tiene por dónde empezar.</h2><div class="three-columns"><article><span>01</span><h3>Cuenta qué quieres lograr</h3><p>Tu punto de partida, el resultado que buscas y el tiempo que tienes.</p></article><article><span>02</span><h3>Revisa un plan a tu medida</h3><p>La IA propone hitos, prioridades y acciones. Puedes editarlos antes de guardar.</p></article><article><span>03</span><h3>Avanza y ajusta el camino</h3><p>Organiza tu calendario, registra lo que haces y cambia el plan cuando lo necesites.</p></article></div></section><section class="examples"><h2>Un lugar para distintas metas.</h2><div>${["Aprender un idioma", "Lanzar mi proyecto", "Preparar una carrera", "Crear un hábito de lectura"].map((t) => `<button class="secondary" data-example="${e(t)}">${e(t)} ↗</button>`).join("")}</div></section>${missing.length ? `<section class="setup-note" role="status"><h2>La conexión con la nube está pendiente.</h2><p>Falta configurar ${missing.map((x) => `<code>${x}</code>`).join(" y ")} y aplicar las migraciones de Supabase. El registro, tus datos y la IA se habilitarán al conectar el proyecto.</p></section>` : ""}<footer class="landing-footer"><p>PlanifIA · Un paso posible vale más que un plan imposible.</p><nav aria-label="Información legal"><a href="./privacidad.html">Privacidad</a><a href="./terminos.html">Términos</a><a href="./eliminar-cuenta.html">Eliminar cuenta</a></nav></footer></main>`;
   document.querySelectorAll("[data-example]").forEach(
     (b) =>
       (b.onclick = () => {
@@ -1357,12 +1357,22 @@ installNativeBack({
   onError: (error) => toast(errorMessage(error)),
 }).catch((error) => toast(errorMessage(error)));
 window.addEventListener("hashchange", () => {
+  // Page anchors are not routes: keep the current view and keyboard position.
+  if (["#main", "#how"].includes(location.hash)) return;
   closeModal();
   if (location.hash === "#reset") {
     authModal("reset");
     return;
   }
   render();
+});
+document.querySelector(".skip-link")?.addEventListener("click", (event) => {
+  const main = document.querySelector("#main");
+  if (!main) return;
+  event.preventDefault();
+  main.setAttribute("tabindex", "-1");
+  main.focus();
+  main.scrollIntoView({ block: "start" });
 });
 window.addEventListener("pagehide", () => {
   disposePets();

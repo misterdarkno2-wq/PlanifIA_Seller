@@ -348,6 +348,14 @@ try {
   await page.clock.install();
   await page.goto("http://127.0.0.1:5183");
   await page.getByRole("heading", { name: /Tus metas/ }).waitFor();
+  await page.locator("#how").evaluate((node) => { node.dataset.anchorProbe = "preserved"; });
+  await page.getByRole("link", { name: "Cómo funciona" }).click();
+  assert.equal(await page.locator("#how").getAttribute("data-anchor-probe"), "preserved", "Un ancla no debe reconstruir la vista");
+  await page.locator(".skip-link").focus();
+  await page.keyboard.press("Enter");
+  assert.equal(await page.evaluate(() => document.activeElement?.id), "main", "Saltar al contenido mueve el foco");
+  assert.equal(await page.getByRole("navigation", { name: "Información legal" }).getByRole("link").count(), 3);
+  await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({
     path: "dist/qa/landing-desktop.png",
     fullPage: true,
