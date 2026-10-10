@@ -47,6 +47,7 @@ open_app() {
 
 echo "== Dispositivo"
 echo "Android $(adb shell getprop ro.build.version.release | tr -d '\r') (API $(adb shell getprop ro.build.version.sdk | tr -d '\r')), ABI $(adb shell getprop ro.product.cpu.abi | tr -d '\r')"
+echo "Tamaño de página: $(adb shell getconf PAGE_SIZE | tr -d '\r') bytes"
 adb shell dumpsys webviewupdate | grep -E "Current WebView package|versionName" | head -n 3
 
 adb install -r "$APK" || { echo "No se pudo instalar el APK"; exit 1; }
