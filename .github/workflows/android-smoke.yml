@@ -117,9 +117,11 @@ jobs:
           api-level: ${{ matrix.api-level }}
           arch: x86_64
           target: ${{ matrix.target }}
-          # Las imágenes de Android 17 tardan más de 10 min en arrancar con los valores por defecto.
+          # Las imágenes de Android 17 tardan más de 10 min en arrancar y no tienen espacio para
+          # instalar el APK con los valores por defecto.
           cores: 4
           ram-size: 4096M
+          disk-size: 8G
           emulator-boot-timeout: 1500
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
