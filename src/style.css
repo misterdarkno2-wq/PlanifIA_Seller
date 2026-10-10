@@ -1120,11 +1120,6 @@ legend {
 [hidden] {
   display: none !important;
 }
-.loading-state {
-  padding: 60px;
-  text-align: center;
-  color: var(--muted);
-}
 section + section {
   margin-top: 30px;
 }

@@ -1,5 +1,5 @@
 import "./style.css";
-import { authRedirect, downloadJson, installNativeBack, watchSafeArea } from "./platform.js";
+import { authRedirect, downloadJson, hasStoredSession, installNativeBack, watchSafeArea } from "./platform.js";
 import "./pet.css";
 import "./lumi-conversation.css";
 import "./lumi-chat.css";
@@ -18,6 +18,7 @@ import {
   terminalJob,
 } from "./ai-jobs.js";
 import {
+  AUTH_STORAGE_KEY,
   cloud,
   missing,
   checked,
@@ -93,6 +94,8 @@ let user = null,
   loadVersion = 0,
   toastTimer,
   dialog;
+// Con una sesión guardada no se muestra la portada mientras Supabase la recupera: sigue el esqueleto.
+let restoring = Boolean(cloud) && hasStoredSession(AUTH_STORAGE_KEY);
 const petControllers = new Map();
 let petPose = null;
 let disposePetMotionControls = null;
@@ -634,10 +637,23 @@ function shell(content) {
       "",
     )}</nav><p>Tus metas, un plan claro<br>y un paso a la vez.</p></aside><div class="app-body"><header class="app-header"><span class="cloud-state">● Tu espacio en la nube</span><div><button class="text-button" id="ai-jobs">Mis solicitudes de IA</button><span>${e(state?.profile.name || user.email)}</span><button class="text-button" id="logout">Cerrar sesión</button></div></header><main id="main"><div class="error panel" id="page-error" role="alert" hidden><p></p><button id="retry-load">Volver a cargar</button></div>${content}</main></div></div>`;
 }
+// Mismas piezas que el esqueleto de index.html (src/boot.css) mientras llegan las metas.
+function loadingSkeleton() {
+  const card =
+    '<div class="boot-card"><span class="sk sk-tag"></span><span class="sk sk-name"></span><span class="sk sk-bar"></span><span class="sk sk-meta"></span></div>';
+  return `<div class="boot" role="status"><span class="sr-only">Recuperando tus metas y tu progreso…</span><div class="boot-lines" aria-hidden="true"><span class="sk sk-eyebrow"></span><span class="sk sk-title"></span><span class="sk sk-lead"></span><div class="boot-cards">${card.repeat(3)}</div></div></div>`;
+}
 function render() {
   disposeBilling?.();
   disposeBilling = null;
   disposePets();
+  // El esqueleto de index.html pasa a #app mientras se recupera la sesión; al dibujar se descarta.
+  const boot = document.getElementById("boot");
+  if (!user && restoring) {
+    if (boot && boot.parentElement !== app) app.replaceChildren(boot);
+    return;
+  }
+  boot?.remove();
   if (!user) {
     landing();
     mountPets();
@@ -646,7 +662,7 @@ function render() {
   if (!state) {
     app.innerHTML = shell(
       loading
-        ? '<div class="loading-state" role="status">Recuperando tus metas y tu progreso…</div>'
+        ? loadingSkeleton()
         : '<div class="empty">No pudimos cargar tus datos.</div>',
     );
     bindShell();
@@ -1421,7 +1437,15 @@ render();
 if (cloud) {
   cloud.auth.onAuthStateChange((event, session) => {
     setTimeout(() => {
+      const wasRestoring = restoring;
+      restoring = false;
       if (event === "PASSWORD_RECOVERY") {
+        // Igual que antes del esqueleto: la portada queda detrás del formulario.
+        if (wasRestoring) {
+          document.getElementById("boot")?.remove();
+          landing();
+          mountPets();
+        }
         user = session?.user || null;
         authModal("reset");
         return;
@@ -1442,14 +1466,24 @@ if (cloud) {
       }
     }, 0);
   });
+  // Sólo se vuelve a dibujar si el esqueleto seguía esperando esta respuesta.
+  const stopRestoring = () => {
+    const was = restoring;
+    restoring = false;
+    return was;
+  };
   checked(cloud.auth.getSession())
     .then((data) => {
+      const waiting = stopRestoring();
       if (data.session) {
         user = data.session.user;
         const selectedPlan = consumeBillingIntent();
         if (selectedPlan) location.hash = `subscription?plan=${selectedPlan}`;
         refresh();
-      }
+      } else if (waiting) render();
     })
-    .catch((error) => toast(errorMessage(error)));
+    .catch((error) => {
+      if (stopRestoring()) render();
+      toast(errorMessage(error));
+    });
 }

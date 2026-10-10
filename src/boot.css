@@ -1,0 +1,224 @@
+/* Esqueleto de carga de index.html. Imita la estructura de la app (o de la portada si no hay
+   sesión guardada) mientras llega el JavaScript y Supabase recupera la sesión. */
+body {
+  margin: 0;
+  background: #f5f7f4;
+}
+.boot {
+  --sk: #e3ebe5;
+  --sk-hi: #f1f6f2;
+  font-family: Inter, "Segoe UI", system-ui, sans-serif;
+}
+.sk {
+  height: 12px;
+  border-radius: 8px;
+}
+.boot .sk {
+  display: block;
+  background: linear-gradient(90deg, var(--sk) 0 40%, var(--sk-hi) 50%, var(--sk) 60% 100%) 100% 0 / 300% 100%;
+  animation: boot-shine 1.4s ease-in-out infinite;
+}
+@keyframes boot-shine {
+  to {
+    background-position: 0 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .boot .sk {
+    animation: none;
+  }
+}
+
+/* App: barra lateral (abajo en teléfonos), cabecera y tarjetas como en «Hoy». */
+.boot-app {
+  display: none;
+  grid-template-columns: 225px 1fr;
+  min-height: 100vh;
+}
+html[data-boot="app"] .boot-app {
+  display: grid;
+}
+html[data-boot="app"] .boot-landing {
+  display: none;
+}
+.boot-side {
+  background: #fafcf8;
+  border-right: 1px solid #dce6df;
+  padding: 24px 20px;
+}
+.boot-side img {
+  display: block;
+  margin-bottom: 48px;
+}
+.boot-nav {
+  display: grid;
+  gap: 9px;
+}
+.boot-nav .sk {
+  height: 44px;
+}
+.boot-head {
+  height: 82px;
+  box-sizing: border-box;
+  border-bottom: 1px solid #dce6df;
+  background: #fafcf8;
+  padding: 34px 38px;
+}
+.boot-main {
+  padding: 35px 38px;
+  max-width: 1100px;
+}
+.boot-lines > .sk + .sk {
+  margin-top: 14px;
+}
+.boot-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 18px;
+  margin-top: 30px;
+}
+.boot-card {
+  background: #fff;
+  border: 1px solid #dce6df;
+  border-radius: 16px;
+  padding: 22px;
+  display: grid;
+  gap: 12px;
+}
+.sk-status {
+  width: 150px;
+  height: 14px;
+}
+.sk-eyebrow {
+  width: 110px;
+}
+.sk-title {
+  width: min(420px, 85%);
+  height: 34px;
+}
+.sk-lead {
+  width: min(360px, 70%);
+  height: 14px;
+}
+.sk-tag {
+  width: 40%;
+}
+.sk-name {
+  width: 80%;
+  height: 20px;
+}
+.sk-bar {
+  height: 8px;
+}
+.sk-meta {
+  width: 60%;
+}
+.boot-card:nth-child(2) .sk-name {
+  width: 70%;
+}
+.boot-card:nth-child(3) .sk-tag {
+  width: 30%;
+}
+
+/* Portada: cabecera con botones y el bloque principal. */
+.boot-landing {
+  max-width: 1220px;
+  margin: auto;
+  padding: 28px;
+}
+.boot-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 70px;
+}
+.boot-top div {
+  display: flex;
+  gap: 14px;
+}
+.sk-link {
+  width: 70px;
+  height: 38px;
+}
+.sk-pill {
+  width: 100px;
+  height: 38px;
+  border-radius: 999px;
+}
+.boot-hero {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 50px;
+  align-items: center;
+}
+.boot-hero > div {
+  display: grid;
+  gap: 16px;
+}
+.sk-hero {
+  width: 90%;
+  height: 54px;
+}
+.sk-short {
+  width: 70%;
+}
+.sk-cta {
+  width: 190px;
+  height: 48px;
+  border-radius: 999px;
+  margin-top: 8px;
+}
+.boot-example {
+  padding: 30px;
+}
+.sk-block {
+  height: 70px;
+  border-radius: 12px;
+}
+
+@media (max-width: 760px) {
+  html[data-boot="app"] .boot-app {
+    display: block;
+  }
+  .boot-side {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border: 0;
+    border-top: 1px solid #dce6df;
+    padding: 8px 6px calc(8px + env(safe-area-inset-bottom, 0px));
+  }
+  .boot-side img {
+    display: none;
+  }
+  .boot-nav {
+    display: flex;
+    gap: 6px;
+  }
+  .boot-nav .sk {
+    flex: 1;
+    height: 50px;
+  }
+  .boot-head {
+    height: 60px;
+    padding: 23px 17px;
+  }
+  .boot-main {
+    padding: 25px 17px;
+  }
+  .boot-landing {
+    padding: 18px;
+  }
+  .boot-top {
+    margin-bottom: 30px;
+  }
+  .boot-top img {
+    width: 130px;
+    height: auto;
+  }
+  .boot-hero {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+}
