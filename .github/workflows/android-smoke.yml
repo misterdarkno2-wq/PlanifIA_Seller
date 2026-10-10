@@ -61,11 +61,13 @@ jobs:
           ZIPALIGN="$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -n 1)zipalign"
           "$ZIPALIGN" -c -P 16 -v 4 artifacts/app-release.apk | grep -E "\.so|Verification"
           unzip -o -q artifacts/app-release.apk 'lib/*' -d "$RUNNER_TEMP/apk"
-          READELF="$(find "$ANDROID_NDK_LATEST_HOME" -name llvm-readelf -type f | head -n 1)"
+          # En el NDK de Linux llvm-readelf es un enlace simbólico (find -type f no lo encuentra).
+          READELF="$ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf"
+          "$READELF" --version | head -n 2
           for so in "$RUNNER_TEMP"/apk/lib/*/*.so; do
             align=$("$READELF" -lW "$so" | awk '$1 == "LOAD" { print $NF }' | sort -u | paste -sd ' ')
             echo "$so: $align"
-            case "$so" in */arm64-v8a/*|*/x86_64/*) [ "$align" = "0x4000" ] || { echo "::error::$so no está alineada a 16 KB"; exit 1; } ;; esac
+            case "$so" in */arm64-v8a/*|*/x86_64/*) [ "$align" = "0x4000" ] || { echo "::error::$so no está alineada a 16 KB (LOAD: ${align:-sin datos})"; exit 1; } ;; esac
           done
       - uses: actions/upload-artifact@v4
         with:
