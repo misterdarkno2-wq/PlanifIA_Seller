@@ -2,6 +2,8 @@
 
 **Tus metas, un plan claro y un paso a la vez.** Planificador para metas personales, profesionales, aprendizaje, bienestar, creatividad y proyectos. La interfaz es estática y se publica en GitHub Pages; Supabase almacena las cuentas y datos, y una Edge Function valida y guarda solicitudes en una cola persistente que procesa el servicio de Ollama en el PC.
 
+Para entender el proyecto y continuar el trabajo, empieza por la [guía de continuidad](docs/guia-continuidad-2026-10-09.md). La revisión del 9 de octubre incluye [hallazgos y correcciones](docs/auditoria-2026-10-09.md), [comparación real de modelos](docs/modelos-2026-10-09.md) y [verificación del despliegue](docs/despliegue-2026-10-09.md). Los resultados distinguen calidad, memoria y velocidad; no afirman un ahorro monetario sin medición.
+
 ## Repositorio y estado
 
 Este proyecto corresponde exclusivamente a `misterdarkno2-wq/PlanifIA_Seller`. La transformación inicial se desarrolló en `codex/metas-supabase`; las suscripciones se implementan en `codex/suscripciones-transbank`; la conversación de Lumi y la cola de IA en `codex/lumi-cola-ia`. La web se publica en [planifia.cl](https://planifia.cl/) mediante GitHub Pages. La dirección anterior era [GitHub Pages Seller](https://misterdarkno2-wq.github.io/PlanifIA_Seller/); Pages la redirige al dominio personalizado. Se reutilizan el logo, el símbolo y la ilustración original de Lumi de PlanifIA.

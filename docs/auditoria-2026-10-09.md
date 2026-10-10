@@ -1,6 +1,6 @@
 # Revisión de ingeniería, IA, seguridad y experiencia
 
-> Este documento conserva el diagnóstico y la verificación local inicial. En la continuación autorizada del 9 de octubre se publicaron `admob-ssv` v2, `goal-plan` v10 y `lumi-chat` v2, y se reinició el trabajador local con la corrección de reintentos. Los resultados posteriores de modelos y despliegue se documentan por separado; las menciones a «pendiente de desplegar» de abajo describen el estado inicial.
+> Este documento conserva el diagnóstico y la verificación local inicial. La continuación autorizada publicó `admob-ssv` v2, `goal-plan` v10 y finalmente `lumi-chat` v3, y actualizó el trabajador y la web. Consultar la [verificación del despliegue](despliegue-2026-10-09.md), la [evaluación de modelos](modelos-2026-10-09.md) y la [guía para continuar](guia-continuidad-2026-10-09.md). Las menciones a «pendiente de desplegar» de abajo describen el estado inicial, no el final.
 
 Fecha: 9 de octubre de 2026. Alcance: copia local de PlanifIA_Seller, sus migraciones, funciones, trabajador de IA, frontend y configuración Android disponible. No se modificó producción ni se ejecutaron compras, anuncios reales o pruebas contra cuentas reales. Se preservaron los cambios previos en Android y `.claude/`.
 

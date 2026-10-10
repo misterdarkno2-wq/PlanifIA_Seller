@@ -2,6 +2,8 @@
 
 Protocolo propuesto el 9 de octubre de 2026. Los escenarios siguientes todavía no se ejecutaron contra modelos reales durante esta auditoría. Las pruebas automatizadas existentes prueban contratos, permisos y límites mediante fixtures, no comprensión del modelo.
 
+Actualización de la continuación: se ejecutó una selección de estos casos con modelos locales reales. Consultar [resultados y límites de la muestra](modelos-2026-10-09.md); esta ejecución parcial no equivale a haber completado todo el protocolo, las revisiones independientes ni las pruebas de carga.
+
 ## Ejecución comparable
 
 Guardar dos versiones: base anterior al cambio y candidata. Registrar commit, hash del prompt, modelo y digest/quantización, versión de Ollama, `num_ctx`, `num_predict`, temperatura, hardware y concurrencia. Usar cuentas/contextos sintéticos y fecha de inicio fija; no cargar conversaciones reales sin consentimiento y anonimización.
