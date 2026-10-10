@@ -73,6 +73,11 @@ adb shell dumpsys webviewupdate | grep -E "Current WebView package|versionName" 
 # sus servicios («depends on provider ... in dying proc com.google.android.gms.persistent»).
 # Se espera a que el sistema se estabilice para no confundir eso con un fallo de la app.
 sleep 60
+# Las imágenes de 16 KB a veces reinician el sistema durante esa espera: se espera a que vuelva.
+for _ in $(seq 1 60); do
+  [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ] && adb shell pm path android >/dev/null 2>&1 && break
+  sleep 5
+done
 
 adb install -r "$APK" || { echo "No se pudo instalar el APK"; exit 1; }
 # Android 17 prepara la carpeta de datos de la app un momento después de instalarla. Abrirla en
