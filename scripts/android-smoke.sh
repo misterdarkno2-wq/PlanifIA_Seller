@@ -31,6 +31,7 @@ report() {
   annotate notice "Resultado ($DEVICE)" "$RESULTS"
   local errors
   errors=$( { adb logcat -b events -d | grep -E "am_crash|am_anr|am_proc_died" | grep -i planifia
+    grep -E "ActivityManager: Killing .*planifia" "$OUT/logcat.txt"
     grep -E "AndroidRuntime|FATAL|Fatal signal|panicked|UnsatisfiedLink|dlopen failed|chromium.*Uncaught|aw_browser_terminator|PlanifiaWebView|Planifia(Ads|Billing).*(rror|xception)" "$OUT/logcat.txt"; } | cut -c1-300 | head -n 60)
   if [ -n "$errors" ]; then annotate warning "Errores en logcat ($DEVICE)" "$errors"; fi
 }
@@ -67,6 +68,11 @@ open_app() {
 echo "== Dispositivo"
 echo "Android $(adb shell getprop ro.build.version.release | tr -d '\r') (API $(adb shell getprop ro.build.version.sdk | tr -d '\r')), ABI $(adb shell getprop ro.product.cpu.abi | tr -d '\r'), $DEVICE"
 adb shell dumpsys webviewupdate | grep -E "Current WebView package|versionName" | head -n 3
+
+# Recién encendido, el emulador actualiza Google Play Services y Android mata a las apps que usan
+# sus servicios («depends on provider ... in dying proc com.google.android.gms.persistent»).
+# Se espera a que el sistema se estabilice para no confundir eso con un fallo de la app.
+sleep 60
 
 adb install -r "$APK" || { echo "No se pudo instalar el APK"; exit 1; }
 adb logcat -c
