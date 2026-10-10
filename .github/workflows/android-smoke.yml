@@ -1,6 +1,7 @@
 name: Android en emulador
-# Compila el APK release (con R8, como el AAB de Google Play), lo abre en un emulador y
-# ejecuta los comandos nativos de anuncios y compras para detectar cierres de la app.
+# Compila el APK release (con R8, como el AAB de Google Play) y lo abre en emuladores de varias
+# versiones de Android: comprueba que la interfaz aparezca, ejecuta los comandos nativos de
+# anuncios y compras, cierra con Atrás, vuelve a abrir y recrea la actividad.
 on:
   push:
     branches: ["main", "claude/**", "feature/**"]
@@ -14,9 +15,9 @@ on:
 permissions:
   contents: read
 jobs:
-  emulador:
+  compilar:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -54,15 +55,40 @@ jobs:
           mkdir -p artifacts
           cp "$(find src-tauri/gen/android/app/build/outputs/apk -name '*release*.apk' | head -n 1)" artifacts/app-release.apk
           ls -la artifacts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk-release
+          path: artifacts/app-release.apk
+          retention-days: 7
+
+  emulador:
+    needs: compilar
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        # 26 = minSdk (Android 8). 37 = targetSdk (Android 17): activa los cambios de
+        # comportamiento que sólo aplican a apps que apuntan a esa versión.
+        api-level: [26, 29, 33, 35, 36, 37]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          name: apk-release
+          path: artifacts
       - name: Habilitar KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - name: Abrir la app en el emulador
+      - name: Abrir la app en Android API ${{ matrix.api-level }}
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35
+          api-level: ${{ matrix.api-level }}
           arch: x86_64
           target: google_apis
           disable-animations: true
@@ -71,6 +97,6 @@ jobs:
       - if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: android-smoke
-          path: artifacts/
+          name: android-smoke-api${{ matrix.api-level }}
+          path: artifacts/android-smoke/
           retention-days: 7

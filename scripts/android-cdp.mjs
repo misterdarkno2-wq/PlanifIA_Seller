@@ -1,6 +1,8 @@
 // Ejecuta en el WebView de la app (vía DevTools) los comandos nativos que la app usa al iniciar
-// sesión: anuncios y compras. Uso: node scripts/android-cdp.mjs 9222
+// sesión: anuncios y compras. Uso: node scripts/android-cdp.mjs 9222 [render]
+// Con "render" sólo comprueba que la interfaz se haya dibujado (sale con 1 si la pantalla está vacía).
 const port = process.argv[2] || "9222";
+const renderOnly = process.argv[3] === "render";
 const targets = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
 const page = targets.find((t) => t.type === "page") || targets[0];
 if (!page) throw new Error("El WebView no expone ninguna página.");
@@ -42,7 +44,25 @@ const invoke = (command, args = {}) =>
   `window.__TAURI_INTERNALS__.invoke(${JSON.stringify(command)}, ${JSON.stringify(args)})`;
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-await run("página", "Promise.resolve(location.href)");
+const rendered = await send("Runtime.evaluate", {
+  expression: `JSON.stringify({
+    url: location.href,
+    webview: navigator.userAgent.match(/Chrome\\/[\\d.]+/)?.[0] || navigator.userAgent,
+    nodes: document.querySelector("#app")?.childElementCount || 0,
+    text: (document.body?.innerText || "").trim().length,
+  })`,
+  returnByValue: true,
+});
+const view = JSON.parse(rendered?.result?.result?.value || "{}");
+console.log(`[cdp] interfaz: ${JSON.stringify(view)}`);
+if (renderOnly) {
+  ws.close();
+  if (!(view.nodes > 0 && view.text > 0)) {
+    console.log("[cdp] LA INTERFAZ NO SE DIBUJÓ (pantalla en blanco).");
+    process.exit(1);
+  }
+  process.exit(0);
+}
 await run("márgenes", 'Promise.resolve(window.PlanifiaInsets ? window.PlanifiaInsets.get() : "sin puente")');
 await run("ads init_ads", invoke("plugin:planifia-ads|init_ads"), 60000);
 await run("ads get_ads_state", invoke("plugin:planifia-ads|get_ads_state"));
