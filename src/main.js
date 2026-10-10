@@ -60,6 +60,12 @@ import {
   isAndroidApp,
 } from "./native-ads.js";
 import {
+  AD_FREE_FALLBACK_PRICE,
+  adFreeProduct,
+  adFreePurchaseOutcome,
+  mountAdFreeOffer,
+} from "./ad-free-offer.js";
+import {
   createPlayStore,
   getPremiumStatus,
   onPurchasesUpdated,
@@ -156,6 +162,30 @@ async function checkStore(force = false) {
     const restored = await playStore.restore();
     if (!restored.state) await refreshMonetization();
   } catch {}
+}
+// Al cerrar un video de AdMob se ofrece la compra única "Quitar anuncios".
+async function offerAdFree() {
+  const product = adFreeProduct(monetization);
+  if (!playStore || !product || !user) return;
+  const accountId = user.id;
+  const info = await playStore.products([], [product.product_id]).catch(() => null);
+  const price =
+    info?.products?.find((p) => p.productId === product.product_id)?.oneTime?.formattedPrice ||
+    AD_FREE_FALLBACK_PRICE;
+  if (user?.id !== accountId || !adFreeProduct(monetization)) return;
+  mountAdFreeOffer({
+    price,
+    async onBuy() {
+      const outcome = adFreePurchaseOutcome(
+        await playStore.purchase(product, { accountId }).catch(() => null),
+      );
+      if (outcome.done) {
+        toast(outcome.message);
+        void refreshMonetization().catch(() => {});
+      }
+      return outcome;
+    },
+  });
 }
 function stopMonetization() {
   monetization = null;
@@ -1028,7 +1058,11 @@ function goalForm(goal = null) {
         aiJobs.refresh();
         void refreshMonetization().catch(() => {});
         // Plan Gratis: un video mientras la IA trabaja (máx. uno cada 5 min; nunca en el primer plan).
-        void ads.aiVideo({ firstTime: !goal?.id && state.goals.length === 0 }).catch(() => {});
+        // Al cerrarlo se ofrece quitar los videos para siempre.
+        void ads
+          .aiVideo({ firstTime: !goal?.id && state.goals.length === 0 })
+          .then((shown) => shown && offerAdFree())
+          .catch(() => {});
         if (!waiting.isActive() || user?.id !== accountId) return;
         await new Promise((resolve) => {
           finishView = resolve;

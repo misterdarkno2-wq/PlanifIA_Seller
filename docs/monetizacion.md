@@ -6,7 +6,7 @@ Esta guía explica cómo funciona la monetización de PlanifIA en la app de Goog
 
 | Plan | Precio en Google Play | Créditos de IA | Metas activas | Anuncios |
 | --- | --- | --- | --- | --- |
-| Gratis | $0 | 60 de bienvenida + los que ganes | 3 | Video al usar la IA (máx. 1 cada 5 min, nunca en el primer plan) + recompensados voluntarios. Sin banner. La compra única "Quitar anuncios" ($2.900) quita los videos |
+| Gratis | $0 | 60 de bienvenida + los que ganes | 3 | Video al usar la IA (máx. 1 cada 5 min, nunca en el primer plan) + recompensados voluntarios. Sin banner. La compra única "Quitar anuncios" ($2.900) quita los videos; al cerrar cada video se ofrece esa compra |
 | Plus | Primer mes $900, luego $2.700/mes | 1.000 cada mes pagado | 15 | No |
 | Pro | Primer mes $1.900, luego $4.900/mes | 2.500 cada mes pagado | 50 | No |
 
@@ -217,7 +217,7 @@ npx.cmd supabase functions deploy admob-ssv
 
 ## 9. Compilar el AAB firmado y subir la versión
 
-La versión ya quedó en **2.3.0 (versionCode 20300)** en `src-tauri/tauri.conf.json`. Play rechaza un versionCode repetido: súbelo en cada nueva subida, por ejemplo 20301.
+La versión ya quedó en **2.3.1 (versionCode 20301)** en `src-tauri/tauri.conf.json`. Play rechaza un versionCode repetido: súbelo en cada nueva subida, por ejemplo 20302.
 
 Antes de compilar el AAB, el workflow **Android en emulador** (`.github/workflows/android-smoke.yml`) compila el APK release con R8, lo abre en un emulador y prueba anuncios y compras. Corre solo en `main` y en las ramas `claude/**`. La 2.2.1 se cerraba al abrir por R8 (constructores de WorkManager/Room); la regla está en `src-tauri/gen/android/app/proguard-rules.pro`.
 
@@ -240,6 +240,7 @@ Instala la app desde el enlace de prueba cerrada con una cuenta de prueba de lic
 - [ ] En **Ajustes → Anuncios y privacidad** se puede volver a abrir el formulario.
 - [ ] Al rechazar el consentimiento no aparecen anuncios.
 - [ ] No aparece ningún banner. En el plan Gratis, al crear o ajustar un plan con IA aparece un video, como máximo uno cada 5 minutos y nunca en el primer plan.
+- [ ] Al cerrar ese video aparece la tarjeta "Quitar anuncios por $2.900" con el precio de Google Play; "Ahora no" la cierra y la compra quita los videos sin reiniciar la app.
 - [ ] Con **Quitar anuncios** comprado (Mi plan → Planes), la IA ya no muestra videos y el anuncio voluntario para ganar créditos sigue disponible. **Restaurar compras** lo recupera en otro teléfono.
   - [ ] Nunca más de uno cada 5 minutos.
 - [ ] En **Mi plan → Ver anuncio**, al terminar el anuncio el saldo sube 10 créditos en unos segundos.

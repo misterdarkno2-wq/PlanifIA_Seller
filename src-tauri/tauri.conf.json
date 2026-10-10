@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "PlanifIA",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "identifier": "cl.planifia.app",
   "build": {
     "frontendDist": "../dist",
@@ -38,7 +38,7 @@
     ],
     "android": {
       "minSdkVersion": 26,
-      "versionCode": 20300,
+      "versionCode": 20301,
       "debugApplicationIdSuffix": ".debug"
     }
   }
