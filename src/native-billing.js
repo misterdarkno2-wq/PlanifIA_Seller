@@ -2,9 +2,15 @@ import { isAndroidApp } from "./native-ads.js";
 import { PLAY } from "./monetization-config.js";
 
 // Comandos del plugin planifia-billing. Fuera de Android responden "no disponible" sin error.
+// El módulo de Tauri se carga una vez: al volver a la app la consulta a Play sale de inmediato.
+let tauriCore = null;
 export async function billingCommand(command, args = {}) {
   if (!isAndroidApp()) return { available: false };
-  const { invoke } = await import("@tauri-apps/api/core");
+  tauriCore ||= import("@tauri-apps/api/core").catch((error) => {
+    tauriCore = null;
+    throw error;
+  });
+  const { invoke } = await tauriCore;
   return invoke(`plugin:planifia-billing|${command}`, args);
 }
 export async function onPurchasesUpdated(handler) {

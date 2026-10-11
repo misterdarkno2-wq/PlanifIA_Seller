@@ -257,7 +257,11 @@ async function offerUpdate() {
   const button = $("#update-now", host);
   button.onclick = async () => {
     button.disabled = true;
+    // Si la persona sale de la app durante la instalación, al volver se consulta otra vez a Play
+    // (aunque no hayan pasado 6 horas) para retomarla, como exige el flujo inmediato.
+    updatePending = true;
     const result = await appUpdate.start().catch(() => null);
+    if (result?.status === "cancelled") updatePending = required;
     if (!button.isConnected) return;
     button.disabled = false;
     // "started": Google Play instala y reinicia la app. "cancelled": la persona salió de Play.
