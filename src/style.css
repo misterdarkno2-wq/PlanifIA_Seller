@@ -484,6 +484,9 @@ main#main:not(.hero) {
 }
 .goal-card,
 .panel {
+  /* Un título largo sin espacios (hasta 160 caracteres) se corta en vez de ensanchar la página. */
+  min-width: 0;
+  overflow-wrap: anywhere;
   border: 1px solid var(--line);
   border-radius: 16px;
   background: white;
@@ -679,6 +682,7 @@ progress::-moz-progress-bar {
   max-height: calc(100dvh - 50px - var(--safe-top) - var(--safe-bottom));
   color: var(--dark);
   overflow: auto;
+  overflow-wrap: anywhere;
   box-shadow: 0 24px 100px #183c3b35;
 }
 .modal::backdrop {
