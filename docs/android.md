@@ -52,6 +52,16 @@ Sin clave privada de firma se genera un **Release sin firmar**, que no debe entr
 
 Si falta alguna de las cuatro, la compilación falla con una explicación. Guarda una copia segura de tu clave: futuras actualizaciones deben mantener la identidad de firma. Para Google Play genera el AAB con `npm.cmd run android:aab`, con la misma configuración de firma. El paquete de producción es `cl.planifia.app`. Los pasos de Play Console y la prueba cerrada están en [Google Play](google-play.md).
 
+## Aviso de versión nueva (2.3.3)
+
+Desde la 2.3.3, al abrir la app y al volver a ella (como máximo cada 6 horas), `src/app-update.js` pregunta a Google Play si hay una versión más nueva (Play In-App Updates, comandos `check_update` y `start_update` de `BillingPlugin.kt`). Si la hay, muestra «Hay una versión nueva de PlanifIA» con **Actualizar ahora**, que abre la pantalla de Play que descarga, instala y reinicia la app, y **Más tarde**, que pospone el aviso 24 horas.
+
+- **Obligatoria (sin «Más tarde»)** si la versión instalada tiene 14 días o más de atraso según Play, o si la versión publicada tiene prioridad 4 o 5. La prioridad no se fija en Play Console: se asigna al publicar con la API de publicación de Google Play (`inAppUpdatePriority`).
+- Una actualización interrumpida (por ejemplo, al salir de la pantalla de Play) se retoma al volver a la app.
+- No interrumpe un formulario abierto. En la web, en escritorio y en un APK instalado a mano no aparece: Play sólo responde a una app instalada desde Google Play.
+- **Sólo funciona desde la 2.3.3 en adelante:** quien tenga una versión anterior debe actualizar una vez desde Google Play; después, cada versión nueva le aparecerá dentro de la app.
+- Prueba: `npm run test:update-ui` (Play simulado) y `tests/app-update.test.js`. En el emulador sin Play Store la consulta falla sin afectar la app (`PlanifiaBilling: No se pudo consultar la actualización`). La prueba real requiere una app instalada desde la prueba cerrada y una versión mayor publicada en la misma pista.
+
 ## Compatibilidad: por qué "no se podía abrir" (2.3.2)
 
 Los betatesters reportaron que la app no abría. El workflow **Android en emulador** (`.github/workflows/android-smoke.yml`) compila el APK release (con R8, como el AAB) y lo abre en API 26, 29, 33, 35, 36 y 37.0, y en 36 y 37.2 con páginas de memoria de 16 KB. En cada uno comprueba que la interfaz se dibuje, ejecuta los comandos de anuncios y compras, cierra con Atrás y reabre, vuelve desde Inicio, recrea la actividad y hace caer el proceso del WebView. Las anotaciones públicas del run muestran el resultado de cada versión.
