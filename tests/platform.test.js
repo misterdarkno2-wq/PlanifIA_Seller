@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { backAction, authRedirect, isNative, downloadJson, requestSignal } from "../src/platform.js";
+import { backAction, authRedirect, isNative, downloadJson, requestSignal, hasStoredSession } from "../src/platform.js";
 
 test("Android Back closes modals before navigating, returns through history and exits at home", () => {
   assert.equal(backAction({ modalOpen: true, hash: "#today", canGoBack: true }), "modal");
@@ -58,4 +58,13 @@ test("fetch signals work on WebViews without AbortSignal.timeout/any (Android 8 
   assert.equal(requestSignal(60000, already.signal, old).aborted, true);
   // Con el AbortSignal moderno se usa la API nativa.
   assert.equal(requestSignal(60000, caller.signal).aborted, true);
+});
+
+test("the loading skeleton waits for a stored session instead of flashing the landing page", () => {
+  const storage = (value) => ({ getItem: (key) => (key === "planifia-seller-auth" ? value : null) });
+  assert.equal(hasStoredSession("planifia-seller-auth", storage('{"access_token":"x"}')), true);
+  assert.equal(hasStoredSession("planifia-seller-auth", storage(null)), false);
+  assert.equal(hasStoredSession("planifia-seller-auth", undefined), false);
+  // Navegación privada o almacenamiento bloqueado: getItem lanza un error.
+  assert.equal(hasStoredSession("planifia-seller-auth", { getItem() { throw new Error("SecurityError"); } }), false);
 });

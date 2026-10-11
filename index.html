@@ -10,11 +10,55 @@
     />
     <link rel="icon" href="./favicon.svg" />
     <link rel="apple-touch-icon" href="./assets/app-icon.png" />
+    <link rel="preload" href="./assets/planifia-logo.png" as="image" />
     <title>PlanifIA · Tus metas, paso a paso</title>
+    <!-- Esqueleto de carga: se pinta antes de que llegue el JavaScript; main.js lo quita al dibujar.
+         Sin estilos en línea: Tauri les pondría un nonce y la CSP dejaría de aceptar los atributos style. -->
+    <link rel="stylesheet" href="/src/boot.css" />
+    <script src="./boot.js"></script>
   </head>
   <body>
     <a href="#main" class="skip-link">Saltar al contenido</a>
     <div id="app"></div>
+    <div id="boot" class="boot" role="status" aria-label="Cargando PlanifIA">
+      <div class="boot-app" aria-hidden="true">
+        <div class="boot-side">
+          <img src="./assets/planifia-logo.png" alt="" width="166" height="55" />
+          <div class="boot-nav">
+            <span class="sk"></span><span class="sk"></span><span class="sk"></span><span class="sk"></span>
+            <span class="sk"></span><span class="sk"></span><span class="sk"></span><span class="sk"></span>
+          </div>
+        </div>
+        <div>
+          <div class="boot-head"><span class="sk sk-status"></span></div>
+          <div class="boot-main boot-lines">
+            <span class="sk sk-eyebrow"></span>
+            <span class="sk sk-title"></span>
+            <span class="sk sk-lead"></span>
+            <div class="boot-cards">
+              <div class="boot-card"><span class="sk sk-tag"></span><span class="sk sk-name"></span><span class="sk sk-bar"></span><span class="sk sk-meta"></span></div>
+              <div class="boot-card"><span class="sk sk-tag"></span><span class="sk sk-name"></span><span class="sk sk-bar"></span><span class="sk sk-meta"></span></div>
+              <div class="boot-card"><span class="sk sk-tag"></span><span class="sk sk-name"></span><span class="sk sk-bar"></span><span class="sk sk-meta"></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="boot-landing" aria-hidden="true">
+        <div class="boot-top">
+          <img src="./assets/planifia-logo.png" alt="" width="166" height="55" />
+          <div><span class="sk sk-link"></span><span class="sk sk-pill"></span></div>
+        </div>
+        <div class="boot-hero">
+          <div>
+            <span class="sk sk-eyebrow"></span>
+            <span class="sk sk-hero"></span><span class="sk sk-hero sk-short"></span>
+            <span class="sk sk-lead"></span>
+            <span class="sk sk-cta"></span>
+          </div>
+          <div class="boot-card boot-example"><span class="sk sk-tag"></span><span class="sk sk-name"></span><span class="sk sk-block"></span><span class="sk sk-block"></span></div>
+        </div>
+      </div>
+    </div>
     <div id="toast" role="status" aria-live="polite" hidden></div>
     <script src="./compat.js"></script>
     <script type="module" src="/src/main.js"></script>

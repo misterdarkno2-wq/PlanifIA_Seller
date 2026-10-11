@@ -2,6 +2,8 @@ import { createClient } from "@supabase/supabase-js";
 import { requestSignal } from "./platform.js";
 const url = import.meta.env.VITE_SUPABASE_URL?.trim();
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim();
+// public/boot.js lee la misma clave para elegir el esqueleto de carga.
+export const AUTH_STORAGE_KEY = "planifia-seller-auth";
 export const missing = [
   !url && "VITE_SUPABASE_URL",
   !key && "VITE_SUPABASE_PUBLISHABLE_KEY",
@@ -10,7 +12,7 @@ export const cloud = missing.length
   ? null
   : createClient(url, key, {
       auth: {
-        storageKey: "planifia-seller-auth",
+        storageKey: AUTH_STORAGE_KEY,
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,

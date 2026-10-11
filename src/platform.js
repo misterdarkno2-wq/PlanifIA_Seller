@@ -16,6 +16,15 @@ export function requestSignal(ms, signal, api = globalThis.AbortSignal) {
   return controller.signal;
 }
 
+// Hay una sesión guardada que Supabase todavía está recuperando (sin localStorage, no).
+export function hasStoredSession(key, storage = globalThis.localStorage) {
+  try {
+    return Boolean(storage?.getItem(key));
+  } catch {
+    return false;
+  }
+}
+
 export function backAction({ modalOpen, hash, canGoBack }) {
   if (modalOpen) return "modal";
   if (["", "#home", "#today"].includes(hash)) return "exit";

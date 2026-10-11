@@ -14,6 +14,9 @@
 
   function warn() {
     if (started() || document.getElementById("compat-warning")) return;
+    // El esqueleto de carga de index.html ya no va a ser reemplazado por la app.
+    var boot = document.getElementById("boot");
+    if (boot) boot.parentNode.removeChild(boot);
     var box = document.createElement("div");
     box.id = "compat-warning";
     box.setAttribute("role", "alert");
