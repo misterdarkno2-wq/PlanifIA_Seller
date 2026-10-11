@@ -1493,7 +1493,10 @@ if (cloud) {
         authModal("reset");
         return;
       }
+      // Al terminar la sesión o cambiar de cuenta se cierra cualquier diálogo abierto: un borrador o
+      // formulario de la cuenta anterior no debe quedar visible ni enviarse con la sesión nueva.
       if (!session) {
+        if (user) closeModal();
         companion.end();
         companionVoice.dispose();
         aiJobs.stop();
@@ -1503,6 +1506,7 @@ if (cloud) {
         loadVersion++;
         render();
       } else if (session.user.id !== user?.id) {
+        if (user) closeModal();
         user = session.user;
         state = null;
         refresh();
