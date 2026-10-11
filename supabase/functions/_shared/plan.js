@@ -215,9 +215,11 @@ export function fitSchedule(
         floor,
         Number.isInteger(t.day_offset) ? t.day_offset : 0,
       );
+      // Si no cabe desde el día sugerido, busca hacia atrás sólo hasta la acción anterior: una
+      // evaluación nunca queda antes de su preparación. Lo que no cabe se acorta o se retira.
       const ordered = [
         ...slots.filter((x) => x.offset >= preferred),
-        ...slots.filter((x) => x.offset < preferred).reverse(),
+        ...slots.filter((x) => x.offset >= floor && x.offset < preferred).reverse(),
       ];
       let slot = ordered.find((x) => room(x) >= t.minutes),
         minutes = t.minutes;
