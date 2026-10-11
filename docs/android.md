@@ -65,6 +65,18 @@ Los betatesters reportaron que la app no abría. El workflow **Android en emulad
 
 Resultado del 10 de octubre de 2026 (APK release x86_64): API 26, 29, 33, 35, 36 y 36 con 16 KB pasan todas las etapas; en 26 y 29, con el WebView de fábrica (69 y 74), se muestra el aviso de actualización. Android 17 (37.0 y 37.2) no pudo verificarse en el emulador de GitHub, porque esa imagen se reinicia sola durante la prueba; queda como prueba informativa y debe comprobarse en un teléfono con Android 17. Las pruebas usan emulador x86_64; arm64 y armv7 sólo se compilan.
 
+Prueba local del 11 de octubre de 2026 (emulador de Android Studio en Windows, APK release x86_64 con bloques de prueba de AdMob y sin iniciar sesión):
+
+| Emulador | 2.3.1 (la de los testers) | 2.3.2 |
+| --- | --- | --- |
+| Android 16, páginas de 4 KB, WebView 133 | Abre en 0,5 s; Atrás y reabrir, Inicio, rotar y tamaño de letra sin errores | — |
+| Android 16, páginas de 16 KB | Abre en 2,2 s; 65 s abierta sin caída del WebView; todas las etapas sin errores | Igual, y tras forzar la caída del WebView (`Page.crash`) la app sigue abierta y vuelve a dibujarse |
+| Android 17 (37.0) | No arranca: `surfaceflinger` se cae en `RegionSampling` cada 5–12 s, con GPU AMD y con `swiftshader` | — |
+
+En local la 2.3.1 no se cae con páginas de 16 KB: la caída del WebView del emulador de GitHub probablemente se debió a la falta de memoria del runner, que es justo el caso que cubre `onRenderProcessGone`. La pantalla en blanco reportada en un Pixel **no se reprodujo**; falta probar con sesión iniciada y en Android 17. Para el emulador local hace falta el controlador AEHD (`sc query aehd` en `RUNNING`) o la Plataforma del hipervisor de Windows.
+
+La 2.3.2 también muestra un esqueleto de carga (`index.html`, `src/boot.css`, `public/boot.js`) en vez de la pantalla en blanco mientras llega el JavaScript y Supabase recupera la sesión.
+
 La alineación de 16 KB de `libapp_lib.so` se comprueba en cada compilación del workflow. Antes de subir una versión, revisa también **Android vitals → Fallos y ANR** y el **informe previo al lanzamiento** en Play Console.
 
 **Límites externos:** Google Play Billing y AdMob están integrados con plugins propios (`src-tauri/plugins/`); para vender y mostrar anuncios reales debes completar la configuración de AdMob, Play Console, Google Cloud y Supabase descrita en [monetización](monetizacion.md). El SMTP propio de Supabase requiere un dominio de correo verificado para registros públicos; las pruebas administrativas no acreditan entrega de correos. La IA requiere que el servicio del PC esté encendido.
