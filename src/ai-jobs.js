@@ -58,7 +58,13 @@ export function createAiJobMonitor({
       const next = await list();
       if (revision !== version) return;
       const previous = new Map(jobs.map((job) => [job.id, job.status]));
-      jobs = next;
+      const known = new Map(jobs.map((job) => [job.id, job]));
+      // Un estado final no se revierte en el servidor: una lectura que salió antes de cancelar (red
+      // móvil lenta) no puede volver a mostrar el trabajo como pendiente.
+      jobs = next.map((job) => {
+        const before = known.get(job.id);
+        return before && terminalJob(before) && !terminalJob(job) ? before : job;
+      });
       error = null;
       for (const job of jobs) {
         const callbacks = watchers.get(job.id);
