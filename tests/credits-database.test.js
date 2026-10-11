@@ -160,12 +160,23 @@ test("Plus y Pro dan créditos mensuales que se gastan primero y no se acumulan 
   assert.equal(state.plan.id, "plus");
   assert.equal(state.credits.plan_available, 980);
 
-  // Al mes siguiente la ventana se renueva y lo no usado no se acumula.
+  // Pasar el mes sin un pago nuevo no entrega créditos (Google Play: período de gracia).
   await owner(db);
   await db.query(
     "update private.credit_accounts set window_start=now()-interval '1 month 1 day' where user_id=$1",
     [A],
   );
+  assert.equal((await monetization(db)).credits.plan_available, 980);
+  // La renovación pagada (orden nueva) abre el mes siguiente y lo no usado no se acumula.
+  await subscribe(db, A, "planifia_plus", "token-plus-0002", { order: "GPA.1..1" });
+  state = await monetization(db);
+  assert.equal(state.credits.plan_available, 1000);
+  // Repetir la misma orden (restaurar compras, notificación duplicada) no entrega otro mes.
+  await finish(db, await enqueue(db));
+  await subscribe(db, A, "planifia_plus", "token-plus-0002", { order: "GPA.1..1" });
+  assert.equal((await monetization(db)).credits.plan_available, 980);
+  await owner(db);
+  await db.query("update private.credit_accounts set plan_used=0 where user_id=$1", [A]);
   state = await monetization(db);
   assert.equal(state.credits.plan_available, 1000);
   await finish(db, await enqueue(db));
