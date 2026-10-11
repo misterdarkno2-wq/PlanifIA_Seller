@@ -103,6 +103,8 @@ export function createAdManager({
       const last = readLast();
       if (last && now() - last < AI_VIDEO_INTERVAL_MS) return false;
       if (!(await start())) return false;
+      // Mientras se preparaba pudo cerrarse la sesión o comprarse "Quitar anuncios": el SDK no lo sabe.
+      if (!wantsVideo()) return false;
       const result = await native("show_interstitial").catch(() => null);
       if (result?.shown) writeLast(now());
       return Boolean(result?.shown);
@@ -111,6 +113,7 @@ export function createAdManager({
     async rewarded(userId) {
       if (!eligible) return { shown: false, earned: false, reason: "not_eligible" };
       if (!(await start())) return { shown: false, earned: false, reason: "not_ready" };
+      if (!eligible) return { shown: false, earned: false, reason: "not_eligible" };
       let result = await native("show_rewarded", { userId });
       if (!result?.shown && result?.reason === "not_loaded") {
         const loaded = await native("load_rewarded");
