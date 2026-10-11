@@ -163,4 +163,35 @@ test("fitSchedule mantiene el orden de las acciones aunque la IA ponga días ant
   }, limits);
   const offsets = fitted.milestones.flatMap((m) => m.tasks.map((t) => t.day_offset));
   assert.deepEqual(offsets, [0, 2, 26, 26, 26]);
+
+  {
+    // Una evaluación necesita la preparación previa. Hay tiempo libre al inicio,
+    // pero la preparación está programada en el último día del horizonte.
+    const remainingDaily = Object.fromEntries(
+      Array.from({ length: 28 }, (_, offset) => {
+        const date = new Date("2026-10-05T12:00:00Z");
+        date.setUTCDate(date.getUTCDate() + offset);
+        return [date.toISOString().slice(0, 10), offset === 0 ? 60 : offset === 27 ? 30 : 0];
+      }),
+    );
+    const crowdedLimits = { ...limits, remainingDaily };
+    const crowdedPlan = {
+      ...proposal,
+      first_action: "Preparación previa",
+      milestones: [{ title: "Preparación y evaluación", tasks: [
+        task("Preparación previa", 27), task("Evaluación posterior", 0),
+      ] }],
+    };
+    const fitted = fitSchedule(crowdedPlan, crowdedLimits);
+    assert.doesNotThrow(() => validateProposal(fitted, crowdedLimits));
+    const tasks = fitted.milestones.flatMap((milestone) => milestone.tasks);
+    assert.ok(tasks.length > 0, "conserva la acción que sí cabe");
+    assert.equal(tasks[0].title, "Preparación previa");
+    for (let index = 1; index < tasks.length; index++) {
+      assert.ok(
+        tasks[index].day_offset >= tasks[index - 1].day_offset,
+        `no debe programar ${tasks[index].title} (día ${tasks[index].day_offset}) antes de ${tasks[index - 1].title} (día ${tasks[index - 1].day_offset})`,
+      );
+    }
+  }
 });

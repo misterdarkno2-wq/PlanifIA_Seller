@@ -69,3 +69,41 @@ test("Late polling results from a previous account are discarded", async (t) => 
   assert.equal(monitor.jobs[0].id, "second");
   monitor.stop();
 });
+
+test("Una lectura anterior a cancelar no revive un trabajo cuya cancelación ya confirmó el servidor", async (t) => {
+  let releasePoll;
+  const stalePoll = new Promise((resolve) => { releasePoll = resolve; });
+  let calls = 0;
+  const observed = [];
+  const monitor = createAiJobMonitor({
+    list: () => ++calls === 1
+      ? Promise.resolve([{ id: "owned", status: "queued" }])
+      : stalePoll,
+    cancel: async () => ({ id: "owned", status: "cancelled" }),
+    visibility: () => false,
+    pollMs: 60000,
+  });
+  t.after(() => monitor.stop());
+  let initialReady;
+  const ready = new Promise((resolve) => { initialReady = resolve; });
+  const unsubscribe = monitor.subscribe((jobs) => {
+    if (jobs.length) {
+      observed.push(jobs[0].status);
+      initialReady();
+    }
+  });
+  t.after(unsubscribe);
+  monitor.start("account");
+  await ready;
+
+  // Orden impuesto por barreras, sin sleeps: GET captura queued; RPC confirma
+  // cancelled; por último llega el GET viejo de la red móvil.
+  const inFlightRead = monitor.refresh();
+  await monitor.cancel("owned");
+  assert.equal(monitor.jobs[0].status, "cancelled");
+  releasePoll([{ id: "owned", status: "queued" }]);
+  await inFlightRead;
+
+  assert.equal(monitor.jobs[0].status, "cancelled",
+    `una respuesta vieja no debe revertir una cancelación confirmada; observado: ${observed.join(" -> ")}`);
+});
