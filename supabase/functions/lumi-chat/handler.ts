@@ -6,6 +6,7 @@ import { BodyTooLarge, readRequestText } from "../_shared/request-body.ts";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const RESTING = "Lumi está descansando, inténtalo más tarde. No se descontaron créditos.";
 export const BUSY = "Lumi está terminando un plan. Inténtalo en un minuto. No se descontaron créditos.";
+export const CLEARED = "La conversación se borró mientras Lumi respondía, así que la respuesta no se guardó. No se descontaron créditos.";
 const AI_TIMEOUT_MS = 35000;
 
 export const LUMI_SYSTEM = `Eres Lumi, la compañera virtual cálida de PlanifIA, una app que ayuda a cumplir metas paso a paso.
@@ -166,6 +167,10 @@ export async function handleLumiChat(req: Request) {
     p_reply: reply,
   });
   if (finished.error) {
+    // "Borrar conversación" (en este u otro dispositivo) ya canceló y devolvió este mensaje.
+    if (/ya no está disponible/.test(finished.error.message || "")) {
+      return json({ error: CLEARED, refunded: true }, 409, headers);
+    }
     return await failedReply(RESTING);
   }
   return json({ reply, credits: (finished.data as { credits?: number })?.credits ?? null }, 200, headers);

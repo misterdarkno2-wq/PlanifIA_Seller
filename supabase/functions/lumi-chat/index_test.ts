@@ -1,12 +1,12 @@
 // Contratos del chat de Lumi: Auth, base de datos y gateway son respuestas sintéticas, sin claves reales.
-import { cleanReply, handleLumiChat, lumiMessages, RESTING, BUSY } from "./handler.ts";
+import { cleanReply, handleLumiChat, lumiMessages, RESTING, BUSY, CLEARED } from "./handler.ts";
 
 function assert(condition: unknown, message = "Assertion failed") {
   if (!condition) throw new Error(message);
 }
 const REQUEST = "44444444-4444-4444-8444-444444444444";
 
-function setup({ ai = "ok", begin = "ok", refund = "ok" }: { ai?: string; begin?: string; refund?: string } = {}) {
+function setup({ ai = "ok", begin = "ok", refund = "ok", finish = "ok" }: { ai?: string; begin?: string; refund?: string; finish?: string } = {}) {
   const savedFetch = globalThis.fetch;
   const rpcs: { name: string; body: Record<string, unknown> }[] = [];
   let aiBody: Record<string, unknown> | null = null;
@@ -48,7 +48,9 @@ function setup({ ai = "ok", begin = "ok", refund = "ok" }: { ai?: string; begin?
           ],
         });
       }
-      if (rpc === "lumi_chat_finish") return Response.json({ credits: 55 });
+      if (rpc === "lumi_chat_finish") return finish === "cleared"
+        ? Response.json({ code: "P0001", message: "Este mensaje ya no está disponible." }, { status: 400 })
+        : Response.json({ credits: 55 });
       if (rpc === "lumi_chat_refund") return refund === "ok" ? Response.json(true)
         : Response.json({ code: "fixture", message: "offline" }, { status: 503 });
     }
@@ -166,6 +168,16 @@ Deno.test("Los nombres y metas editables nunca se promueven a instrucciones de s
   assert(!messages[0].content.includes(injection));
   const facts = JSON.parse(messages[1].content.split("\n").slice(1).join("\n"));
   assert(facts.name === injection && facts.goals[0].title === injection, "Preserva los datos sin elevar su autoridad");
+});
+
+Deno.test("Si la conversación se borró mientras Lumi respondía, avisa que no se cobró sin pedir otra devolución", async () => {
+  const f = setup({ finish: "cleared" });
+  try {
+    const response = await handleLumiChat(request());
+    const body = await response.json();
+    assert(response.status === 409 && body.refunded === true && body.error === CLEARED, body.error);
+    assert(!f.rpcs().some((r) => r.name === "lumi_chat_refund"), "lumi_chat_clear ya devolvió el cobro");
+  } finally { f.close(); }
 });
 
 Deno.test("No afirma que devolvió créditos si la base no confirmó la devolución", async () => {
