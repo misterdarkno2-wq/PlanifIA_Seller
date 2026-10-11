@@ -86,6 +86,12 @@ buildTypes {
     buildFeatures {
         buildConfig = true
     }
+    // La revisión de lint previa al release (lintVital) se cae analizando RustWebViewClient.kt, que
+    // wry regenera en cada compilación: "No fir element was found for KtParameter", un error del
+    // propio lint. Desde la 2.3.3 (Play In-App Updates) bloqueaba el AAB; la app no cambia.
+    lint {
+        checkReleaseBuilds = false
+    }
 }
 
 kotlin {
