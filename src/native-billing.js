@@ -71,21 +71,39 @@ export function createPlayStore({ native = billingCommand, verify, onState = () 
       }
     }
   }
-  // La misma compra llega por la respuesta de compra y por el aviso de Google: se verifica una vez.
+  // La misma compra llega por la respuesta de compra y por el aviso de Google, en cualquier orden:
+  // se verifica una vez. Si ya hay una verificación en curso para esa compra, se espera su resultado.
   const recent = new Map();
+  const inflight = new Map();
   async function sync(purchases = [], { skipRecent = false } = {}) {
     const now = Date.now();
-    const ready = purchases.filter(
-      (p) =>
-        p.state === "purchased" && p.productId && p.purchaseToken &&
-        !(skipRecent && now - (recent.get(p.purchaseToken) || 0) < 30000),
+    const valid = purchases.filter((p) => p.state === "purchased" && p.productId && p.purchaseToken);
+    const waiting = [...new Set(valid.map((p) => inflight.get(p.purchaseToken)).filter(Boolean))];
+    const ready = valid.filter(
+      (p) => !inflight.has(p.purchaseToken) && !(skipRecent && now - (recent.get(p.purchaseToken) || 0) < 30000),
     );
-    if (!ready.length) return { results: [], state: null };
-    for (const p of ready) recent.set(p.purchaseToken, now);
-    const response = await verify(ready.map((p) => ({ productId: p.productId, purchaseToken: p.purchaseToken })));
-    await finishLocally(response.results, ready);
-    if (response.state) onState(response.state);
-    return response;
+    let job = null;
+    if (ready.length) {
+      job = (async () => {
+        const response = await verify(ready.map((p) => ({ productId: p.productId, purchaseToken: p.purchaseToken })));
+        await finishLocally(response.results, ready);
+        if (response.state) onState(response.state);
+        return response;
+      })();
+      for (const p of ready) {
+        recent.set(p.purchaseToken, now);
+        inflight.set(p.purchaseToken, job);
+      }
+      job.catch(() => {}).finally(() => {
+        for (const p of ready) if (inflight.get(p.purchaseToken) === job) inflight.delete(p.purchaseToken);
+      });
+    }
+    const responses = await Promise.all(job ? [...waiting, job] : waiting);
+    if (responses.length === 1) return responses[0];
+    return {
+      results: responses.flatMap((r) => r?.results || []),
+      state: responses.map((r) => r?.state).filter(Boolean).at(-1) ?? null,
+    };
   }
   return {
     products: (subscriptions, products) => native("get_products", { subscriptions, products }),
