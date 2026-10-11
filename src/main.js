@@ -98,6 +98,8 @@ let user = null,
   dialog;
 // Con una sesión guardada no se muestra la portada mientras Supabase la recupera: sigue el esqueleto.
 let restoring = Boolean(cloud) && hasStoredSession(AUTH_STORAGE_KEY);
+// Día para el que se dibujó la vista de la cuenta (para redibujar al volver después de medianoche).
+let renderedDay = null;
 const petControllers = new Map();
 let petPose = null;
 let disposePetMotionControls = null;
@@ -217,6 +219,11 @@ onPurchasesUpdated((payload) => {
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible" && user) {
     void checkStore();
+    // Volver a la app otro día: "Hoy", los hábitos y el calendario se vuelven a dibujar y cargar.
+    if (state && renderedDay && renderedDay !== day()) {
+      render();
+      void refresh();
+    }
   }
   if (document.visibilityState === "visible") void offerUpdate();
 });
@@ -711,6 +718,7 @@ function render() {
     return;
   }
   const route = location.hash.slice(1).split("?")[0] || "today";
+  renderedDay = day();
   app.innerHTML = shell(
     (
       {
@@ -970,10 +978,15 @@ function bindActions() {
         busy(b, async () => {
           const before = state.pet;
           b.dataset.requestId ||= uuid();
+          // Se calcula al tocar, no al dibujar: si pasó la medianoche, "hecho" se refiere a ayer.
+          const today = day();
+          const done = state.completions.some(
+            (c) => c.habit_id === b.dataset.habit && c.day === today && c.completed,
+          );
           const result = await rpc("set_habit_completion", {
             p_id: b.dataset.habit,
-            p_day: day(),
-            p_completed: b.dataset.completed === "true",
+            p_day: today,
+            p_completed: !done,
             p_request_id: b.dataset.requestId,
           });
           await refresh();
