@@ -1,6 +1,6 @@
 ## Default Permission
 
-Permite a la ventana principal consultar productos, comprar y restaurar compras de Google Play.
+Permite a la ventana principal consultar productos, comprar y restaurar compras de Google Play, y buscar e instalar actualizaciones.
 
 #### This default permission set includes the following:
 
@@ -10,6 +10,8 @@ Permite a la ventana principal consultar productos, comprar y restaurar compras 
 - `allow-finish-purchase`
 - `allow-manage-subscriptions`
 - `allow-open-external`
+- `allow-check-update`
+- `allow-start-update`
 - `allow-register-listener`
 - `allow-remove-listener`
 
@@ -21,6 +23,32 @@ Permite a la ventana principal consultar productos, comprar y restaurar compras 
 <th>Description</th>
 </tr>
 
+
+<tr>
+<td>
+
+`planifia-billing:allow-check-update`
+
+</td>
+<td>
+
+Enables the check_update command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`planifia-billing:deny-check-update`
+
+</td>
+<td>
+
+Denies the check_update command without any pre-configured scope.
+
+</td>
+</tr>
 
 <tr>
 <td>
@@ -226,6 +254,32 @@ Enables the restore_purchases command without any pre-configured scope.
 <td>
 
 Denies the restore_purchases command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`planifia-billing:allow-start-update`
+
+</td>
+<td>
+
+Enables the start_update command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`planifia-billing:deny-start-update`
+
+</td>
+<td>
+
+Denies the start_update command without any pre-configured scope.
 
 </td>
 </tr>

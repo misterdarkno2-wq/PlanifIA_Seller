@@ -73,6 +73,7 @@ import {
   onPurchasesUpdated,
   rememberPlan,
 } from "./native-billing.js";
+import { createUpdateChecker } from "./app-update.js";
 import { validateProposal } from "../supabase/functions/_shared/plan.js";
 
 const app = document.querySelector("#app"),
@@ -217,7 +218,47 @@ document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible" && user) {
     void checkStore();
   }
+  if (document.visibilityState === "visible") void offerUpdate();
 });
+// Versión nueva en Google Play (sólo la app de Android). Se revisa al abrir y al volver a la app,
+// como máximo cada 6 horas, salvo si la actualización es obligatoria o quedó a medias.
+const appUpdate = createUpdateChecker();
+let updateCheckedAt = 0;
+let updatePending = false;
+async function offerUpdate() {
+  if (!isAndroidApp() || (!updatePending && Date.now() - updateCheckedAt < 6 * 60 * 60 * 1000)) return;
+  updateCheckedAt = Date.now();
+  const { action } = await appUpdate.check();
+  updatePending = action === "required" || action === "resume";
+  if (action === "none") return;
+  if (action === "resume") {
+    await appUpdate.start().catch(() => {});
+    return;
+  }
+  // No interrumpe un formulario abierto: se vuelve a revisar al regresar a la app.
+  if (dialog) {
+    updateCheckedAt = 0;
+    return;
+  }
+  const required = action === "required";
+  const host = modal(
+    "Hay una versión nueva de PlanifIA",
+    `<p>${required ? "Esta versión ya no recibe correcciones. Actualiza para seguir usando PlanifIA sin problemas." : "Actualiza para tener las últimas correcciones y mejoras."} Google Play la descarga y la app se vuelve a abrir sola.</p>${alert()}<div class="actions"><button id="update-now">Actualizar ahora</button>${required ? "" : '<button class="secondary" id="update-later">Más tarde</button>'}</div>`,
+  );
+  if (!required) host.addEventListener("close", () => appUpdate.later(), { once: true });
+  $("#update-later", host)?.addEventListener("click", closeModal);
+  const button = $("#update-now", host);
+  button.onclick = async () => {
+    button.disabled = true;
+    const result = await appUpdate.start().catch(() => null);
+    if (!button.isConnected) return;
+    button.disabled = false;
+    // "started": Google Play instala y reinicia la app. "cancelled": la persona salió de Play.
+    if (result?.status === "started") return;
+    if (result?.status === "cancelled") closeModal();
+    else formError(host, new Error("No pudimos abrir Google Play. Inténtalo de nuevo en un momento."));
+  };
+}
 function updateAiBadge() {
   const button = document.querySelector("#ai-jobs");
   if (!button) return;
@@ -1435,6 +1476,7 @@ window.addEventListener("pageshow", () => {
   mountBillingView();
 });
 render();
+void offerUpdate();
 if (cloud) {
   cloud.auth.onAuthStateChange((event, session) => {
     setTimeout(() => {

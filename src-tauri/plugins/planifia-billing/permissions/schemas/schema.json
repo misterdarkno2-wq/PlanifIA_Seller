@@ -295,6 +295,18 @@
       "type": "string",
       "oneOf": [
         {
+          "description": "Enables the check_update command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-check-update",
+          "markdownDescription": "Enables the check_update command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the check_update command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-check-update",
+          "markdownDescription": "Denies the check_update command without any pre-configured scope."
+        },
+        {
           "description": "Enables the finish_purchase command without any pre-configured scope.",
           "type": "string",
           "const": "allow-finish-purchase",
@@ -391,10 +403,22 @@
           "markdownDescription": "Denies the restore_purchases command without any pre-configured scope."
         },
         {
-          "description": "Permite a la ventana principal consultar productos, comprar y restaurar compras de Google Play.\n#### This default permission set includes:\n\n- `allow-get-products`\n- `allow-purchase`\n- `allow-restore-purchases`\n- `allow-finish-purchase`\n- `allow-manage-subscriptions`\n- `allow-open-external`\n- `allow-register-listener`\n- `allow-remove-listener`",
+          "description": "Enables the start_update command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-start-update",
+          "markdownDescription": "Enables the start_update command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the start_update command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-start-update",
+          "markdownDescription": "Denies the start_update command without any pre-configured scope."
+        },
+        {
+          "description": "Permite a la ventana principal consultar productos, comprar y restaurar compras de Google Play, y buscar e instalar actualizaciones.\n#### This default permission set includes:\n\n- `allow-get-products`\n- `allow-purchase`\n- `allow-restore-purchases`\n- `allow-finish-purchase`\n- `allow-manage-subscriptions`\n- `allow-open-external`\n- `allow-check-update`\n- `allow-start-update`\n- `allow-register-listener`\n- `allow-remove-listener`",
           "type": "string",
           "const": "default",
-          "markdownDescription": "Permite a la ventana principal consultar productos, comprar y restaurar compras de Google Play.\n#### This default permission set includes:\n\n- `allow-get-products`\n- `allow-purchase`\n- `allow-restore-purchases`\n- `allow-finish-purchase`\n- `allow-manage-subscriptions`\n- `allow-open-external`\n- `allow-register-listener`\n- `allow-remove-listener`"
+          "markdownDescription": "Permite a la ventana principal consultar productos, comprar y restaurar compras de Google Play, y buscar e instalar actualizaciones.\n#### This default permission set includes:\n\n- `allow-get-products`\n- `allow-purchase`\n- `allow-restore-purchases`\n- `allow-finish-purchase`\n- `allow-manage-subscriptions`\n- `allow-open-external`\n- `allow-check-update`\n- `allow-start-update`\n- `allow-register-listener`\n- `allow-remove-listener`"
         }
       ]
     }

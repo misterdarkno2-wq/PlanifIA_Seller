@@ -1,4 +1,4 @@
-//! Compras de Google Play para PlanifIA.
+//! Compras y actualizaciones de Google Play para PlanifIA.
 //!
 //! En Android los comandos los atiende `BillingPlugin.kt`. En escritorio (e iOS) cada comando
 //! responde `{ "available": false }`: allí no se venden suscripciones.
@@ -39,6 +39,14 @@ mod unavailable {
   pub fn open_external() -> Value {
     off()
   }
+  #[tauri::command]
+  pub fn check_update() -> Value {
+    off()
+  }
+  #[tauri::command]
+  pub fn start_update() -> Value {
+    off()
+  }
 }
 
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
@@ -51,6 +59,8 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
     unavailable::finish_purchase,
     unavailable::manage_subscriptions,
     unavailable::open_external,
+    unavailable::check_update,
+    unavailable::start_update,
   ]);
   builder
     .setup(|_app, _api| {

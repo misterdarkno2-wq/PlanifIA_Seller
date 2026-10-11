@@ -29,6 +29,8 @@ kotlin {
 dependencies {
     // Versión estable más reciente al 7-oct-2026: Play Billing Library 9.1.0.
     implementation("com.android.billingclient:billing:9.1.0")
+    // Avisar dentro de la app cuando hay una versión nueva en Google Play.
+    implementation("com.google.android.play:app-update:2.1.0")
     implementation("androidx.appcompat:appcompat:1.7.1")
     implementation(project(":tauri-android"))
 }

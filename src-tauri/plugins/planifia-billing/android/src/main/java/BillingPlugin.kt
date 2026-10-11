@@ -28,6 +28,12 @@ import com.android.billingclient.api.Purchase
 import com.android.billingclient.api.PurchasesUpdatedListener
 import com.android.billingclient.api.QueryProductDetailsParams
 import com.android.billingclient.api.QueryPurchasesParams
+import com.google.android.play.core.appupdate.AppUpdateInfo
+import com.google.android.play.core.appupdate.AppUpdateManager
+import com.google.android.play.core.appupdate.AppUpdateManagerFactory
+import com.google.android.play.core.appupdate.AppUpdateOptions
+import com.google.android.play.core.install.model.AppUpdateType
+import com.google.android.play.core.install.model.UpdateAvailability
 import java.util.concurrent.ConcurrentHashMap
 
 private const val TAG = "PlanifiaBilling"
@@ -453,6 +459,71 @@ class BillingPlugin(private val created: Activity) : Plugin(created), PurchasesU
       return
     }
     open(url, invoke)
+  }
+
+  // Actualizaciones dentro de la app (Play In-App Updates). Sólo responden en una app instalada
+  // desde Google Play; en un APK instalado a mano Play informa que no hay actualización.
+  private val updates: AppUpdateManager by lazy { AppUpdateManagerFactory.create(activity.applicationContext) }
+
+  private fun updateJson(info: AppUpdateInfo) = JSObject().apply {
+    put("available", true)
+    put(
+      "status",
+      when (info.updateAvailability()) {
+        UpdateAvailability.UPDATE_AVAILABLE -> "available"
+        // Una actualización inmediata que se interrumpió (por ejemplo, al salir de la app) debe retomarse.
+        UpdateAvailability.DEVELOPER_TRIGGERED_UPDATE_IN_PROGRESS -> "in_progress"
+        UpdateAvailability.UPDATE_NOT_AVAILABLE -> "none"
+        else -> "unknown"
+      },
+    )
+    put("versionCode", info.availableVersionCode())
+    put("immediate", info.isUpdateTypeAllowed(AppUpdateType.IMMEDIATE))
+    put("priority", info.updatePriority())
+    put("stalenessDays", info.clientVersionStalenessDays())
+  }
+
+  /** ¿Hay en Google Play una versión más nueva que la instalada? */
+  @Command
+  fun checkUpdate(invoke: Invoke) {
+    guard(invoke, "la búsqueda de actualizaciones") {
+      updates.appUpdateInfo
+        .addOnSuccessListener { info -> guard(invoke, "la búsqueda de actualizaciones") { invoke.resolve(updateJson(info)) } }
+        .addOnFailureListener { error ->
+          Log.w(TAG, "No se pudo consultar la actualización en Google Play", error)
+          invoke.resolve(result("available" to false, "status" to "error", "message" to (error.message ?: "")))
+        }
+    }
+  }
+
+  /** Abre la pantalla de Google Play que descarga e instala la versión nueva y reinicia la app. */
+  @Command
+  fun startUpdate(invoke: Invoke) {
+    guard(invoke, "la actualización") {
+      updates.appUpdateInfo
+        .addOnSuccessListener { info ->
+          activity.runOnUiThread {
+            guard(invoke, "la actualización") {
+              val pending = info.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE ||
+                info.updateAvailability() == UpdateAvailability.DEVELOPER_TRIGGERED_UPDATE_IN_PROGRESS
+              if (!pending || !info.isUpdateTypeAllowed(AppUpdateType.IMMEDIATE)) {
+                invoke.resolve(result("status" to "unavailable"))
+                return@guard
+              }
+              updates.startUpdateFlow(info, activity, AppUpdateOptions.defaultOptions(AppUpdateType.IMMEDIATE))
+                .addOnSuccessListener { code ->
+                  // Si termina bien, Play reinicia la app; si la persona la cierra, vuelve aquí.
+                  invoke.resolve(result("status" to if (code == Activity.RESULT_OK) "started" else "cancelled", "code" to code))
+                }
+                .addOnFailureListener { error ->
+                  Log.w(TAG, "No se pudo abrir la actualización de Google Play", error)
+                  invoke.resolve(result("status" to "error", "message" to (error.message ?: "")))
+                }
+            }
+          }
+        }
+        .addOnFailureListener { error -> invoke.resolve(result("status" to "error", "message" to (error.message ?: ""))) }
+    }
   }
 
   // onDestroy llega con cada actividad, no al final del proceso.

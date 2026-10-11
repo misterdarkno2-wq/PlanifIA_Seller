@@ -5,6 +5,8 @@ const COMMANDS: &[&str] = &[
   "finish_purchase",
   "manage_subscriptions",
   "open_external",
+  "check_update",
+  "start_update",
   "register_listener",
   "remove_listener",
 ];
