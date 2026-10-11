@@ -4,7 +4,7 @@ name: Android en emulador
 # anuncios y compras, cierra con Atrás, vuelve a abrir y recrea la actividad.
 on:
   push:
-    branches: ["main", "claude/**", "feature/**"]
+    branches: ["main", "claude/**", "feature/**", "release/**"]
     paths:
       - "src/**"
       - "src-tauri/**"
