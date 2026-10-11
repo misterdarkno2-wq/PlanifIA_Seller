@@ -71,3 +71,24 @@ Salidas de ejecución y captura conservadas en `artifacts/mobile-audit-2026-10-1
 | Sesiones revocadas, enlaces y despliegue | Faltan pruebas de revocación/caducidad reales, recuperación vencida y navegación con enlaces externos en WebView. Probar en entorno de pruebas: cerrar sesión desde otro dispositivo, revocar token, abrir enlace de recuperación vencido y URL no autorizada. Revisar que se solicite autenticación y no permanezcan datos privados. No se modificaron políticas remotas. |
 
 Para iOS, primero hace falta un proyecto Tauri/iOS, un host macOS y una instalación de pruebas. Después deben repetirse arranque/restauración, segundo plano, red interrumpida, navegación, teclado/áreas seguras y VoiceOver. Los plugins Android de pagos/anuncios/actualización no acreditan implementaciones equivalentes de iOS. No se puede afirmar cobertura nativa iOS con este repositorio y entorno.
+
+## Correcciones (versión 2.3.4)
+
+Los 12 hallazgos quedaron corregidos en la rama `release/2.3.4`, un commit por hallazgo; las 27 pruebas de `npm run test:mobile-regressions` pasan.
+
+| ID | Corrección |
+| --- | --- |
+| F1 | Al terminar la sesión o cambiar de cuenta se cierra cualquier diálogo abierto (`src/main.js`). |
+| F2 | Con plan sólo de Google Play, cada orden pagada nueva (`latestSuccessfulOrderId`) abre el mes de créditos; la gracia conserva el acceso sin entregar créditos (`202610110001_play_credit_orders.sql`). La prueba de créditos mensuales ahora renueva con una orden pagada. |
+| F3 | Los mensajes a Lumi sin respuesta también se devuelven al leer el saldo, así que un envío rechazado ya no revierte la devolución (`202610110002_lumi_chat_recovery.sql`). |
+| F4 | "Borrar conversación" cancela y devuelve los mensajes que esperan respuesta; `lumi-chat` avisa si la respuesta llega después. |
+| F5 | El estado del hábito se calcula al tocar y la vista se redibuja al volver otro día. |
+| F6 | `apply_goal_plan` cuenta las acciones de la meta que se planifica aunque esté pausada (`202610110003_paused_goal_capacity.sql`). |
+| F7 | `fitSchedule` busca hacia atrás sólo hasta la acción anterior. |
+| F8 | El monitor de IA no revierte un estado final con una lectura atrasada. |
+| F9 | Iniciar la actualización marca una pendiente; al volver se consulta y se retoma. |
+| F10 | `aiVideo` y `rewarded` revisan la elegibilidad justo antes de pedir el anuncio. |
+| F11 | Tarjetas, paneles y diálogos cortan palabras largas (`overflow-wrap: anywhere`). |
+| F12 | Una verificación de compra en curso se comparte entre la respuesta y el evento. |
+
+Para que lleguen a producción: aplicar las tres migraciones `202610110001`–`202610110003` en Supabase, desplegar las funciones `lumi-chat` y `goal-plan` (usa `_shared/plan.js`) y publicar la app 2.3.4. Las verificaciones en dispositivo de la sección anterior siguen pendientes.
