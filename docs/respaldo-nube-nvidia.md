@@ -36,7 +36,18 @@ Con el límite alcanzado, el chat devuelve los créditos y los planes siguen esp
 
 **Modelos.**
 - Local: el que ya tienes configurado (`qwen3.5:9b` para planes y `qwen3:4b-instruct` para el chat).
-- Nube: `NVIDIA_MODEL`, por defecto `meta/llama-3.3-70b-instruct`. Admite salida estructurada y escribe bien en español. Con `NVIDIA_CHAT_MODEL` puedes usar otro modelo sólo para el chat.
+- Nube: `NVIDIA_MODEL`, una lista separada por comas. Por defecto es `openai/gpt-oss-20b,z-ai/glm-5.3-flash`. Si NVIDIA retira un modelo (responde 404 o 410), se usa el siguiente sin cambiar nada. Con `NVIDIA_CHAT_MODEL` puedes usar otra lista sólo para el chat.
+- Prueba del 14 de octubre de 2026 con la clave real:
+
+  | Modelo | Chat en español | JSON Schema |
+  | --- | --- | --- |
+  | `openai/gpt-oss-20b` | 1,8 s | válido |
+  | `nvidia/nemotron-3-super-120b-a12b` | 1,2 s | inválido |
+  | `z-ai/glm-5.3-flash` | 59 s | válido |
+  | `google/gemma-4-31b-it`, `deepseek-ai/deepseek-v4.1-flash` | más de 60 s | — |
+  | `mistralai/mistral-large-2-instruct`, `moonshotai/kimi-k2.6` | 404 | — |
+
+  `meta/llama-3.3-70b-instruct`, el primer valor por defecto, responde 410 desde el 26 de agosto de 2026.
 - Los prompts de la nube agregan instrucciones de formato: texto plano sin razonamiento para Lumi, y sólo el objeto JSON para los planes.
 - Si el modelo elegido no acepta `response_format` con JSON Schema (la propuesta falla con "El proveedor de IA rechazó la solicitud"), configura `NVIDIA_PLAN_FORMAT=json_object` o `none`. La validación del servidor se aplica igual.
 
@@ -61,7 +72,7 @@ Ejecuta estos pasos en PowerShell, desde la carpeta del proyecto.
    Opcional, para otro modelo o formato:
 
    ```powershell
-   npx.cmd supabase secrets set NVIDIA_MODEL=meta/llama-3.3-70b-instruct NVIDIA_PLAN_FORMAT=json_schema
+   npx.cmd supabase secrets set NVIDIA_MODEL=openai/gpt-oss-20b,z-ai/glm-5.3-flash NVIDIA_PLAN_FORMAT=json_schema
    ```
 
    En `supabase/functions/.env.example` la clave queda comentada a propósito: así `secrets set --env-file` no la borra con un valor vacío.
@@ -121,4 +132,5 @@ Las pruebas simulan error de red, timeout, 502/503/530 de Cloudflare, respuestas
 
 - No hay streaming: la app no lo usaba. Las respuestas llegan completas y la app las "escribe" de a poco, igual con la IA local y con la nube.
 - Si cancelas un plan mientras lo prepara la nube, la propuesta se descarta igual que con la IA local, pero los tokens de NVIDIA ya se gastaron.
-- No pude confirmar en la documentación pública si la API alojada de NVIDIA acepta `response_format: json_schema` en cada modelo. Por eso existe `NVIDIA_PLAN_FORMAT`. Haz la prueba manual del plan después de cargar el secreto.
+- NVIDIA retira modelos sin aviso en la API: la lista pública de `/v1/models` todavía incluye algunos que ya no responden. Para elegir otro, prueba primero con una petición real.
+- No todos los modelos aceptan `response_format: json_schema` (Nemotron Super devolvió JSON inválido). Si cambias de modelo y los planes fallan con "rechazó la solicitud", usa `NVIDIA_PLAN_FORMAT=json_object`.

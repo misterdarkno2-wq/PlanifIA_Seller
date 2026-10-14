@@ -3,11 +3,14 @@ import { fitSchedule, PLAN_SCHEMA, SYSTEM, validateProposal } from "./plan.js";
 export class PlanGenerationError extends Error {
   readonly status: number;
   readonly retryable: boolean;
-  constructor(status: number, message: string, retryable = [429, 502, 504].includes(status)) {
+  /** Código HTTP del proveedor, p. ej. 410 cuando retiró el modelo. */
+  readonly providerStatus?: number;
+  constructor(status: number, message: string, retryable = [429, 502, 504].includes(status), providerStatus?: number) {
     super(message);
     this.name = "PlanGenerationError";
     this.status = status;
     this.retryable = retryable;
+    this.providerStatus = providerStatus;
   }
 }
 
@@ -259,6 +262,7 @@ export async function generateValidatedPlan({
             502,
             "El proveedor de IA rechazó la solicitud. Revisa el modelo y su configuración.",
             response.status >= 500,
+            response.status,
           );
         }
         let result;

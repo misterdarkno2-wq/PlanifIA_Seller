@@ -303,3 +303,32 @@ test("La app muestra un indicador discreto del origen de la IA", () => {
   assert.match(jobDescription({ status: "completed", provider: "cloud" }), /Preparada con IA en la nube/);
   assert.doesNotMatch(jobDescription({ status: "completed", provider: "local" }), /nube/);
 });
+
+test("Si NVIDIA retiró un modelo (404/410) el chat usa el siguiente de la lista; otros errores no", async () => {
+  const chain = cloudSettings((k) => ({ NVIDIA_API_KEY: "k", NVIDIA_MODEL: "viejo/retirado, nuevo/activo" })[k]);
+  assert.deepEqual(chain.models, ["viejo/retirado", "nuevo/activo"]);
+  assert.deepEqual(chain.chatModels, chain.models, "El chat usa la misma lista si no se configura otra");
+  for (const retired of [404, 410]) {
+    const asked = [];
+    const reply = await cloudChat({
+      settings: chain,
+      messages,
+      fetchImpl: async (_url, options) => {
+        const { model } = JSON.parse(options.body);
+        asked.push(model);
+        return model === "viejo/retirado"
+          ? Response.json({ title: "Gone" }, { status: retired })
+          : Response.json({ choices: [{ message: { content: "Hola" } }] });
+      },
+    });
+    assert.equal(reply, "Hola");
+    assert.deepEqual(asked, ["viejo/retirado", "nuevo/activo"]);
+  }
+  const asked = [];
+  await assert.rejects(
+    cloudChat({ settings: chain, messages, fetchImpl: async (_u, o) => (asked.push(JSON.parse(o.body).model), new Response("", { status: 401 })) }),
+    CloudUnavailable,
+  );
+  assert.deepEqual(asked, ["viejo/retirado"], "Una clave inválida no se arregla cambiando de modelo");
+  assert.deepEqual(cloudSettings((k) => ({ NVIDIA_API_KEY: "k" })[k]).models, ["openai/gpt-oss-20b", "z-ai/glm-5.3-flash"]);
+});

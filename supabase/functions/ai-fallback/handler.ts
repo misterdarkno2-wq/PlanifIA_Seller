@@ -4,7 +4,7 @@
 // cobraron al encolar y la base los devuelve si la solicitud termina en error o cancelada.
 import { createClient } from "npm:@supabase/supabase-js@2.58.0";
 import { BodyTooLarge, readRequestText } from "../_shared/request-body.ts";
-import { CLOUD_PLAN_ADDENDUM, CloudUnavailable, cloudSettings, type CloudSettings } from "../_shared/ai-fallback.ts";
+import { CLOUD_PLAN_ADDENDUM, CloudUnavailable, cloudSettings, isRetiredModel, type CloudSettings } from "../_shared/ai-fallback.ts";
 import { generateValidatedPlan, PlanGenerationError, planJobResult } from "../_shared/generate-plan.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -31,17 +31,28 @@ export async function runCloudJob(admin: SupabaseAdmin, job: ClaimedJob, setting
     problem: string | null = null,
     retry = false;
   try {
-    const proposal = await generateValidatedPlan({
-      endpoint: settings.endpoint,
-      apiKey: settings.apiKey,
-      model: settings.model,
-      requestData: job.payload.requestData,
-      limits: job.payload.limits,
-      budgetMs: job.timeout_ms,
-      systemAddendum: CLOUD_PLAN_ADDENDUM,
-      responseFormat: settings.planFormat,
-    });
-    result = planJobResult(job.payload, proposal);
+    let proposal;
+    for (const [index, model] of settings.models.entries()) {
+      try {
+        proposal = await generateValidatedPlan({
+          endpoint: settings.endpoint,
+          apiKey: settings.apiKey,
+          model,
+          requestData: job.payload.requestData,
+          limits: job.payload.limits,
+          budgetMs: job.timeout_ms,
+          systemAddendum: CLOUD_PLAN_ADDENDUM,
+          responseFormat: settings.planFormat,
+        });
+        break;
+      } catch (error) {
+        // Un modelo retirado (404/410) responde de inmediato: se prueba el siguiente de la lista.
+        const retired = error instanceof PlanGenerationError && isRetiredModel(error.providerStatus);
+        if (!retired || index === settings.models.length - 1) throw error;
+        console.error("ai-fallback model retired", model);
+      }
+    }
+    result = planJobResult(job.payload, proposal!);
   } catch (error) {
     problem =
       error instanceof PlanGenerationError

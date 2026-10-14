@@ -175,3 +175,27 @@ Deno.test("NVIDIA_MODEL y NVIDIA_PLAN_FORMAT cambian el modelo y el formato pedi
     assert(body.model === "qwen/qwen3.5-122b-a10b" && body.response_format.type === "json_object");
   } finally { f.close(); }
 });
+
+Deno.test("Si NVIDIA retiró el primer modelo (410), el plan se prepara con el siguiente de NVIDIA_MODEL", async () => {
+  const f = setup();
+  const savedFetch = globalThis.fetch;
+  const asked: string[] = [];
+  try {
+    Deno.env.set("NVIDIA_MODEL", "meta/llama-3.3-70b-instruct,openai/gpt-oss-20b");
+    globalThis.fetch = async (input, options) => {
+      if (String(input).includes("integrate.api.nvidia.com")) {
+        const model = JSON.parse(String(options?.body)).model;
+        asked.push(model);
+        if (model === "meta/llama-3.3-70b-instruct") return Response.json({ title: "Gone" }, { status: 410 });
+      }
+      return savedFetch(input, options);
+    };
+    assert((await handleAiFallback(request())).status === 202);
+    const finish = f.finish() as { p_result: { proposal: Record<string, unknown> }; p_error: unknown };
+    assert(finish.p_error === null && finish.p_result.proposal.title === "Aprender a dibujar");
+    assert(JSON.stringify(asked) === JSON.stringify(["meta/llama-3.3-70b-instruct", "openai/gpt-oss-20b"]), asked.join());
+  } finally {
+    globalThis.fetch = savedFetch;
+    f.close();
+  }
+});

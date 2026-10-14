@@ -3,8 +3,13 @@
 // Sin imports npm: también lo cargan las pruebas de Node en tests/.
 
 export const NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1";
-/** Modelo de build.nvidia.com con salida estructurada y buen español; se cambia con NVIDIA_MODEL. */
-export const NVIDIA_DEFAULT_MODEL = "meta/llama-3.3-70b-instruct";
+/**
+ * Modelos de build.nvidia.com probados el 2026-10-14 con chat en español y JSON Schema. NVIDIA retira
+ * modelos (meta/llama-3.3-70b-instruct responde 410 desde el 2026-08-26): ante 404/410 se usa el
+ * siguiente. Se cambian con NVIDIA_MODEL, que acepta una lista separada por comas.
+ */
+export const NVIDIA_DEFAULT_MODELS = ["openai/gpt-oss-20b", "z-ai/glm-5.3-flash"];
+export const NVIDIA_DEFAULT_MODEL = NVIDIA_DEFAULT_MODELS[0];
 const MODEL_NAME = /^[A-Za-z0-9_./:-]{1,200}$/;
 const LOCAL_TIMEOUT_MS = 35000;
 const CLOUD_CHAT_TIMEOUT_MS = 25000;
@@ -14,8 +19,11 @@ export type PlanFormat = "json_schema" | "json_object" | "none";
 export type CloudSettings = {
   apiKey: string;
   endpoint: string;
+  /** Primer modelo de cada lista; los siguientes se usan si NVIDIA retiró el anterior. */
   model: string;
   chatModel: string;
+  models: string[];
+  chatModels: string[];
   planFormat: PlanFormat;
 };
 type ChatMessage = { role: string; content: string };
@@ -40,9 +48,11 @@ export class LocalBusy extends Error {
 }
 /** La nube tampoco respondió o no está configurada. */
 export class CloudUnavailable extends Error {
-  constructor(message = "IA en la nube no disponible") {
+  status?: number;
+  constructor(message = "IA en la nube no disponible", status?: number) {
     super(message);
     this.name = "CloudUnavailable";
+    this.status = status;
   }
 }
 
@@ -58,21 +68,29 @@ export class CloudLimited extends Error {
 export function cloudSettings(get: EnvGetter = denoEnv): CloudSettings | null {
   const apiKey = (get("NVIDIA_API_KEY") || "").trim();
   if (!apiKey) return null;
-  const model = (get("NVIDIA_MODEL") || "").trim() || NVIDIA_DEFAULT_MODEL;
-  const chatModel = (get("NVIDIA_CHAT_MODEL") || "").trim() || model;
-  if (!MODEL_NAME.test(model) || !MODEL_NAME.test(chatModel))
-    throw new CloudUnavailable("NVIDIA_MODEL o NVIDIA_CHAT_MODEL tiene un nombre inválido.");
+  const list = (value: string | undefined) => (value || "").split(",").map((m) => m.trim()).filter(Boolean);
+  const models = list(get("NVIDIA_MODEL"));
+  if (!models.length) models.push(...NVIDIA_DEFAULT_MODELS);
+  const chatModels = list(get("NVIDIA_CHAT_MODEL"));
+  if (!chatModels.length) chatModels.push(...models);
+  if (models.length > 5 || chatModels.length > 5 || ![...models, ...chatModels].every((m) => MODEL_NAME.test(m)))
+    throw new CloudUnavailable("NVIDIA_MODEL o NVIDIA_CHAT_MODEL tiene un nombre inválido (máximo 5 por lista).");
   const format = (get("NVIDIA_PLAN_FORMAT") || "json_schema").trim();
   if (!["json_schema", "json_object", "none"].includes(format))
     throw new CloudUnavailable("NVIDIA_PLAN_FORMAT debe ser json_schema, json_object o none.");
   return {
     apiKey,
     endpoint: `${NVIDIA_BASE_URL}/chat/completions`,
-    model,
-    chatModel,
+    model: models[0],
+    chatModel: chatModels[0],
+    models,
+    chatModels,
     planFormat: format as PlanFormat,
   };
 }
+
+/** NVIDIA retiró el modelo (410) o no lo ofrece (404): se prueba el siguiente de la lista. */
+export const isRetiredModel = (status: number | undefined) => status === 404 || status === 410;
 
 /**
  * ¿Es una caída de la IA local? Sí: error de red, timeout, 5xx (502/503/504 del gateway,
@@ -144,7 +162,8 @@ export async function cloudChat({
   settings,
   messages,
   temperature = 0.7,
-  maxTokens = 220,
+  // Holgura para modelos que razonan antes de responder (gpt-oss); Lumi igual responde en 1 a 4 frases.
+  maxTokens = 700,
   timeoutMs = CLOUD_CHAT_TIMEOUT_MS,
   fetchImpl = fetch,
 }: {
@@ -156,6 +175,36 @@ export async function cloudChat({
   fetchImpl?: typeof fetch;
 }) {
   if (!settings) throw new CloudUnavailable("Falta NVIDIA_API_KEY");
+  const deadline = Date.now() + timeoutMs;
+  let lastError = new CloudUnavailable("Sin modelos configurados");
+  for (const model of settings.chatModels) {
+    try {
+      return await cloudChatOnce({ settings, model, messages, temperature, maxTokens, timeoutMs: deadline - Date.now(), fetchImpl });
+    } catch (error) {
+      if (!(error instanceof CloudUnavailable) || !isRetiredModel(error.status) || deadline <= Date.now()) throw error;
+      lastError = error;
+    }
+  }
+  throw lastError;
+}
+
+async function cloudChatOnce({
+  settings,
+  model,
+  messages,
+  temperature,
+  maxTokens,
+  timeoutMs,
+  fetchImpl,
+}: {
+  settings: CloudSettings;
+  model: string;
+  messages: ChatMessage[];
+  temperature: number;
+  maxTokens: number;
+  timeoutMs: number;
+  fetchImpl: typeof fetch;
+}) {
   let response: Response;
   try {
     response = await fetchImpl(settings.endpoint, {
@@ -168,7 +217,7 @@ export async function cloudChat({
         Accept: "application/json",
       },
       body: JSON.stringify({
-        model: settings.chatModel,
+        model,
         messages,
         temperature,
         max_tokens: maxTokens,
@@ -180,7 +229,7 @@ export async function cloudChat({
   }
   if (!response.ok) {
     await response.body?.cancel();
-    throw new CloudUnavailable(`HTTP ${response.status}`);
+    throw new CloudUnavailable(`HTTP ${response.status} (${model})`, response.status);
   }
   let content: unknown;
   try {
