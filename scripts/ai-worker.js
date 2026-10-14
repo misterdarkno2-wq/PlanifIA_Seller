@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import {
   generateValidatedPlan,
   PlanGenerationError,
+  planJobResult,
 } from "../supabase/functions/_shared/generate-plan.ts";
 
 /** One loop per slot. PostgreSQL owns scheduling, leases, retries and quotas. */
@@ -11,11 +12,15 @@ export function startAiWorker({
   pollMs = 3000,
   heartbeatMs = 10000,
   onError = () => {},
+  onStatus = () => {},
+  /** false = Ollama no responde: no se toma trabajo ni se renueva la señal de "PC encendido". */
+  ready = async () => true,
 }) {
   let stopped = false,
     timer,
     active = null,
-    pulse;
+    pulse,
+    paused = false;
   const invoke = async (name, args) => {
     const { data, error } = await rpc(name, args);
     if (error) throw new Error("No pudimos acceder a la cola privada.");
@@ -24,6 +29,15 @@ export function startAiWorker({
   async function tick() {
     if (stopped) return;
     try {
+      const healthy = await ready().catch(() => false);
+      if (stopped) return;
+      if (!healthy) {
+        if (!paused) onError("Ollama no responde: la cola queda en espera y la IA de respaldo atiende mientras tanto.");
+        paused = true;
+        return;
+      }
+      if (paused) onStatus("Ollama responde de nuevo: la IA local vuelve a atender la cola.");
+      paused = false;
       const job = await invoke("claim_ai_job");
       if (job && !stopped) {
         const controller = new AbortController();
@@ -95,7 +109,7 @@ export function startAiWorker({
   };
 }
 
-export function startConfiguredWorker(gateway, env = process.env) {
+export function startConfiguredWorker(gateway, env = process.env, { ready } = {}) {
   const url = env.QUEUE_SUPABASE_URL,
     key = env.QUEUE_SERVICE_ROLE_KEY;
   if (!url || !key)
@@ -128,8 +142,10 @@ export function startConfiguredWorker(gateway, env = process.env) {
     startAiWorker({
       rpc: (name, args) => client.rpc(name, args),
       onError: console.error,
+      onStatus: console.log,
+      ready,
       generate: async (job, signal) => {
-        const { requestData, limits, goal_id, expected_version } = job.payload;
+        const { requestData, limits } = job.payload;
         const proposal = await generateValidatedPlan({
           endpoint: `http://127.0.0.1:${gateway.port}/v1/chat/completions`,
           apiKey: gateway.secret,
@@ -140,22 +156,7 @@ export function startConfiguredWorker(gateway, env = process.env) {
           allowLoopback: true,
           budgetMs: job.timeout_ms,
         });
-        return {
-          proposal: {
-            ...proposal,
-            start_date: limits.startDate,
-            target_date: limits.targetDate,
-            weekly_minutes: limits.weeklyMinutes,
-            current_situation: requestData.current_situation || "",
-          },
-          constraints: {
-            remainingDaily: limits.remainingDaily,
-            remainingWeekly: limits.remainingWeekly,
-            availableDays: limits.availableDays,
-          },
-          goal_id,
-          expected_version,
-        };
+        return planJobResult(job.payload, proposal);
       },
     }),
   );

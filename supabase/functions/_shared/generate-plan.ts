@@ -32,6 +32,10 @@ type GenerationOptions = {
   signal?: AbortSignal;
   /** Private worker may call only the loopback gateway over HTTP. */
   allowLoopback?: boolean;
+  /** Instrucciones extra para proveedores que se comportan distinto (respaldo en la nube). */
+  systemAddendum?: string;
+  /** Algunos proveedores no aceptan json_schema; la validación local se aplica siempre. */
+  responseFormat?: "json_schema" | "json_object" | "none";
 };
 
 const timeoutError = () =>
@@ -83,6 +87,45 @@ async function withinBudget<T>(
   }
 }
 
+/** JSON de la propuesta; tolera un bloque ```json que algunos modelos agregan aunque se les pida no hacerlo. */
+export function parseJsonContent(content: string) {
+  try {
+    return JSON.parse(content);
+  } catch (error) {
+    const fenced = content.match(/^\s*```(?:json)?\s*([\s\S]*?)\s*```\s*$/i)?.[1];
+    if (fenced === undefined) throw error;
+    return JSON.parse(fenced);
+  }
+}
+
+type JobPayload = {
+  requestData: Record<string, unknown> & { current_situation?: unknown };
+  limits: PlanLimits;
+  goal_id: string | null;
+  expected_version: number | null;
+};
+
+/** Resultado que se guarda en la cola, idéntico para la IA local y la de respaldo. */
+export function planJobResult(payload: JobPayload, proposal: Record<string, unknown>) {
+  const { requestData, limits, goal_id, expected_version } = payload;
+  return {
+    proposal: {
+      ...proposal,
+      start_date: limits.startDate,
+      target_date: limits.targetDate,
+      weekly_minutes: limits.weeklyMinutes,
+      current_situation: requestData.current_situation || "",
+    },
+    constraints: {
+      remainingDaily: limits.remainingDaily,
+      remainingWeekly: limits.remainingWeekly,
+      availableDays: limits.availableDays,
+    },
+    goal_id,
+    expected_version,
+  };
+}
+
 /** Generates at most twice, validating every result without saving a plan. */
 export async function generateValidatedPlan({
   endpoint,
@@ -94,6 +137,8 @@ export async function generateValidatedPlan({
   budgetMs = 125000,
   signal,
   allowLoopback = false,
+  systemAddendum = "",
+  responseFormat = "json_schema",
 }: GenerationOptions) {
   if (!Number.isInteger(budgetMs) || budgetMs < 1 || budgetMs > 125000)
     throw new PlanGenerationError(
@@ -150,7 +195,7 @@ export async function generateValidatedPlan({
       "remainingWeekly indica el máximo TOTAL de minutos de todas las acciones nuevas en cada semana de siete días desde startDate, no el tiempo de cada acción. Suma los minutos antes de responder. remainingDaily fija el máximo TOTAL exacto de cada fecha. Respeta ambos límites y reduce el número o duración de las acciones cuando sea necesario.",
   };
   const originalMessages = [
-    { role: "system", content: SYSTEM },
+    { role: "system", content: systemAddendum ? `${SYSTEM}\n${systemAddendum}` : SYSTEM },
     { role: "user", content: JSON.stringify(payload) },
   ];
   let problem = "";
@@ -185,14 +230,21 @@ export async function generateValidatedPlan({
             model,
             temperature: 0.2,
             max_tokens: 6000,
-            response_format: {
-              type: "json_schema",
-              json_schema: {
-                name: "goal_plan",
-                strict: true,
-                schema: PLAN_SCHEMA,
-              },
-            },
+            ...(responseFormat === "none"
+              ? {}
+              : {
+                  response_format:
+                    responseFormat === "json_object"
+                      ? { type: "json_object" }
+                      : {
+                          type: "json_schema",
+                          json_schema: {
+                            name: "goal_plan",
+                            strict: true,
+                            schema: PLAN_SCHEMA,
+                          },
+                        },
+                }),
             messages,
           }),
         });
@@ -237,7 +289,7 @@ export async function generateValidatedPlan({
     );
     let parsed;
     try {
-      parsed = JSON.parse(content);
+      parsed = parseJsonContent(content);
     } catch {
       problem =
         "La propuesta no es un JSON válido. Devuelve únicamente el objeto JSON solicitado, sin texto ni bloques de código.";

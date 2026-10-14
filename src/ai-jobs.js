@@ -14,14 +14,16 @@ export function jobDescription(job) {
       job.estimated_seconds === null || job.estimated_seconds === undefined
         ? "Tiempo variable; aún no hay suficientes datos."
         : `Espera aproximada: ${Math.max(1, Math.ceil(job.estimated_seconds / 60))} min. Puede cambiar.`;
-    return `${position}${job.worker_online ? estimate : "La GPU está desconectada; tu solicitud sigue guardada."} Prioridad según tu plan ${{ free: "Gratis", plus: "Plus", pro: "Pro" }[job.plan_id] || ""}, sin atención inmediata garantizada.`;
+    return `${position}${job.worker_online ? estimate : "La IA local está desconectada; la IA en la nube (respaldo) preparará tu propuesta. Tu solicitud sigue guardada."} Prioridad según tu plan ${{ free: "Gratis", plus: "Plus", pro: "Pro" }[job.plan_id] || ""}, sin atención inmediata garantizada.`;
   }
   if (job.status === "processing")
     return job.cancel_requested
       ? "Cancelación solicitada. Esperamos a que el servicio confirme la interrupción; no se guardará la propuesta."
-      : "La GPU está preparando la propuesta. Puedes navegar o cerrar la página y recuperarla al volver.";
+      : job.provider === "cloud"
+        ? "La IA en la nube (respaldo) está preparando la propuesta. Puedes navegar o cerrar la página y recuperarla al volver."
+        : "La IA local está preparando la propuesta. Puedes navegar o cerrar la página y recuperarla al volver.";
   if (job.status === "completed")
-    return "Tu propuesta está lista para revisar. La meta no cambia hasta que la confirmes.";
+    return `Tu propuesta está lista para revisar. La meta no cambia hasta que la confirmes.${job.provider === "cloud" ? " Preparada con IA en la nube (respaldo)." : ""}`;
   if (job.status === "cancelled")
     return "Solicitud cancelada. Tus metas se conservan.";
   return (

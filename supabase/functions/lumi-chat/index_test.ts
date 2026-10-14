@@ -1,17 +1,24 @@
 // Contratos del chat de Lumi: Auth, base de datos y gateway son respuestas sintéticas, sin claves reales.
-import { cleanReply, handleLumiChat, lumiMessages, RESTING, BUSY, CLEARED } from "./handler.ts";
+import { cleanReply, handleLumiChat, lumiMessages, RESTING, BUSY, CLEARED, CLOUD_LIMITED } from "./handler.ts";
+import { NVIDIA_DEFAULT_MODEL } from "../_shared/ai-fallback.ts";
 
 function assert(condition: unknown, message = "Assertion failed") {
   if (!condition) throw new Error(message);
 }
 const REQUEST = "44444444-4444-4444-8444-444444444444";
 
-function setup({ ai = "ok", begin = "ok", refund = "ok", finish = "ok" }: { ai?: string; begin?: string; refund?: string; finish?: string } = {}) {
+// cloud: "none" = sin NVIDIA_API_KEY (sin respaldo), "ok" o "down". online: señal del trabajador del PC.
+function setup({ ai = "ok", begin = "ok", refund = "ok", finish = "ok", cloud = "none", online = true, take = true }: {
+  ai?: string; begin?: string; refund?: string; finish?: string; cloud?: string; online?: boolean; take?: boolean;
+} = {}) {
   const savedFetch = globalThis.fetch;
   const rpcs: { name: string; body: Record<string, unknown> }[] = [];
   let aiBody: Record<string, unknown> | null = null;
   let aiAuth = "";
-  const keys = ["SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY", "AI_BASE_URL", "AI_API_KEY", "ALLOWED_ORIGINS"];
+  let cloudBody: { model: string; messages: { role: string; content: string }[] } | null = null;
+  let cloudAuth = "";
+  const keys = ["SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY", "AI_BASE_URL", "AI_API_KEY", "ALLOWED_ORIGINS",
+    "NVIDIA_API_KEY", "NVIDIA_MODEL", "NVIDIA_CHAT_MODEL"];
   const saved = new Map(keys.map((key) => [key, Deno.env.get(key)]));
   for (const [key, value] of Object.entries({
     SUPABASE_URL: "https://supabase.example.test",
@@ -22,6 +29,8 @@ function setup({ ai = "ok", begin = "ok", refund = "ok", finish = "ok" }: { ai?:
     ALLOWED_ORIGINS: "https://web.example.test,https://tauri.localhost",
   }))
     Deno.env.set(key, value);
+  for (const key of ["NVIDIA_API_KEY", "NVIDIA_MODEL", "NVIDIA_CHAT_MODEL"]) Deno.env.delete(key);
+  if (cloud !== "none") Deno.env.set("NVIDIA_API_KEY", "nvapi-test-only-not-a-real-key");
   globalThis.fetch = async (input, options) => {
     const url = String(input);
     if (url.includes("/auth/v1/user")) {
@@ -53,12 +62,22 @@ function setup({ ai = "ok", begin = "ok", refund = "ok", finish = "ok" }: { ai?:
         : Response.json({ credits: 55 });
       if (rpc === "lumi_chat_refund") return refund === "ok" ? Response.json(true)
         : Response.json({ code: "fixture", message: "offline" }, { status: 503 });
+      if (rpc === "ai_local_online") return Response.json(online);
+      if (rpc === "ai_fallback_take") return Response.json(take);
+    }
+    if (url === "https://integrate.api.nvidia.com/v1/chat/completions") {
+      cloudBody = JSON.parse(String(options?.body));
+      cloudAuth = new Headers(options?.headers).get("authorization") || "";
+      if (cloud === "down") return Response.json({ error: "overloaded" }, { status: 503 });
+      return Response.json({ choices: [{ finish_reason: "stop", message: { role: "assistant", content: "<think>x</think>¡Desde la nube, Ana! Trota 10 minutos." } }] });
     }
     if (url === "https://ai.example.test/v1/lumi/chat") {
       aiBody = JSON.parse(String(options?.body));
       aiAuth = new Headers(options?.headers).get("authorization") || "";
       if (ai === "down") throw new TypeError("connection refused");
+      if (ai === "timeout") throw new DOMException("The signal has been aborted", "TimeoutError");
       if (ai === "busy") return Response.json({ error: "Lumi está terminando un plan." }, { status: 429 });
+      if (/^\d{3}$/.test(ai)) return new Response("<html>origin error</html>", { status: Number(ai) });
       if (ai === "empty") return Response.json({ reply: "   " });
       return Response.json({ reply: "¡Vamos, Ana! Trota 10 minutos hoy.\u0007", model: "fixture" });
     }
@@ -68,6 +87,8 @@ function setup({ ai = "ok", begin = "ok", refund = "ok", finish = "ok" }: { ai?:
     rpcs: () => rpcs,
     aiBody: () => aiBody,
     aiAuth: () => aiAuth,
+    cloudBody: () => cloudBody,
+    cloudAuth: () => cloudAuth,
     close: () => {
       globalThis.fetch = savedFetch;
       for (const [key, value] of saved) value === undefined ? Deno.env.delete(key) : Deno.env.set(key, value);
@@ -90,7 +111,8 @@ Deno.test("Cobra, pide al modo rápido del gateway, guarda los dos mensajes y re
     assert(body.reply === "¡Vamos, Ana! Trota 10 minutos hoy.", body.reply);
     assert(body.credits === 55);
     const names = f.rpcs().map((r) => r.name);
-    assert(JSON.stringify(names) === JSON.stringify(["lumi_chat_begin", "lumi_chat_finish"]), names.join());
+    assert(JSON.stringify(names) === JSON.stringify(["lumi_chat_begin", "ai_local_online", "lumi_chat_finish"]), names.join());
+    assert(body.source === "local");
     assert(f.rpcs()[0].body.p_text === "¿Qué hago hoy?", "Texto recortado antes de cobrar");
     assert(f.aiAuth() === "Bearer test-only-gateway-key");
     const messages = (f.aiBody() as { messages: { role: string; content: string }[] }).messages;
@@ -104,7 +126,7 @@ Deno.test("Cobra, pide al modo rápido del gateway, guarda los dos mensajes y re
   }
 });
 
-Deno.test("Si Lumi no responde (PC apagado, vacío u ocupado) devuelve los créditos con un mensaje claro", async () => {
+Deno.test("Sin respaldo configurado, si Lumi no responde (PC apagado, vacío u ocupado) devuelve los créditos", async () => {
   for (const [ai, message] of [["down", RESTING], ["empty", RESTING], ["busy", BUSY]]) {
     const f = setup({ ai });
     try {
@@ -196,5 +218,74 @@ Deno.test("Nunca envía el secreto del gateway por HTTP", async () => {
     Deno.env.set("AI_BASE_URL", "http://ai.example.test/v1");
     assert((await handleLumiChat(request())).status === 503);
     assert(f.aiBody() === null && f.rpcs().some((r) => r.name === "lumi_chat_refund"));
+  } finally { f.close(); }
+});
+
+Deno.test("Respaldo: una caída a mitad de camino (red, timeout, 502, 503, 530, vacío) se reintenta una vez en NVIDIA", async () => {
+  for (const ai of ["down", "timeout", "502", "503", "530", "empty"]) {
+    const f = setup({ ai, cloud: "ok" });
+    try {
+      const response = await handleLumiChat(request());
+      assert(response.status === 200, `${ai}: ${response.status}`);
+      const body = await response.json();
+      assert(body.source === "cloud" && body.reply === "¡Desde la nube, Ana! Trota 10 minutos.", `${ai}: ${body.reply}`);
+      assert(f.aiBody() !== null, "Primero intentó la IA local");
+      assert(f.cloudAuth() === "Bearer nvapi-test-only-not-a-real-key");
+      assert(f.cloudBody()?.model === NVIDIA_DEFAULT_MODEL);
+      const system = f.cloudBody()!.messages[0];
+      assert(system.role === "system" && /Eres Lumi/.test(system.content) && /Formato de respuesta/.test(system.content));
+      assert(f.cloudBody()!.messages.at(-1)?.content === "¿Qué hago hoy?");
+      const names = f.rpcs().map((r) => r.name);
+      assert(JSON.stringify(names) === JSON.stringify(["lumi_chat_begin", "ai_local_online", "ai_fallback_take", "lumi_chat_finish"]), names.join());
+      assert(f.rpcs()[2].body.p_kind === "chat");
+    } finally {
+      f.close();
+    }
+  }
+});
+
+Deno.test("Respaldo: con el PC sin señal va directo a la nube, sin esperar a la IA local", async () => {
+  const f = setup({ online: false, cloud: "ok" });
+  try {
+    const body = await (await handleLumiChat(request())).json();
+    assert(body.source === "cloud", body.source);
+    assert(f.aiBody() === null, "No llamó al túnel");
+  } finally { f.close(); }
+});
+
+Deno.test("Respaldo: si la IA local está ocupada (429) no gasta la cuota de la nube", async () => {
+  const f = setup({ ai: "busy", cloud: "ok" });
+  try {
+    const response = await handleLumiChat(request());
+    const body = await response.json();
+    assert(response.status === 503 && body.error === BUSY && body.refunded === true);
+    assert(f.cloudBody() === null && !f.rpcs().some((r) => r.name === "ai_fallback_take"));
+  } finally { f.close(); }
+});
+
+Deno.test("Respaldo: si la nube también falla o se alcanzó su límite, devuelve los créditos", async () => {
+  const cases: [Record<string, unknown>, string][] = [[{ cloud: "down" }, RESTING], [{ take: false, cloud: "ok" }, CLOUD_LIMITED]];
+  for (const [options, message] of cases) {
+    const f = setup({ ai: "down", ...options });
+    try {
+      const response = await handleLumiChat(request());
+      const body = await response.json();
+      assert(response.status === 503 && body.error === message && body.refunded === true, body.error);
+      const names = f.rpcs().map((r) => r.name);
+      assert(names.includes("lumi_chat_refund") && !names.includes("lumi_chat_finish"), names.join());
+      if (options.take === false) assert(f.cloudBody() === null, "Con el límite alcanzado no llama a NVIDIA");
+    } finally {
+      f.close();
+    }
+  }
+});
+
+Deno.test("Respaldo: el modelo de chat se configura con NVIDIA_CHAT_MODEL", async () => {
+  const f = setup({ online: false, cloud: "ok" });
+  try {
+    Deno.env.set("NVIDIA_MODEL", "nvidia/plan-model");
+    Deno.env.set("NVIDIA_CHAT_MODEL", "nvidia/chat-model");
+    assert((await handleLumiChat(request())).status === 200);
+    assert(f.cloudBody()?.model === "nvidia/chat-model");
   } finally { f.close(); }
 });

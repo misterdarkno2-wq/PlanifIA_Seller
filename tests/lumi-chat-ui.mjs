@@ -42,6 +42,19 @@ try {
   assert.equal(await send.isDisabled(), true);
   await page.evaluate(() => window.finishSend({ reply: "Un paso pequeño.", credits: 55 }));
   await page.waitForFunction(() => !document.querySelector("[data-lumi-chat-send]").disabled);
+  const source = page.locator("[data-lumi-chat-source]");
+  assert.equal(await source.isHidden(), true, "Sin origen informado no muestra indicador");
+  // Indicador discreto de qué IA respondió: respaldo en la nube y, al volver el PC, la IA local.
+  for (const [origin, label] of [["cloud", "Respondió: IA en la nube (respaldo)"], ["local", "Respondió: IA local"]]) {
+    await page.locator("textarea").fill("Otra pregunta");
+    await send.click();
+    await page.evaluate((origin) => window.finishSend({ reply: "Sigue así.", credits: 50, source: origin }), origin);
+    await page.waitForFunction(() => !document.querySelector("[data-lumi-chat-send]").disabled);
+    assert.equal(await source.textContent(), label);
+    assert.equal(await source.getAttribute("data-source"), origin);
+    assert.equal(await source.isVisible(), true);
+    if (process.env.PLANIFIA_UI_SHOTS) await page.screenshot({ path: `${process.env.PLANIFIA_UI_SHOTS}/chat-${origin}.png`, fullPage: true });
+  }
   await clear.click();
   await clear.click();
   assert.equal(await send.isDisabled(), true, "No envía mientras se borra");
@@ -50,9 +63,9 @@ try {
   await page.waitForFunction(() => !document.querySelector("[data-lumi-chat-clear]").disabled);
   assert.equal(await page.locator(".lumi-chat-message").count(), 0);
   assert.equal(await page.locator("[data-lumi-chat-say]").getAttribute("aria-label"), null);
-  assert.deepEqual(await page.evaluate(() => window.chatCalls), { send: 1, clear: 1 });
+  assert.deepEqual(await page.evaluate(() => window.chatCalls), { send: 3, clear: 1 });
   await page.evaluate(() => window.chatController.dispose());
-  console.log("Chat UI: carga, envío y borrado excluyentes; limpieza del texto accesible: OK.");
+  console.log("Chat UI: carga, envío y borrado excluyentes; limpieza del texto accesible; indicador IA local/nube: OK.");
 } finally {
   await browser?.close();
   server.kill();

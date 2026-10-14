@@ -29,7 +29,9 @@ import {
   listAiJobs,
   cancelAiJob,
   releaseAiRequest,
+  requestCloudFallback,
 } from "./cloud.js";
+import { createCloudFallback } from "./ai-source.js";
 import {
   CATEGORIES,
   PRIORITIES,
@@ -124,6 +126,12 @@ const aiJobs = createAiJobMonitor({
   notify: toast,
 });
 aiJobs.subscribe(() => updateAiBadge());
+// Con el PC apagado, las propuestas en cola las prepara la IA en la nube (respaldo).
+const cloudFallback = createCloudFallback({
+  request: requestCloudFallback,
+  onStarted: () => aiJobs.refresh(),
+});
+aiJobs.subscribe((jobs) => cloudFallback.consider(jobs));
 
 let lumiChat = null;
 // Créditos y plan vigente. En Android, además, anuncios (sólo plan Gratis) y Google Play.
@@ -1517,6 +1525,7 @@ if (cloud) {
         companion.end();
         companionVoice.dispose();
         aiJobs.stop();
+        cloudFallback.reset();
         stopMonetization();
         user = null;
         state = null;

@@ -1,13 +1,23 @@
 // Chat "Hablar con Lumi": cobra el mensaje, pide la respuesta al modo rápido del gateway local y
-// guarda la conversación. Si Lumi no responde, devuelve los créditos. Nunca usa la cola de planes.
+// guarda la conversación. Con el PC apagado o el túnel caído responde la IA de respaldo (NVIDIA).
+// Si Lumi no responde, devuelve los créditos. Nunca usa la cola de planes.
 import { createClient } from "npm:@supabase/supabase-js@2.58.0";
 import { BodyTooLarge, readRequestText } from "../_shared/request-body.ts";
+import {
+  CLOUD_CHAT_ADDENDUM,
+  CloudLimited,
+  cloudChat,
+  cloudSettings,
+  LocalBusy,
+  localChat,
+  withCloudFallback,
+} from "../_shared/ai-fallback.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const RESTING = "Lumi está descansando, inténtalo más tarde. No se descontaron créditos.";
 export const BUSY = "Lumi está terminando un plan. Inténtalo en un minuto. No se descontaron créditos.";
 export const CLEARED = "La conversación se borró mientras Lumi respondía, así que la respuesta no se guardó. No se descontaron créditos.";
-const AI_TIMEOUT_MS = 35000;
+export const CLOUD_LIMITED = "La IA de respaldo alcanzó su límite por ahora y la IA local está apagada. Inténtalo más tarde. No se descontaron créditos.";
 
 export const LUMI_SYSTEM = `Eres Lumi, la compañera virtual cálida de PlanifIA, una app que ayuda a cumplir metas paso a paso.
 Reglas que siempre sigues:
@@ -132,31 +142,43 @@ export async function handleLumiChat(req: Request) {
     }, 503, headers);
   };
 
-  // 2. Respuesta síncrona del modo rápido del gateway (ruta propia, no la cola de planes).
-  const base = Deno.env.get("AI_BASE_URL") || "";
-  const key = Deno.env.get("AI_API_KEY") || "";
+  // 2. Respuesta síncrona: modo rápido del gateway (ruta propia, no la cola de planes) o, si la
+  // IA local está apagada o se cae a mitad de camino, una sola vez la IA de respaldo.
+  const messages = lumiMessages(begun.data as ChatContext, text);
   let reply = "";
-  let busy = false;
+  let source: "local" | "cloud" = "local";
+  let failure = RESTING;
   try {
-    if (!base || !key) throw new Error("Sin IA configurada");
-    const endpoint = new URL("lumi/chat", base.endsWith("/") ? base : `${base}/`);
-    if (endpoint.protocol !== "https:" || endpoint.username || endpoint.password)
-      throw new Error("Conexión de IA no segura");
-    const response = await fetch(endpoint.href, {
-      method: "POST",
-      redirect: "error",
-      signal: AbortSignal.timeout(AI_TIMEOUT_MS),
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ messages: lumiMessages(begun.data as ChatContext, text), temperature: 0.7 }),
+    // El trabajador del PC renueva esta señal sólo si su /health confirma que Ollama responde.
+    // Si la consulta falla se intenta igual la IA local.
+    const online = await admin.rpc("ai_local_online");
+    const result = await withCloudFallback({
+      localOnline: online.error ? true : online.data !== false,
+      local: () =>
+        localChat({
+          base: Deno.env.get("AI_BASE_URL") || "",
+          key: Deno.env.get("AI_API_KEY") || "",
+          messages,
+        }),
+      cloud: () =>
+        cloudChat({
+          settings: cloudSettings(),
+          messages: [{ role: "system", content: LUMI_SYSTEM + CLOUD_CHAT_ADDENDUM }, ...messages.slice(1)],
+        }),
+      allowCloud: async () => {
+        const taken = await admin.rpc("ai_fallback_take", { p_user: user.id, p_kind: "chat" });
+        return !taken.error && taken.data === true;
+      },
     });
-    busy = response.status === 429;
-    if (response.ok) reply = cleanReply((await response.json())?.reply);
-    else await response.body?.cancel();
+    reply = cleanReply(result.value);
+    source = result.source;
   } catch (error) {
-    console.error("lumi-chat ai", error instanceof Error ? error.name : "unknown");
+    if (error instanceof LocalBusy) failure = BUSY;
+    else if (error instanceof CloudLimited) failure = CLOUD_LIMITED;
+    console.error("lumi-chat ai", error instanceof Error ? `${error.name}: ${error.message}` : "unknown");
   }
   if (!reply) {
-    return await failedReply(busy ? BUSY : RESTING);
+    return await failedReply(failure);
   }
 
   // 3. Guarda la pregunta y la respuesta; si no se pudo guardar, también se devuelve el cobro.
@@ -173,5 +195,5 @@ export async function handleLumiChat(req: Request) {
     }
     return await failedReply(RESTING);
   }
-  return json({ reply, credits: (finished.data as { credits?: number })?.credits ?? null }, 200, headers);
+  return json({ reply, source, credits: (finished.data as { credits?: number })?.credits ?? null }, 200, headers);
 }

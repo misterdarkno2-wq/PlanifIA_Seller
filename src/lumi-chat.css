@@ -143,6 +143,23 @@
 .lumi-chat-note {
   margin: 0;
 }
+/* Qué IA respondió: verde la del PC, ámbar el respaldo en la nube. */
+.lumi-chat-source {
+  color: var(--muted);
+}
+.lumi-chat-source::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  vertical-align: 1px;
+}
+.lumi-chat-source[data-source="cloud"]::before {
+  background: #d99a1e;
+}
 @media (max-width: 760px) {
   .lumi-chat-stage {
     grid-template-columns: 112px 1fr;

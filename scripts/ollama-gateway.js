@@ -7,6 +7,7 @@ import { startConfiguredWorker } from "./ai-worker.js";
 const LOOPBACK = "127.0.0.1";
 const OLLAMA_URL = "http://127.0.0.1:11434/api/chat";
 const OLLAMA_PRELOAD_URL = "http://127.0.0.1:11434/api/generate";
+const OLLAMA_TAGS_URL = "http://127.0.0.1:11434/api/tags";
 const MAX_BODY = 96 * 1024;
 const MAX_MESSAGE_CHARS = 24000;
 const MAX_SCHEMA_CHARS = 16000;
@@ -367,6 +368,53 @@ export async function preloadModel(config, fetchImpl = globalThis.fetch, { chat 
   await response.arrayBuffer();
 }
 
+// Ollama lista "modelo" sin etiqueta como "modelo:latest".
+const installedName = (name) => (String(name).includes(":") ? String(name) : `${name}:latest`);
+
+/**
+ * Salud real de la IA local: Ollama responde en menos de timeoutMs y tiene instalados los modelos
+ * configurados. El resultado se guarda ttlMs para no consultar a Ollama en cada sondeo.
+ */
+export function createOllamaHealth(
+  config,
+  fetchImpl = globalThis.fetch,
+  { ttlMs = 5000, timeoutMs = 2500, now = Date.now } = {},
+) {
+  let checkedAt = -Infinity,
+    healthy = false,
+    pending = null;
+  const probe = async () => {
+    try {
+      const response = await fetchImpl(OLLAMA_TAGS_URL, {
+        signal: AbortSignal.timeout(timeoutMs),
+        redirect: "error",
+      });
+      if (!response.ok) {
+        await response.body?.cancel();
+        return false;
+      }
+      const installed = new Set(
+        ((await response.json())?.models || []).map((m) => installedName(m?.name ?? m?.model)),
+      );
+      return [config.model, config.chatModel].every((model) => installed.has(installedName(model)));
+    } catch {
+      return false;
+    }
+  };
+  return {
+    check() {
+      if (now() - checkedAt < ttlMs) return Promise.resolve(healthy);
+      pending ??= probe().then((ok) => {
+        healthy = ok;
+        checkedAt = now();
+        pending = null;
+        return ok;
+      });
+      return pending;
+    },
+  };
+}
+
 /** The only upstream is local Ollama; fetch injection is solely for tests. */
 export function createGatewayServer(options) {
   const config = gatewayConfig({
@@ -387,10 +435,18 @@ export function createGatewayServer(options) {
     CHAT_CONCURRENCY: options.chatConcurrency,
   });
   const fetchImpl = options.fetchImpl ?? globalThis.fetch;
+  const health = options.health ?? createOllamaHealth(config, fetchImpl);
   const expectedSecret = digest(config.secret);
   let activeSlots = 0;
   let chatSlots = 0;
   const server = createServer(async (req, res) => {
+    // Público y sin datos: sólo dice si Ollama responde. Lo usan el trabajador y el túnel.
+    if (req.url === "/health") {
+      if (req.method !== "GET" && req.method !== "HEAD")
+        return json(res, 405, { error: "Método no permitido." }, { Allow: "GET, HEAD" });
+      const ok = await health.check();
+      return json(res, ok ? 200 : 503, { status: ok ? "ok" : "unavailable", ollama: ok });
+    }
     if (req.url !== "/v1/chat/completions" && req.url !== CHAT_PATH)
       return json(res, 404, { error: "Ruta no disponible." });
     if (req.method !== "POST")
@@ -623,6 +679,7 @@ export function createGatewayServer(options) {
       }
     }
   }
+  server.health = health;
   server.requestTimeout = 15000;
   server.headersTimeout = 10000;
   server.keepAliveTimeout = 5000;
@@ -677,7 +734,9 @@ export async function startGateway() {
         () => console.error("No pudimos precargar el modelo del chat; se cargará con el primer mensaje."),
       );
     try {
-      worker = startConfiguredWorker(config);
+      // Sin Ollama el trabajador no toma solicitudes ni renueva la señal de "PC encendido":
+      // así la app pasa sola a la IA de respaldo y vuelve cuando Ollama responde.
+      worker = startConfiguredWorker(config, process.env, { ready: () => server.health.check() });
       console.log(
         `Cola persistente de Supabase conectada. Concurrencia GPU: ${config.concurrency}.`,
       );

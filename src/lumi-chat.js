@@ -4,6 +4,7 @@ import { cloud, checked } from "./cloud.js";
 import { portrait } from "./pet-art.js";
 import { createLumiUtterance, lumiMouthFrames } from "./lumi-speech.js";
 import { getPetMotionSettings } from "./pet-motion.js";
+import { aiSourceLabel } from "./ai-source.js";
 
 export const LUMI_CHAT_MAX = 500;
 
@@ -53,6 +54,7 @@ export function lumiChatPage({ stage = 1, name = "", escape }) {
       <button data-lumi-chat-send>Enviar</button>
       <p class="error" role="alert" hidden></p>
       <p class="fine" data-lumi-chat-cost></p>
+      <p class="fine lumi-chat-source" data-lumi-chat-source hidden></p>
     </form>
     <p class="muted fine lumi-chat-note">Lumi es una IA: puede equivocarse. Tus mensajes se envían a la IA de PlanifIA y se guardan los últimos 100. No compartas datos sensibles.</p>
   </section>`;
@@ -80,6 +82,7 @@ export function mountLumiChat(root, {
     send = form.querySelector("[data-lumi-chat-send]"),
     alert = form.querySelector("[role=alert]"),
     cost = form.querySelector("[data-lumi-chat-cost]"),
+    sourceNote = form.querySelector("[data-lumi-chat-source]"),
     clear = host.querySelector("[data-lumi-chat-clear]");
   const svg = () => stage.querySelector(".lumi-art");
   const textMotion = matchMedia("(prefers-reduced-motion: reduce)");
@@ -200,6 +203,11 @@ export function mountLumiChat(root, {
       const reply = String(result?.reply || "");
       speak(reply, [say, item("lumi", "")]);
       if (Number.isFinite(result?.credits)) onCredits(result.credits);
+      // Indicador discreto de qué IA respondió el último mensaje.
+      const label = aiSourceLabel(result?.source);
+      sourceNote.textContent = label ? `Respondió: ${label}` : "";
+      sourceNote.hidden = !label;
+      sourceNote.dataset.source = label ? result.source : "";
     } catch (error) {
       if (disposed) return;
       mine.remove();

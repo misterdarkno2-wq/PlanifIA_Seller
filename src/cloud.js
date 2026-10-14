@@ -123,6 +123,18 @@ export async function generatePlan(input, { signal } = {}) {
   return data;
 }
 export const listAiJobs = () => rpc("get_ai_jobs", { p_id: null });
+/** Pide a la IA de respaldo una propuesta en cola mientras el PC está apagado (ver ai-source.js). */
+export async function requestCloudFallback(jobId) {
+  const { data, error } = await cloud.functions.invoke("ai-fallback", { body: { job_id: jobId } });
+  if (error) {
+    let detail;
+    try {
+      detail = await error.context?.json();
+    } catch {}
+    throw new Error(detail?.error || "La IA de respaldo no respondió.");
+  }
+  return data;
+}
 export const cancelAiJob = (id) => rpc("cancel_ai_job", { p_id: id });
 export function releaseAiRequest(requestId) {
   // Only identifiers/digests are cached, never the prompt or its result.
