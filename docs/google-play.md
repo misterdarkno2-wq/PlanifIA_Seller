@@ -42,7 +42,7 @@ Selecciona únicamente **18 años o más**. Responde **No** a "¿podría atraer 
 
 ## 6. Seguridad de los datos
 
-- ¿Recopila o comparte datos? **Sí recopila**. ¿Comparte con terceros? **No** (Supabase y Cloudflare son proveedores que tratan datos en nombre de PlanifIA; Google no lo considera "compartir").
+- ¿Recopila o comparte datos? **Sí recopila**. ¿Comparte con terceros? **Sí**, con Google AdMob (ver [monetización](monetizacion.md)). Supabase, Cloudflare y Groq (la IA de respaldo en la nube) son proveedores que tratan datos en nombre de PlanifIA, y Google no lo considera "compartir". Groq sólo cuenta como proveedor si aceptaste su DPA y activaste Zero Data Retention (ver [respaldo en la nube](respaldo-nube.md)); si no, declara el nombre y el contenido generado por el usuario como **compartidos**.
 - ¿Datos cifrados en tránsito? **Sí**.
 - ¿Las personas pueden pedir que se eliminen sus datos? **Sí**. URL: `https://planifia.cl/eliminar-cuenta.html`.
 - Las cuentas se crean **con nombre de usuario (correo) y contraseña**.
@@ -51,9 +51,9 @@ Tipos de datos (todos: *recopilados*, *no compartidos*, *no efímeros*, *obligat
 
 | Sección de Play | Dato | Notas |
 | --- | --- | --- |
-| Información personal → Nombre | Nombre del perfil | Opcional |
+| Información personal → Nombre | Nombre del perfil | Opcional. Groq lo recibe como proveedor con cada mensaje a Lumi que responde la IA de respaldo |
 | Información personal → Dirección de correo | Correo de la cuenta | Obligatorio |
-| Actividad en apps → Otro contenido generado por el usuario | Metas, acciones, hábitos y texto enviado a la IA | Obligatorio |
+| Actividad en apps → Otro contenido generado por el usuario | Metas, acciones, hábitos, texto enviado a la IA y mensajes de **Hablar con Lumi** | Obligatorio. Groq lo recibe como proveedor (planes y chat cuando responde la IA de respaldo) |
 | Actividad en apps → Interacciones con la app | Progreso de Lumi, XP y uso mensual de IA | Obligatorio |
 | Información financiera → Historial de compras | Plan y periodos de suscripción | Sólo si contratas un plan |
 
