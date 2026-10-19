@@ -8,7 +8,7 @@ Este plan no reemplaza la asesoría de un abogado. Desde el **1 de diciembre de 
 
 | Rol | Persona | Contacto |
 | --- | --- | --- |
-| Responsable del tratamiento y de las decisiones | [PENDIENTE: nombre del responsable] | [PENDIENTE: teléfono]; planifiaprivacity@gmail.com |
+| Responsable del tratamiento y de las decisiones | Claudia Valenzuela | [PENDIENTE: teléfono]; planifiaprivacity@gmail.com |
 | Respaldo si el responsable no está disponible | [PENDIENTE: nombre] | [PENDIENTE] |
 | Asesoría legal | [PENDIENTE: abogado] | [PENDIENTE] |
 
