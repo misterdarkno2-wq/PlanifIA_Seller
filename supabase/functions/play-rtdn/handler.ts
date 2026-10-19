@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.58.0";
 import { packageName, PlayError } from "../_shared/google-play.ts";
 import { PRODUCT_ID, PURCHASE_TOKEN, syncOneTime, syncSubscription } from "../_shared/play-sync.ts";
+import { googleKeys, verifyGoogleOidc } from "../_shared/google-oidc.ts";
 
 // Avisos en tiempo real de Google Play (Pub/Sub push). El contenido del aviso no se cree:
 // sólo indica qué token volver a consultar en Google.
@@ -17,6 +18,21 @@ export async function handlePlayRtdn(req: Request) {
   if (req.method !== "POST") return new Response("Método no permitido.", { status: 405 });
   if (secret.length < 32 || !sameSecret(url.searchParams.get("token") || "", secret)) {
     return new Response("No autorizado.", { status: 401 });
+  }
+  // Con la autenticación de la suscripción push activada (PLAY_RTDN_AUDIENCE y
+  // PLAY_RTDN_SERVICE_ACCOUNT), además del secreto se exige el JWT firmado por Google.
+  const audience = Deno.env.get("PLAY_RTDN_AUDIENCE") || "";
+  const serviceAccount = Deno.env.get("PLAY_RTDN_SERVICE_ACCOUNT") || "";
+  if (audience || serviceAccount) {
+    const bearer = req.headers.get("authorization")?.match(/^Bearer (\S+)$/i)?.[1] || "";
+    let claims = null;
+    try {
+      claims = bearer ? await verifyGoogleOidc(bearer, { audience, email: serviceAccount, keys: await googleKeys() }) : null;
+    } catch (error) {
+      console.error("play-rtdn keys", error instanceof Error ? error.name : "unknown");
+      return new Response("Reintentar.", { status: 503 });
+    }
+    if (!claims) return new Response("No autorizado.", { status: 401 });
   }
   let notification: any;
   try {

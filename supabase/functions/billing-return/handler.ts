@@ -5,6 +5,7 @@ import {
   confirmWebpay,
   provider,
 } from "../_shared/billing.ts";
+import { readRequestText } from "../_shared/request-body.ts";
 
 // Public endpoint: authorization is the opaque token correlated with a server order.
 // Return query parameters are never evidence of an approved payment.
@@ -16,8 +17,7 @@ export async function handleBillingReturn(req: Request) {
   let orderId: string | undefined, enrollmentId: string | undefined;
   try {
     const url = new URL(req.url);
-    const raw = req.method === "POST" ? await req.text() : "";
-    if (raw.length > 4000) throw new Error("Invalid return");
+    const raw = req.method === "POST" ? await readRequestText(req, 4000) : "";
     const input = req.method === "POST"
       ? new URLSearchParams(raw)
       : url.searchParams;
