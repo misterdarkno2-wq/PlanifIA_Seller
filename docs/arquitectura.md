@@ -31,27 +31,22 @@ El generador centraliza el presupuesto efectivo de cada semana y día; valida la
 | private.ai_usage     | Cuota diaria                           | Solo RPC del servidor                 |
 | private.game_rules   | Reglas de recompensas y niveles        | Administración SQL                    |
 | plan_catalog         | Precios, beneficios y límites          | Lectura pública de planes habilitados |
-| subscriptions        | Suscripción y próxima renovación       | Lectura propia; gestión RPC limitada  |
-| subscription_periods | Períodos realmente pagados             | Lectura propia; escritura servidor    |
-| payment_orders       | Plan, monto y resultado por orden      | Lectura propia; escritura servidor    |
-| private.billing_accounts | Promoción y revocación por ambiente | Sin acceso cliente                    |
-| private.billing_methods | Referencias Oneclick y últimos cuatro dígitos | Sin acceso cliente           |
-| private.billing_enrollments | Inscripción y token del formulario | Sin acceso cliente                 |
-| private.payment_provider | Token, reserva y resultado normalizado | Sin acceso cliente                 |
-| private.payment_attempts | Referencias e historial de intentos | Sin acceso cliente                    |
-| private.billing_consent_events | Auditoría de autorización y cancelación | Sin acceso cliente          |
-| private.billing_settings | Ambiente y política de reintentos | Administración SQL                      |
+| subscriptions        | Suscripción de Transbank (retirado, sin uso) | Lectura propia; sin RPC          |
+| subscription_periods | Períodos de Transbank (sólo pruebas)   | Lectura propia; sin escritura         |
+| payment_orders       | Órdenes de Transbank (retirado, sin uso) | Lectura propia; sin escritura       |
+| private.billing_*, private.payment_provider, private.payment_attempts | Registros de Transbank (retirado, sin uso) | Sin acceso cliente |
+| private.play_subscriptions | Suscripciones de Google Play validadas | Sin acceso cliente; RPC del servidor |
 | private.plan_ai_usage | Consumo de generaciones y ajustes por mes UTC | Solo servidor                  |
 
 RLS está activada en las tablas públicas: los datos personales se leen por `auth.uid()` y el catálogo permite consultar planes habilitados. No se conceden INSERT, UPDATE ni DELETE al navegador: cada operación autorizada tiene una función con `SECURITY DEFINER`, `search_path` vacío y comprobación explícita de `auth.uid()`. Se revoca EXECUTE a `PUBLIC` y `anon`; solo se conceden los métodos concretos a `authenticated`. Las funciones administrativas de pagos y cuotas admiten solo `service_role` y reciben el usuario validado por la Edge Function.
 
 ## Pagos y límites
 
-`src/billing.js` monta las vistas de planes y suscripción; `src/billing-cloud.js` llama a `billing` con la sesión existente. `billing` valida Auth y delega los importes y cambios de estado en `billing_admin`. `billing-return` correlaciona el token y valida la respuesta de Transbank antes de activar un período. `billing-renew` exige un secreto independiente y se ejecuta desde pg_cron cada 15 minutos con el secreto guardado en Vault. Ninguno depende de que la aplicación o el PC estén abiertos.
+`src/billing.js` monta las vistas de planes y suscripción. La web no cobra: `src/billing-cloud.js` lee `plan_catalog` (público) y `billing_state()` con la sesión existente, sin Edge Functions. En la app Android, `src/native-billing.js` compra con Google Play Billing y `play-billing` valida cada compra con la Google Play Developer API antes de activar el plan o sumar créditos; `play-rtdn` recibe las notificaciones de Google Play (renovaciones, cancelaciones y reembolsos). Ninguno depende de que el PC esté encendido.
 
-El bloqueo por usuario, una sola contratación abierta, la identidad única del ciclo de renovación y las referencias persistentes de cada intento evitan duplicados. Una respuesta incierta se consulta antes de repetir operaciones financieras. La confirmación guarda período, promoción, orden y suscripción en una transacción. Inscribir una tarjeta no confirma un pago. Integración y producción tienen registros separados y deben coincidir entre la base y las funciones.
+El cobro web con Transbank (Webpay y Oneclick, funciones `billing`, `billing-return` y `billing-renew`) sólo funcionó en integración y se retiró el 19 de octubre de 2026; la migración `202610190001_retire_transbank.sql` quita el permiso para ejecutar `billing_admin`, `manage_subscription` y `billing_promotion`. Sus tablas se conservan como registro. Detalle y pasos pendientes en [billing.md](billing.md).
 
-La cuota mensual y diaria se reserva en la misma transacción que crea el trabajo de la cola, sólo una vez por solicitud. Un trigger protege también la creación y reactivación de metas desde cualquier RPC. La vigencia y los límites se calculan a partir de períodos pagados, con descenso a Gratis al vencer, conservando metas, tareas, hábitos y XP. Configuración y despliegue: [suscripciones y Transbank](billing.md).
+La cuota mensual y diaria se reserva en la misma transacción que crea el trabajo de la cola, sólo una vez por solicitud. Un trigger protege también la creación y reactivación de metas desde cualquier RPC. La vigencia y los límites se calculan con `private.effective_plan` (la suscripción de Google Play vigente o, mientras dure, un período de las pruebas de Transbank), con descenso a Gratis al vencer, conservando metas, tareas, hábitos y XP. Detalle: [suscripciones](billing.md).
 
 ## Consistencia
 

@@ -1,91 +1,103 @@
 # Suscripciones
 
-## Web: contratación desde Google Play
+## Cobros sólo en la app, con Google Play
 
-La web de PlanifIA muestra el mensaje «Las suscripciones se contratan desde la app de Google Play» en Planes y Mi suscripción. No ofrece formularios, enlaces ni botones para contratar, renovar, cambiar de plan o registrar tarjetas mediante Webpay u Oneclick. Los enlaces guardados con `?plan=plus` o `?plan=pro` muestran el aviso y no crean una cotización. El plan Gratis conserva su recorrido de registro e inicio de sesión.
+PlanifIA cobra únicamente dentro de la app de Android, con Google Play Billing: suscripciones Plus y Pro, paquetes de créditos y «Quitar anuncios». El servidor valida cada compra con la Google Play Developer API (`play-billing` y `play-rtdn`); los detalles están en [monetizacion.md](monetizacion.md) y [google-play.md](google-play.md).
 
-La app de Google Play todavía está en preparación: no se publica un enlace de tienda hasta contar con una ficha real. Los precios de la web son referencias del catálogo, no ofertas confirmadas de Google Play; la campaña anterior de Transbank deja de anunciarse en la interfaz. Este cambio no implementa Google Play Billing ni sincroniza compras de Play con Supabase.
+La web no cobra. Muestra el mensaje «Las suscripciones se contratan desde la app de Google Play» en Planes y Mi suscripción, y no ofrece formularios, enlaces ni botones para contratar, renovar, cambiar de plan o registrar tarjetas. La app de Google Play todavía está en preparación: no se publica un enlace de tienda hasta contar con una ficha real. Los precios de la web son referencias del catálogo, no ofertas confirmadas de Google Play.
 
-Se conservan la consulta de beneficios, consumo e historial, la verificación de órdenes anteriores y la posibilidad de cancelar una renovación automática anterior. La web no puede reanudar esa autorización ni cambiar su tarjeta. No se completan inscripciones de tarjetas desde esta interfaz. El servidor mantiene los registros y funciones anteriores; retirar los controles de la web no deshabilita por sí solo sus endpoints ni cancela autorizaciones existentes.
+Qué lee la web, directamente de Supabase y sin Edge Functions:
 
-## Backend anterior: Transbank
+- **Planes**: `public.plan_catalog`, que cualquier visitante puede leer (política `plans_read`).
+- **Mi suscripción**: `public.billing_state()` (plan vigente, incluido el de Google Play, y uso del mes) y `public.monetization_state()` (créditos, invitaciones y suscripción de Google Play).
 
-Supabase Auth identifica al usuario; PostgreSQL calcula importes, promociones, períodos, límites y permisos. Las funciones `billing`, `billing-return` y `billing-renew` conservan las operaciones de pago anteriores desde el servidor. El catálogo editable es `public.plan_catalog`. Las siguientes secciones documentan ese backend, que la web ya no utiliza para iniciar compras.
+Los enlaces guardados con `?plan=plus` o `?plan=pro` muestran el aviso de Google Play. Los enlaces de retorno antiguos (`?order=` o `?enrollment=`) se ignoran: la web ya no consulta pagos. El plan Gratis conserva su recorrido de registro e inicio de sesión. Los precios se modifican en `public.plan_catalog` y en Play Console, no en el JavaScript.
 
-## Ambiente de integración
+## Transbank retirado (19 de octubre de 2026)
 
-Los pagos empiezan en integración y la interfaz indica **Pagos de prueba**. No se envían tarjetas ni se realizan cobros reales en la verificación automatizada. Las credenciales públicas de integración proceden del [SDK oficial de Transbank](https://github.com/TransbankDevelopers/transbank-sdk-nodejs/tree/master/lib/transbank/common). `TRANSBANK_ENV` debe ser explícito: sin configurarlo se deshabilitan pagos; producción nunca hereda esas credenciales.
+Entre el 4 y el 19 de octubre de 2026 el repositorio tuvo un cobro web con Transbank (Webpay Plus y Oneclick), con las Edge Functions `billing`, `billing-return` y `billing-renew` y un cron de renovación en `pg_cron`. Funcionó sólo en modo integración, con las credenciales públicas de prueba de Transbank: el responsable confirmó que no hubo pagos reales. Se retiró por la recomendación R7 de [auditoria-legal-seguridad-2026-10-18.md](auditoria-legal-seguridad-2026-10-18.md), porque sólo aumentaba la superficie de ataque.
 
-Desde la carpeta del repositorio:
+Se eliminaron del repositorio:
+
+- `supabase/functions/billing`, `billing-return` y `billing-renew`, y `supabase/functions/_shared/transbank.ts` y `billing.ts`.
+- `supabase/billing-scheduler.sql` (el cron `planifia-billing-renew`) y `scripts/transbank-smoke.ts`.
+- Las variables `TRANSBANK_*` y `BILLING_*` de `supabase/functions/.env.example` y sus entradas en `supabase/config.toml`.
+- En la web: el historial de pagos, la consulta del resultado de un pago y la cancelación de una renovación de Oneclick.
+
+El código sigue en el historial de Git, por ejemplo en la rama `codex/suscripciones-transbank`.
+
+En la base de datos no se borró nada. La migración `202610190001_retire_transbank.sql` quita el permiso de ejecución a las funciones que sólo servían a Transbank y les deja un comentario:
+
+| Función | Uso anterior | Ahora |
+| --- | --- | --- |
+| `billing_admin(text,jsonb)` | Órdenes, cobros, inscripciones y renovaciones (`service_role`) | Nadie la ejecuta |
+| `manage_subscription(text,text,boolean)` | Cancelar, reanudar o cambiar una suscripción de Oneclick | Nadie la ejecuta |
+| `billing_promotion()` | Campaña de bienvenida con el primer mes rebajado | Nadie la ejecuta; `billing_state()` la usa con los permisos de su dueño |
+
+Siguen en uso porque también sirven a Google Play: `plan_catalog`, `billing_state()`, `monetization_state()` y `public.subscription_periods` (dentro de `private.effective_plan`).
+
+Quedan sin uso, con los datos de las pruebas en integración: `public.subscriptions`, `public.payment_orders` y, en el esquema `private`, `payment_provider`, `payment_attempts`, `billing_methods`, `billing_enrollments`, `billing_accounts`, `billing_consent_events`, `billing_campaign` y `billing_settings`. Eliminarlas requiere la decisión del responsable y una migración propia; antes conviene exportar sus filas.
+
+## Pasos manuales en producción
+
+Ninguno se hizo desde el repositorio: no se desplegó nada ni se aplicó la migración. El orden importa porque **las versiones de la app ya instaladas cargan Planes y Mi plan (incluida la compra con Google Play) a través de la Edge Function `billing`**, con sus acciones `catalog` y `state`. Si se borra antes de tiempo, esas versiones muestran «No pudimos consultar los planes» y no pueden comprar hasta actualizarse.
+
+Los comandos se ejecutan desde la carpeta del repositorio, con la sesión de Supabase CLI iniciada; las consultas SQL, en el editor SQL de Supabase.
+
+1. **Detener el cron de renovación.** Comprobar que existe y quitarlo:
+
+   ```sql
+   select jobid, jobname, schedule, active from cron.job where jobname = 'planifia-billing-renew';
+   select cron.unschedule('planifia-billing-renew');
+   ```
+
+2. **Borrar los secretos del cron en Vault** (Dashboard > Database > Vault, o por SQL):
+
+   ```sql
+   delete from vault.secrets where name in ('planifia_billing_url', 'planifia_billing_cron_secret');
+   ```
+
+3. **Borrar los secretos de Transbank de las Edge Functions.** Primero listar los nombres y quitar sólo los que existan. Sin `TRANSBANK_ENV`, la función `billing` desplegada queda en modo «deshabilitado»: rechaza cualquier pago, pero sigue respondiendo `catalog` y `state` a la app instalada.
+
+   ```powershell
+   npx.cmd supabase secrets list
+   npx.cmd supabase secrets unset TRANSBANK_ENV TRANSBANK_ONECLICK_ENABLED TRANSBANK_WEBPAY_COMMERCE_CODE TRANSBANK_WEBPAY_API_KEY TRANSBANK_ONECLICK_COMMERCE_CODE TRANSBANK_ONECLICK_API_KEY TRANSBANK_ONECLICK_CHILD_CODE BILLING_SITE_URL BILLING_CRON_SECRET BILLING_CHECKOUT_TTL_MINUTES
+   ```
+
+   `ALLOWED_ORIGINS` se conserva: la usan las demás funciones.
+
+4. **Borrar las funciones que nadie más llama**, `billing-return` (retorno de Transbank) y `billing-renew` (cron):
+
+   ```powershell
+   npx.cmd supabase functions delete billing-return
+   npx.cmd supabase functions delete billing-renew
+   ```
+
+5. **Publicar la web y una versión nueva de la app** con este cambio. Ambas leen `plan_catalog` y `billing_state()` directamente y ya no llaman a `billing`.
+
+6. **Aplicar la migración** `202610190001_retire_transbank.sql` después de publicar la web (con `npx.cmd supabase db push` o pegándola en el editor SQL). Ojo: `db push` también aplica las migraciones anteriores que sigan pendientes, como `202610180001_legal_reports.sql`. Desde aquí, la función `billing` desplegada ya no puede crear órdenes ni cancelar suscripciones; su acción `state` sigue funcionando, pero `catalog` (Planes sin sesión iniciada) deja de responder en las versiones antiguas de la app. Por eso la web debe estar publicada antes.
+
+7. **Borrar la función `billing`** cuando las instalaciones se hayan actualizado. Desde la 2.3.3 la app obliga a actualizar cuando la versión instalada tiene 14 días o más de atraso según Google Play (ver [android.md](android.md)): espera al menos esos 14 días después de publicar la versión nueva y revisa en Play Console qué versiones siguen activas. Las anteriores a la 2.3.3 no muestran ese aviso.
+
+   ```powershell
+   npx.cmd supabase functions delete billing
+   ```
+
+8. **Opcional, con la decisión del responsable:** exportar y eliminar las tablas de Transbank que quedan sin uso (lista en la sección anterior).
+
+Verificación posterior: `npx.cmd supabase functions list` ya no muestra `billing`, `billing-return` ni `billing-renew`; `select count(*) from cron.job where jobname = 'planifia-billing-renew';` devuelve 0, y en la web, sin sesión, Planes muestra Gratis, Plus y Pro.
+
+## Límites del plan y consumo
+
+`private.effective_plan` decide el plan vigente: el de Google Play mientras Google lo informe activo (incluye cancelado sin vencer y período de gracia) o, mientras dure, un período de las pruebas de Transbank en `public.subscription_periods`; si no hay ninguno, Gratis. Los límites de metas activas se aplican en la base con el disparador `planifia_goal_plan_limit`. Al vencer o bajar de plan se conservan los datos, las tareas y la experiencia de Lumi; sólo se bloquea crear o reactivar metas por encima del límite. El uso de IA se paga con créditos (ver [monetizacion.md](monetizacion.md)).
+
+## Pruebas
 
 ```powershell
-npm.cmd ci
 npm.cmd test
 npm.cmd run test:edge
 npm.cmd run check:edge
-npx.cmd supabase db push
-npx.cmd supabase secrets set --env-file supabase/functions/.env.local
-npx.cmd supabase functions deploy billing
-npx.cmd supabase functions deploy billing-return
-npx.cmd supabase functions deploy billing-renew
-npx.cmd supabase functions deploy goal-plan
+npm.cmd run test:billing-ui
 ```
 
-Copiar antes los campos de `supabase/functions/.env.example` al archivo privado `.env.local`, conservando las claves de IA existentes. Nunca añadir prefijo `VITE_` a credenciales Transbank ni al secreto de renovación. `.env.local` queda fuera de Git. Supabase aporta automáticamente sus claves al ejecutar funciones.
-
-Comprobación REST real de integración, únicamente creación y consulta, sin tarjeta ni autorización:
-
-```powershell
-npx.cmd deno run --no-config --no-lock --allow-net=webpay3gint.transbank.cl scripts/transbank-smoke.ts
-```
-
-## Modalidades
-
-- **Webpay Plus** paga un mes y exige renovación manual. No guarda una tarjeta para cobrar meses siguientes. La orden incluye precio, plan, período y promoción decididos por el servidor.
-- **Oneclick** necesita `TRANSBANK_ONECLICK_ENABLED=true` y habilitación comercial propia. Pide consentimiento expreso. Una inscripción exitosa solo registra una referencia privada; el plan se activa después del primer cobro aprobado, correlacionado y validado. Actualizar tarjeta no produce un cargo inmediato.
-
-El retorno admite GET y POST y busca el token en registros privados. Verifica monto entero CLP, orden, sesión Webpay, o comercio hijo y orden Oneclick; requiere estado `AUTHORIZED` y código `0`. Un parámetro `approved=true`, visitar la URL o repetir el retorno no activa una suscripción. Nunca se guardan PAN completo ni CVV; la interfaz solo recibe marca y últimos cuatro dígitos cuando están disponibles.
-
-## Promoción, períodos y cambios
-
-La promoción pertenece al primer período mensual pagado del usuario: Plus $990 y luego $2.750; Pro $1.990 y luego $4.990. Un rechazo no consume la promoción. La confirmación del primer pago y el uso promocional se guardan en una misma transacción bajo bloqueo. Cambiar de plan, cancelar o volver no recupera la promoción. Integración y producción mantienen registros y medios separados.
-
-### Oferta de bienvenida de 7 días
-
-La migración `202610040003_welcome_campaign.sql` fija una campaña de siete días desde su primera aplicación en la base. Abrir la web, recargar, desplegar código o cambiar la hora del teléfono no reinicia la oferta. El backend conserva los importes Plus $990 y Pro $1.990 durante el primer período elegible; la web no anuncia esta campaña como una oferta de Google Play.
-
-Las fechas y la activación se administran en `private.billing_campaign`, desde el editor SQL de Supabase con acceso administrativo. Consulta pública segura de las fechas actuales:
-
-```sql
-select public.billing_promotion();
-```
-
-Para cerrar la campaña antes de su fecha, ejecuta `update private.billing_campaign set enabled=false where id='welcome';`. Para una nueva ventana, modifica explícitamente `starts_at`, `ends_at` y `enabled`; usa fechas con zona horaria. No se reabre automáticamente. Los precios se modifican en `public.plan_catalog`, no en el JavaScript.
-
-El servidor exige una campaña activa y que la cuenta no haya tenido ningún período pagado, incluso a precio regular. Fuera de la ventana se aplican los precios regulares. Una cotización anterior no autoriza un precio superior: el navegador envía `expected_amount_clp` y el servidor compara ese importe con su cálculo bajo bloqueo, antes de crear el pago o inscribir. No utiliza ese campo para fijar el precio. Una orden ya creada o una inscripción Oneclick aceptada conservan su importe al terminar la campaña; la inscripción sigue sin activar el plan hasta confirmar el cobro. Una bienvenida consumida por otra compra bloquea la inscripción antigua, en lugar de sustituirla por un cobro mayor.
-
-Los meses se calculan en UTC con el día inicial como ancla. Si un mes no tiene ese día, se usa su último día; por ejemplo, 31 de enero → 28/29 de febrero → 31 de marzo. La renovación anticipada empieza desde el vencimiento vigente y conserva los días pagados. El cambio de plan se aplica en el siguiente período, sin prorrateo. Cancelar futuros cobros mantiene acceso hasta vencer y no devuelve pagos anteriores. Los datos, tareas y XP permanecen conservados al vencer o bajar de plan.
-
-El consumo de IA reinicia el primer día de cada mes UTC. Generación y ajuste tienen contadores distintos. Una solicitud validada que se envía a la IA consume una unidad, incluso si el proveedor falla; las solicitudes bloqueadas no llaman al modelo. El límite diario existente sigue funcionando como protección adicional.
-
-## Renovación en la nube
-
-Configurar un secreto aleatorio de al menos 32 caracteres como `BILLING_CRON_SECRET` en Edge Functions. Guardar en Supabase Vault las entradas `planifia_billing_url` y `planifia_billing_cron_secret` descritas en `supabase/billing-scheduler.sql`. Ejecutar ese archivo en el editor SQL como administrador. El cron corre cada 15 minutos aunque nadie abra la aplicación, mediante [pg_cron y pg_net](https://supabase.com/docs/guides/functions/schedule-functions), y obtiene el secreto de [Vault](https://supabase.com/docs/guides/database/vault).
-
-Las órdenes, intentos y reservas persistentes impiden cobrar un período dos veces. Una respuesta incierta se consulta con la misma referencia: un timeout o un 404 no prueban que no hubo cargo y nunca disparan un nuevo cargo a ciegas. Los rechazos confirmados permiten reintentos limitados, configurados en `private.billing_settings` (por defecto 3 intentos, 24 horas entre ellos, hasta 72 horas tras el vencimiento). Al agotarlos o vencer esa ventana se cancela la autorización del ciclo y se solicita renovar manualmente; una orden incierta sigue en verificación. Si el pago se confirma tarde, el nuevo mes parte de la confirmación para conservar un mes completo de acceso. La pantalla informa pagos pendientes o rechazados y permite cambiar tarjeta o renovar manualmente. Si Transbank no permite recuperar una inscripción incierta, requiere revisión del comercio; nunca activa beneficios.
-
-El cron también revisa los formularios Webpay abandonados tras `BILLING_CHECKOUT_TTL_MINUTES` (30 por defecto, configurable entre 10 y 120). Solo cierra una orden cuando Transbank confirma `INITIALIZED` y no existe un intento de confirmación financiera iniciado. Un estado incierto se mantiene pendiente de verificación.
-
-Si falla abrir un formulario inicial, la base verifica bajo bloqueo si llegó a guardar su token. Sin token ni confirmación financiera iniciada, cierra la creación fallida y permite volver a intentarlo; si el token se guardó antes de perder la respuesta, conserva el formulario existente. Un fallo de inscripción o pago individual no impide revisar los demás usuarios: el cron devuelve contadores `processed`, `reconciled` y `failed`, sin referencias privadas.
-
-Si se cambia el plan justo antes de iniciar un cobro automático, el servidor cancela la orden correspondiente al plan anterior. El usuario renueva manualmente con el precio del plan nuevo. No crea un cargo automático adicional para resolver esa carrera.
-
-## Qué falta para producción
-
-1. Contrato y código de comercio habilitados para Webpay Plus; para renovación automática, habilitación Oneclick y código hijo.
-2. Claves privadas de cada producto guardadas en Supabase, sin publicarlas.
-3. Completar las pruebas y certificación que exija Transbank para ese comercio.
-4. Configurar `TRANSBANK_ENV=production` y `billing_admin('configure_environment','{"environment":"production"}'::jsonb)` desde administración. Las órdenes de integración no pueden activar planes ni reutilizar tarjetas en producción.
-5. Activar y comprobar el cron y sus registros antes de ofrecer renovación automática. No basta con desplegar la web.
-
-Fuentes de operación: [Webpay Plus](https://transbankdevelopers.com/documentacion/webpay-plus), [Oneclick](https://transbankdevelopers.com/documentacion/oneclick), [referencia oficial REST](https://github.com/TransbankDevelopers/transbank-developers-docs/tree/master/referencia/webpay) y [código oficial SDK](https://github.com/TransbankDevelopers/transbank-sdk-nodejs/tree/master/lib/transbank/webpay).
+`tests/billing-database.test.js` comprueba con todas las migraciones que nadie puede ejecutar las funciones retiradas y que Mi plan sigue funcionando con una suscripción de Google Play. `tests/billing-ui.mjs` comprueba que la web sólo consulta los planes y el plan vigente, que no muestra pagos ni controles de cobro y que no llama a la función `billing`.

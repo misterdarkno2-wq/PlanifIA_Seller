@@ -6,7 +6,7 @@ Para entender el proyecto y continuar el trabajo, empieza por la [guía de conti
 
 ## Repositorio y estado
 
-Este proyecto corresponde exclusivamente a `misterdarkno2-wq/PlanifIA_Seller`. La transformación inicial se desarrolló en `codex/metas-supabase`; las suscripciones se implementan en `codex/suscripciones-transbank`; la conversación de Lumi y la cola de IA en `codex/lumi-cola-ia`. La web se publica en [planifia.cl](https://planifia.cl/) mediante GitHub Pages. La dirección anterior era [GitHub Pages Seller](https://misterdarkno2-wq.github.io/PlanifIA_Seller/); Pages la redirige al dominio personalizado. Se reutilizan el logo, el símbolo y la ilustración original de Lumi de PlanifIA.
+Este proyecto corresponde exclusivamente a `misterdarkno2-wq/PlanifIA_Seller`. La transformación inicial se desarrolló en `codex/metas-supabase`; el cobro web con Transbank que se probó en `codex/suscripciones-transbank` se retiró el 19 de octubre de 2026; la conversación de Lumi y la cola de IA en `codex/lumi-cola-ia`. La web se publica en [planifia.cl](https://planifia.cl/) mediante GitHub Pages. La dirección anterior era [GitHub Pages Seller](https://misterdarkno2-wq.github.io/PlanifIA_Seller/); Pages la redirige al dominio personalizado. Se reutilizan el logo, el símbolo y la ilustración original de Lumi de PlanifIA.
 
 En esta instalación, Supabase está conectado al proyecto `hlnzxgpdxgadbdcqavcd`. La configuración privada está en archivos excluidos de Git. El estado de despliegue y las comprobaciones contra servicios reales se documentan en [verificación](docs/verificacion.md). El envío de correo para personas fuera del equipo requiere configurar SMTP; la confirmación de correo permanece habilitada. En otras instalaciones, la aplicación indica si falta configuración.
 
@@ -108,7 +108,7 @@ npm.cmd run preview
 
 ## Suscripciones
 
-Desde **Planes** puedes comparar beneficios y precios de referencia. **Mi plan** permite consultar tu período vigente, uso e historial. La web informa que **las suscripciones se contratan desde la app de Google Play** y no inicia compras, renovaciones ni inscripciones de tarjetas con Transbank.
+Desde **Planes** puedes comparar beneficios y precios de referencia. **Mi plan** permite consultar tu plan vigente y tu uso del mes. PlanifIA cobra **sólo dentro de la app, con Google Play**: la web lo informa y no cobra, no guarda tarjetas ni muestra pagos.
 
 La app Android vende Plus y Pro con Google Play Billing (Plus $900 y Pro $1.900 el primer mes) y paquetes de créditos; el servidor valida cada compra con la Google Play Developer API. El uso de IA se paga con **créditos**: 20 por uso, 60 de bienvenida, 1.000 (Plus) o 2.500 (Pro) por mes pagado, y créditos extra por anuncios recompensados e invitaciones. En Android, el plan Gratis muestra un video de AdMob al usar la IA (máximo uno cada 5 minutos) y anuncios recompensados voluntarios para ganar créditos; no hay banner. La compra única **Quitar anuncios** ($2.900) elimina los videos para siempre. Consulta [monetización](docs/monetizacion.md).
 
@@ -120,7 +120,7 @@ La app Android vende Plus y Pro con Google Play Billing (Plus $900 y Pro $1.900 
 
 Los beneficios y límites se editan en `public.plan_catalog`; costos y recompensas de créditos en `private.credit_settings`. Los tres planes conservan calendario, hábitos, Lumi y el historial de metas. Al superar el límite tras bajar de plan puedes consultar y editar tus datos; debes pausar alguna meta antes de activar otra. Los créditos del plan se renuevan con cada mes pagado y no se reinician al cambiar entre Plus y Pro. Sigue existiendo el límite diario de protección de IA.
 
-Se conserva la consulta de órdenes anteriores y la cancelación de futuros cobros de renovaciones ya autorizadas, manteniendo el acceso pagado. El backend de Transbank permanece en integración para los registros y pruebas existentes. Retirar los controles de la web no cancela automáticamente las autorizaciones ni deshabilita sus endpoints. Consulta [el estado de los pagos y el backend anterior](docs/billing.md).
+El cobro web con Transbank (Webpay y Oneclick) funcionó sólo en modo integración, sin pagos reales, y se retiró: sus Edge Functions y su cron ya no están en el repositorio y la migración `202610190001_retire_transbank.sql` quita el permiso para ejecutar sus funciones. Los pasos pendientes en producción (borrar funciones desplegadas, secretos y el cron) están en [docs/billing.md](docs/billing.md#pasos-manuales-en-producción).
 
 ## Metas, planes y progreso
 

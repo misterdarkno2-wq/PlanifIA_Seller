@@ -81,36 +81,6 @@ export function renderBilling({
   </section>`;
 }
 
-const paymentLabels = {
-  approved: "Aprobado",
-  paid: "Aprobado",
-  declined: "Rechazado",
-  rejected: "Rechazado",
-  failed: "Rechazado",
-  cancelled: "Cancelado",
-  canceled: "Cancelado",
-  abandoned: "Abandonado",
-  expired: "Abandonado",
-  pending: "En verificación",
-  created: "Pendiente",
-  initiated: "En verificación",
-  unknown: "En verificación",
-  verifying: "En verificación",
-  uncertain: "En verificación",
-  processing: "En verificación",
-  enrolling: "En verificación",
-};
-const pendingStatuses = new Set([
-  "pending",
-  "created",
-  "initiated",
-  "unknown",
-  "verifying",
-  "uncertain",
-  "processing",
-  "enrolling",
-]);
-const approvedStatuses = new Set(["approved", "paid"]);
 const limits = (plan) => ({
   goals: plan.max_active_goals,
   generations: plan.ai_generations,
@@ -128,47 +98,6 @@ function benefitRows(plan, escape) {
       ? `<li><strong>${number(plan.monthly_credits)}</strong> créditos de IA cada mes</li><li>Sin anuncios</li>`
       : "<li><strong>60</strong> créditos de bienvenida</li><li>Gana créditos con anuncios o invitando</li><li>Video de anuncio al usar la IA</li>"
   }`;
-}
-
-export function paymentResult(order) {
-  const status = String(order?.status || "pending");
-  if (approvedStatuses.has(status))
-    return {
-      kind: "success",
-      title: "Pago aprobado",
-      message: "Se confirmó el pago. Tu período contratado ya está disponible.",
-      terminal: true,
-    };
-  if (["declined", "rejected", "failed"].includes(status))
-    return {
-      kind: "error",
-      title: "El pago fue rechazado",
-      message:
-        "No se activó un período nuevo. Tus metas y tu progreso siguen guardados.",
-      terminal: true,
-    };
-  if (["cancelled", "canceled"].includes(status))
-    return {
-      kind: "neutral",
-      title: "Pago cancelado",
-      message:
-        "La operación quedó cancelada. Tus metas, acciones y progreso de Lumi siguen guardados.",
-      terminal: true,
-    };
-  if (["abandoned", "expired"].includes(status))
-    return {
-      kind: "neutral",
-      title: "El pago no se completó",
-      message: "No se confirmó un nuevo período. Tus datos siguen disponibles.",
-      terminal: true,
-    };
-  return {
-    kind: "pending",
-    title: "Estamos verificando el resultado",
-    message:
-      "Estamos consultando el estado confirmado del pago anterior. Espera la verificación.",
-    terminal: false,
-  };
 }
 
 function cards(state, user, escape) {
@@ -390,61 +319,28 @@ export function purchaseSummary(product, m, catalog, escape) {
 }
 
 function subscriptionView(state, escape, m = null) {
-  // Una suscripción de Google Play reemplaza el bloque de pagos anteriores (Transbank).
-  if (m?.play_subscription && !state.subscription?.access_active)
-    return `${playSubscriptionView(m, escape)}${usageView(state, escape, m)}${historyView(state, escape)}`;
-  const subscription = state.subscription || {};
+  if (m?.play_subscription)
+    return `${playSubscriptionView(m, escape)}${usageView(state, escape, m)}`;
   const effective =
     typeof state.effective_plan === "object"
       ? state.effective_plan
       : state.plans.find((p) => p.id === state.effective_plan);
-  const contracted = state.plans.find((p) => p.id === subscription.plan_id);
-  const hasPeriod = contracted?.price_clp > 0 && subscription.period_end;
-  const access = subscription.access_active === true;
-  const legacyRenews =
-    subscription.channel === "oneclick" && subscription.auto_renew === true;
-  const renewalProblem =
-    subscription.effective_status === "past_due" ||
-    subscription.status === "past_due";
-  const currentPayment = (state.payments || []).find(
-    (p) =>
-      approvedStatuses.has(p.status) &&
-      p.period_start === subscription.period_start &&
-      p.period_end === subscription.period_end,
-  );
-  const status = renewalProblem
-    ? "Renovación pendiente"
-    : hasPeriod && !access
-      ? "Período vencido · acceso Gratis"
-      : access
-        ? legacyRenews
-          ? "Activo · renovación anterior autorizada"
-          : "Activo · sin cobros automáticos"
-        : "Gratis";
-  return `<section class="billing-subscription panel"><div class="billing-subscription-heading"><div><p class="eyebrow">TU PLAN ACTUAL</p><h2>${escape(effective?.name || "Gratis")}</h2><span class="billing-status">${status}</span></div><a href="#plans">Comparar planes ↗</a></div>
+  const paid = Boolean(effective) && effective.id !== "free";
+  return `<section class="billing-subscription panel"><div class="billing-subscription-heading"><div><p class="eyebrow">TU PLAN ACTUAL</p><h2>${escape(effective?.name || "Gratis")}</h2><span class="billing-status">${paid ? "Activo · sin cobros en la web" : "Gratis"}</span></div><a href="#plans">Comparar planes ↗</a></div>
     ${
-      hasPeriod
-        ? `<dl class="billing-details"><div><dt>${access ? "Período contratado" : "Último período contratado"}</dt><dd>${date(subscription.period_start)} — ${date(subscription.period_end)}</dd></div><div><dt>Precio del período contratado</dt><dd>${currentPayment ? `${money(currentPayment.amount)} CLP` : "Consulta el pago en tu historial"}</dd></div><div><dt>Vencimiento del acceso pagado</dt><dd>${date(subscription.paid_until || subscription.period_end)}</dd></div>${legacyRenews ? `<div><dt>${subscription.next_retry_at ? "Próximo intento autorizado anteriormente" : "Próximo cobro autorizado anteriormente"}</dt><dd>${resetLabel(subscription.next_retry_at || subscription.next_date || subscription.paid_until || subscription.period_end)} (hora de Chile)${subscription.next_amount != null ? ` · ${money(subscription.next_amount)} CLP` : ""}</dd></div>` : ""}</dl>
-    ${renewalProblem ? `<p class="notice">La renovación anterior está pendiente de confirmación. Consulta tu historial.${legacyRenews && subscription.next_retry_at ? ` El próximo intento autorizado es el ${resetLabel(subscription.next_retry_at)} (hora de Chile).` : ""}${legacyRenews && subscription.renewal_grace_until ? ` Los reintentos terminan el ${resetLabel(subscription.renewal_grace_until)}.` : ""}</p>` : ""}
-    ${legacyRenews ? '<p class="notice">Tu cuenta conserva una renovación automática autorizada anteriormente. Puedes cancelar sus futuros cobros aquí; tu período pagado se conserva.</p><div class="billing-actions"><button class="secondary" data-billing-action="cancel">Cancelar futuros cobros</button></div>' : `<p class="muted">${access ? "Conservas el acceso hasta el final del período pagado." : "Tu período pagado terminó. Tus datos siguen disponibles con los límites del plan Gratis."}</p>`}`
+      paid
+        ? '<p class="muted">La web no realiza cobros. Las suscripciones se contratan y gestionan en la app de Google Play.</p>'
         : `<p>Tu cuenta no tiene cobros programados. Tus metas, hábitos y Lumi pueden seguir avanzando en el plan Gratis${m ? " con tus créditos" : ""}.</p><a class="button" href="#plans">Ver Plus y Pro</a>`
     }
-  </section>${usageView(state, escape, m)}${historyView(state, escape)}`;
-}
-function historyView(state, escape) {
-  const rows = state.payments || [];
-  return `<section class="billing-history panel"><h2>Historial de pagos</h2>${rows.length ? '<p class="fine billing-table-help">Desliza la tabla para ver el estado y todos los datos del pago.</p>' : ""}${rows.length ? `<div class="billing-table-scroll"><table><caption class="sr-only">Tus pagos y períodos de suscripción</caption><thead><tr><th scope="col">Fecha y plan</th><th scope="col">Período</th><th scope="col">Monto</th><th scope="col">Estado</th></tr></thead><tbody>${rows.map((payment) => `<tr><td><strong>${escape(state.plans.find((p) => p.id === payment.plan_id)?.name || payment.plan_id)}</strong><small>${date(payment.created_at)}</small></td><td>${date(payment.period_start)}<small>al ${date(payment.period_end)}</small></td><td>${money(payment.amount)}${payment.promo_applied ? "<small>Promoción inicial</small>" : ""}</td><td><span class="billing-payment-status">${escape(paymentLabels[payment.status] || "En verificación")}</span>${pendingStatuses.has(payment.status) ? `<button class="text-button" data-verify-order="${escape(payment.id)}">Consultar resultado</button>` : ""}</td></tr>`).join("")}</tbody></table></div>` : '<p class="muted">Todavía no hay pagos registrados en tu cuenta.</p>'}</section>`;
-}
-function resultMarkup(order, escape, finalCheck = false) {
-  const result = paymentResult(order);
-  return `<section class="billing-result billing-result-${result.kind} panel" role="status"><span class="billing-result-symbol" aria-hidden="true">${result.kind === "success" ? "✓" : result.kind === "pending" ? "◷" : "○"}</span><div><h2>${result.title}</h2><p>${result.message}</p>${order?.amount != null ? `<p class="fine">${money(order.amount)} CLP · ${escape(paymentLabels[order.status] || "En verificación")}</p>` : ""}${!result.terminal && finalCheck ? '<p class="fine">La confirmación está tardando. Puedes volver a consultar.</p>' : ""}${!result.terminal ? '<button class="secondary" data-billing-action="verify-return">Volver a consultar</button>' : ""}</div></section>`;
+  </section>${usageView(state, escape, m)}`;
 }
 
 export function mountBilling(
   root,
   {
     user = null,
-    billing,
+    // Plan vigente y uso del mes (billing_state). La web no cobra: sólo consulta.
+    loadState,
     loadCatalog,
     onLogin,
     notify = () => {},
@@ -460,14 +356,7 @@ export function mountBilling(
   const params = new URLSearchParams(location.hash.split("?")[1] || "");
   let state,
     disposed = false,
-    busy = false,
-    verifying = false,
-    outcome = null,
-    pollTimer = null,
-    pollCount = 0;
-  let verifyReference = /^[0-9a-f-]{36}$/i.test(params.get("order") || "")
-    ? { order_id: params.get("order") }
-    : null;
+    busy = false;
   const showAppNotice = () => {
     const notice = host.querySelector("[data-google-play-notice]");
     if (notice.hidden) {
@@ -497,17 +386,10 @@ export function mountBilling(
       ? "No pudimos conectar. Revisa Internet y vuelve a consultar."
       : error?.message || "No pudimos consultar tu suscripción.";
   };
-  // La web sólo consulta pagos anteriores y permite retirar una autorización vigente.
-  const call = async (action, payload = {}) => {
-    if (!["state", "verify", "cancel"].includes(action))
-      throw new Error(
-        "Las suscripciones se contratan desde la app de Google Play.",
-      );
-    if (typeof billing !== "function")
-      throw new Error(
-        "La consulta de suscripciones todavía no está configurada.",
-      );
-    return billing(action, payload);
+  const readState = async () => {
+    if (typeof loadState !== "function")
+      throw new Error("La consulta de tu plan todavía no está configurada.");
+    return loadState();
   };
   const store = user ? monetization?.store || null : null;
   const ads = user ? monetization?.ads || null : null;
@@ -520,7 +402,7 @@ export function mountBilling(
     const playMode = Boolean(store && credits);
     const notice = host.querySelector("[data-google-play-notice]");
     if (notice) notice.hidden = playMode;
-    body.innerHTML = `${outcome ? resultMarkup(outcome, escapeText, pollCount >= 5) : ""}${state.pending_order && !outcome ? `<section class="notice billing-pending"><strong>Hay un pago anterior pendiente de confirmación.</strong><p>Puedes consultar su resultado.</p><button class="secondary" data-verify-order="${escapeText(state.pending_order.id)}">Consultar pago pendiente</button></section>` : ""}${host.dataset.view === "subscription" && user ? subscriptionView(state, escapeText, credits) : playMode ? playPlans(state, credits, catalog, escapeText) : cards(state, user, escapeText)}${user && credits ? creditsView(credits, escapeText, { app: Boolean(store), adsReady: Boolean(ads?.ready) }) : ""}<div data-billing-review></div>`;
+    body.innerHTML = `${host.dataset.view === "subscription" && user ? subscriptionView(state, escapeText, credits) : playMode ? playPlans(state, credits, catalog, escapeText) : cards(state, user, escapeText)}${user && credits ? creditsView(credits, escapeText, { app: Boolean(store), adsReady: Boolean(ads?.ready) }) : ""}<div data-billing-review></div>`;
   };
   // Créditos y precios de Play son complementarios: si fallan, la vista de planes sigue funcionando.
   const loadCredits = async () => {
@@ -544,7 +426,7 @@ export function mountBilling(
   };
   const refresh = async () => {
     const [next] = await Promise.all([
-      user ? call("state") : loadCatalog?.(),
+      user ? readState() : loadCatalog?.(),
       loadCredits(),
     ]);
     if (disposed) return;
@@ -683,38 +565,6 @@ export function mountBilling(
       );
     });
   };
-  const verify = async (reference, automatic = false) => {
-    if (disposed || verifying) return;
-    verifyReference = reference || verifyReference;
-    if (!verifyReference?.order_id) return;
-    verifying = true;
-    clearTimeout(pollTimer);
-    try {
-      const result = await call("verify", verifyReference);
-      if (disposed) return;
-      await refresh();
-      if (disposed) return;
-      outcome = result.order ||
-        state.payments?.find((item) => item.id === verifyReference.order_id) ||
-        state.pending_order || {
-          id: verifyReference.order_id,
-          status: "pending",
-        };
-      if (automatic) pollCount++;
-      paint();
-      if (!paymentResult(outcome).terminal && pollCount < 5)
-        pollTimer = setTimeout(() => verify(verifyReference, true), 2500);
-    } catch (error) {
-      if (disposed) return;
-      clearTimeout(pollTimer);
-      pollCount = 5;
-      outcome ||= { id: verifyReference.order_id, status: "pending" };
-      if (state) paint();
-      showError(error);
-    } finally {
-      verifying = false;
-    }
-  };
   const operation = async (work) => {
     if (busy || disposed) return;
     busy = true;
@@ -784,47 +634,16 @@ export function mountBilling(
       }
       return;
     }
-    if (button.hasAttribute("data-verify-order")) {
-      pollCount = 0;
-      void operation(() => verify({ order_id: button.dataset.verifyOrder }));
-    } else if (button.dataset.billingAction === "verify-return") {
-      pollCount = 0;
-      void operation(() => verify(verifyReference));
-    } else if (button.dataset.billingAction === "retry")
-      void operation(refresh);
-    else if (
-      button.dataset.billingAction === "cancel" &&
-      state?.subscription?.channel === "oneclick" &&
-      state.subscription.auto_renew
-    ) {
-      const target = host.querySelector("[data-billing-review]");
-      target.innerHTML = `<section class="billing-review panel"><h2>Cancelar futuros cobros</h2><p>Conservas el acceso pagado hasta el ${date(state.subscription.paid_until || state.subscription.period_end)}. Cancelar la renovación no devuelve automáticamente pagos anteriores.</p><button data-billing-action="confirm-cancel">Confirmar cancelación de futuros cobros</button><button class="text-button" data-billing-action="dismiss-review">Conservar la renovación</button></section>`;
-      target.scrollIntoView({ block: "center" });
-    } else if (button.dataset.billingAction === "dismiss-review")
+    if (button.dataset.billingAction === "retry") void operation(refresh);
+    else if (button.dataset.billingAction === "dismiss-review")
       host.querySelector("[data-billing-review]").innerHTML = "";
-    else if (
-      button.dataset.billingAction === "confirm-cancel" &&
-      state?.subscription?.channel === "oneclick" &&
-      state.subscription.auto_renew
-    ) {
-      void operation(async () => {
-        await call("cancel");
-        if (disposed) return;
-        await refresh();
-        if (!disposed)
-          notify(
-            "Los futuros cobros quedaron cancelados. Tu período pagado se conserva.",
-          );
-      });
-    }
   };
   host.addEventListener("click", onClick);
   host.addEventListener("submit", onSubmit);
   void refresh()
     .then(async () => {
       if (disposed || !user) return;
-      if (verifyReference) await verify(verifyReference, true);
-      else if (["plus", "pro"].includes(params.get("plan"))) showAppNotice();
+      if (["plus", "pro"].includes(params.get("plan"))) showAppNotice();
       else if (params.get("plan") === "free") location.hash = "today";
     })
     .catch((error) => {
@@ -835,7 +654,6 @@ export function mountBilling(
     });
   return () => {
     disposed = true;
-    clearTimeout(pollTimer);
     host.removeEventListener("click", onClick);
     host.removeEventListener("submit", onSubmit);
   };

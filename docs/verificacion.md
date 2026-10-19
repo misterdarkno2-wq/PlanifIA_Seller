@@ -1,5 +1,13 @@
 # Verificación y activación
 
+## Retiro del cobro web con Transbank — 19 de octubre de 2026
+
+- Recomendación R7 de la revisión legal y de seguridad. Rama `claude/retirar-transbank`, sin push, sin migraciones aplicadas y sin despliegues.
+- Borradas las funciones `billing`, `billing-return` y `billing-renew`, `_shared/transbank.ts` y `_shared/billing.ts`, `billing-scheduler.sql`, `scripts/transbank-smoke.ts` y las variables `TRANSBANK_*` y `BILLING_*`. La web lee `plan_catalog` y `billing_state()` directamente y ya no muestra pagos, no consulta resultados ni cancela renovaciones de Oneclick.
+- Migración `202610190001_retire_transbank.sql`: nadie ejecuta `billing_admin`, `manage_subscription` ni `billing_promotion`; tablas y datos se conservan.
+- `npm.cmd test`: 169 pruebas correctas (se quitaron las de Webpay, Oneclick, renovaciones y campaña; `billing-database.test.js` comprueba el retiro con todas las migraciones). `test:edge`: 54 correctas. `check:edge`, `test:billing-ui` (13 capturas), `test:ui`, `test:csp-ui`, `test:legal-ui`, `test:companion-ui`, `test:chat-ui`, `test:update-ui` y `test:mobile-regressions`: correctos.
+- Pendiente en producción, en este orden: detener el cron, borrar secretos y las funciones desplegadas. Lista en [billing.md](billing.md#pasos-manuales-en-producción).
+
 ## Web con contratación desde Google Play — 4 de octubre de 2026
 
 - Aviso permanente en Planes y Mi suscripción. Plus y Pro llevan al aviso, sin crear cotizaciones, pagos ni inscripciones de tarjetas. La interfaz indica que la app está en preparación y no inventa un enlace de tienda.

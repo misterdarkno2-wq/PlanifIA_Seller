@@ -81,7 +81,7 @@ Método: se aplicaron todas las migraciones en PostgreSQL (PGlite), emulando los
 - **Esquema `private`**: 28 tablas, sin uso para `anon` ni `authenticated`.
 - **Funciones `SECURITY DEFINER`**: 53 (49 más 4 nuevas), todas con `search_path=''`.
   - Las de servicio (`play_*`, `admob_reward`, `claim_*`, `finish_ai_job`, `rate_limit_take`, etc.) sólo las ejecuta `service_role`.
-  - `anon` sólo ejecuta `billing_promotion()`, que es información pública de la campaña.
+  - `anon` sólo ejecuta `billing_promotion()`, que es información pública de la campaña. Con R7 (`202610190001_retire_transbank.sql`) deja de ejecutarla: `anon` no ejecuta ninguna función.
   - Validan sus parámetros: estados, días, zona horaria, UUID, largos y límites.
 - **Eliminación de cuenta**: `delete_my_account` borra `auth.users` y todo cae en cascada (33 tablas con FK `on delete cascade`).
   - Se verificó el riesgo de fraude al borrar los tokens de compra: cada compra lleva el id de cuenta ofuscado (`obfuscatedExternalAccountId`), y si otra cuenta reutiliza el token recibe un 409 (`play-sync.ts:36`).
@@ -97,7 +97,7 @@ Método: se aplicaron todas las migraciones en PostgreSQL (PGlite), emulando los
 | `play-billing` | Sesión | **Nuevo**: lectura acotada a 60.000 bytes; ≤ 10 compras; regex de producto y token | Lista cerrada | Verificación con la API de Google; cuenta ofuscada |
 | `play-rtdn` | Secreto ≥ 32 en la URL; **nuevo**: JWT OIDC de Pub/Sub opcional | El aviso sólo indica qué token volver a consultar | No aplica | Revalida en Google |
 | `admob-ssv` | Firma ECDSA de Google (`handler.ts:65`) | Sólo campos firmados; unidad esperada | No aplica | Transacción única (`202610070001_play_credits.sql:444`) |
-| `billing`, `billing-return`, `billing-renew` | Sesión; token de Transbank correlacionado; secreto del cron | **Nuevo**: lectura acotada en `billing-return` | Lista cerrada en `billing` | Estado de la orden (Transbank en integración) |
+| `billing`, `billing-return`, `billing-renew` (**retiradas**, R7) | Sesión; token de Transbank correlacionado; secreto del cron | **Nuevo**: lectura acotada en `billing-return` | Lista cerrada en `billing` | Estado de la orden (Transbank en integración) |
 
 Ninguna función responde `Access-Control-Allow-Origin: *` (lo comprueba `tests/legal-security.test.js`).
 
@@ -398,7 +398,7 @@ Ninguno se hizo. Cada uno necesita tu aprobación.
    - Usa como audiencia la URL de la función.
    - Configura `PLAY_RTDN_AUDIENCE` y `PLAY_RTDN_SERVICE_ACCOUNT` con `secrets set`.
    - Prueba con **Enviar notificación de prueba** en Play Console.
-7. **Desplegar funciones**, después de la migración (dependen de `rate_limit_take`): `npx.cmd supabase functions deploy goal-plan lumi-chat ai-fallback play-billing play-rtdn billing-return`.
+7. **Desplegar funciones**, después de la migración (dependen de `rate_limit_take`): `npx.cmd supabase functions deploy goal-plan lumi-chat ai-fallback play-billing play-rtdn`. `billing-return` ya no se despliega: con R7 se borra (pasos en `docs/billing.md`).
 8. **Publicar la web** con un merge a `main`, después de los pasos 1, 3 y 7. Hay que resolver el conflicto de fechas con el PR de `feature/respaldo-groq`. La CSP se genera con `VITE_SUPABASE_URL` de las variables del repositorio.
 9. **Revisión de seguridad en Supabase**: ejecuta **Advisors → Security Advisor** y **Performance Advisor** y corrige lo que aparezca (por ejemplo, la política de `ai_jobs`, B3).
 10. **Android**:
@@ -435,5 +435,9 @@ Ninguno se hizo. Cada uno necesita tu aprobación.
   - Se dejó sólo en la app para no bloquear las versiones antiguas de Android mientras se actualizan.
   - Conviene activarlo cuando la versión mínima soportada incluya la pantalla de nueva aceptación.
 - **R6. Anuncios no personalizados** para quien no dio consentimiento, en `AdsPlugin.kt`. Reduce el riesgo de la base legal de los anuncios en Chile. Hay que probarlo en un teléfono.
-- **R7. Retirar el cobro web con Transbank.** Nunca se usó en producción y no se usará: hoy son tablas y funciones (`billing`, `billing-return`, `billing-renew`) que sólo aumentan la superficie de ataque.
+- **R7. ~~Retirar el cobro web con Transbank.~~ Hecho en el repositorio (19 de octubre de 2026, rama `claude/retirar-transbank`).** Nunca se usó en producción y no se usará.
+  - Se borraron las funciones `billing`, `billing-return` y `billing-renew`, `_shared/transbank.ts` y `_shared/billing.ts`, el cron (`billing-scheduler.sql`), `scripts/transbank-smoke.ts` y las variables `TRANSBANK_*` y `BILLING_*`.
+  - La web lee `plan_catalog` y `billing_state()` directamente y ya no muestra pagos ni cancela renovaciones de Oneclick.
+  - La migración `202610190001_retire_transbank.sql` quita el permiso de ejecución a `billing_admin`, `manage_subscription` y `billing_promotion`. Las tablas y sus datos de integración se conservan hasta que el responsable decida.
+  - **Falta en producción** (no aplicado): detener el cron, borrar los secretos y las funciones desplegadas, en el orden de `docs/billing.md` (sección «Pasos manuales en producción»). La función `billing` se borra al final, porque las versiones instaladas de la app la usan para cargar los planes.
 - **R5. Revisar anualmente** los números de `CRISIS_LINES` y la lista de expresiones de crisis, con los reportes como fuente.

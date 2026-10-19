@@ -47,15 +47,6 @@ max_frequency = "1m0s"
 [functions.goal-plan]
 verify_jwt = false
 
-[functions.billing]
-verify_jwt = false
-
-[functions.billing-return]
-verify_jwt = false
-
-[functions.billing-renew]
-verify_jwt = false
-
 # Verifican la sesión, el secreto de Pub/Sub o la firma de AdMob dentro de la función.
 [functions.play-billing]
 verify_jwt = false
