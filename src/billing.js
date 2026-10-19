@@ -345,6 +345,49 @@ function playPlans(state, m, catalog, escape) {
     <p class="fine"><button class="text-button" data-open-external="${LEGAL.terms}">Términos de uso</button> · <button class="text-button" data-open-external="${LEGAL.privacy}">Política de privacidad</button></p></section></div>`;
 }
 
+/**
+ * Resumen visible antes de abrir Google Play: qué se compra, precio, renovación automática, cómo
+ * cancelar y enlace a los términos (Ley 19.496, art. 12 A, y políticas de suscripciones de Play).
+ */
+export function purchaseSummary(product, m, catalog, escape) {
+  const plans = m?.plans || [];
+  let name, price, points;
+  if (product.kind === "subscription") {
+    const plan = plans.find((p) => p.id === product.plan_id);
+    const info = describeSubscription(catalog[product.product_id]);
+    name = `Suscripción mensual ${plan?.name || ""}`.trim();
+    price = info.introPrice
+      ? `${info.introPrice} el primer mes; luego ${info.regularPrice} al mes`
+      : `${info.regularPrice} al mes`;
+    points = [
+      "Se renueva automáticamente cada mes y Google Play cobra a tu cuenta de Google hasta que la canceles.",
+      "Puedes cancelar cuando quieras en Google Play (Pagos y suscripciones) o con «Gestionar o cancelar suscripción». Conservas el acceso hasta el final del período pagado.",
+      "Cancelar detiene los próximos cobros; no devuelve automáticamente lo ya pagado. Los reembolsos y el retracto se explican en los Términos de uso.",
+    ];
+  } else if (product.kind === "credits") {
+    name = `Paquete de ${number(product.credits)} créditos de IA`;
+    price = `${catalog[product.product_id]?.oneTime?.formattedPrice || "Precio informado por Google Play"}, pago único`;
+    points = [
+      "Los créditos se suman a tu cuenta apenas Google Play confirma el pago, sin renovación.",
+      "No vencen mientras tu cuenta exista, no tienen valor en dinero y se pierden si eliminas la cuenta.",
+    ];
+  } else {
+    name = "Quitar anuncios";
+    price = `${catalog[product.product_id]?.oneTime?.formattedPrice || "Precio informado por Google Play"}, pago único`;
+    points = [
+      "Quita los videos al usar la IA en esta cuenta de PlanifIA, para siempre y sin renovación.",
+      "Los anuncios voluntarios para ganar créditos siguen disponibles si los quieres ver.",
+    ];
+  }
+  return `<section class="billing-review panel purchase-summary" data-purchase-summary aria-labelledby="purchase-summary-title">
+    <h2 id="purchase-summary-title" tabindex="-1">Antes de pagar</h2>
+    <dl><dt>Compras</dt><dd>${escape(name)}</dd><dt>Precio</dt><dd>${escape(price)}</dd></dl>
+    <ul>${points.map((point) => `<li>${escape(point)}</li>`).join("")}</ul>
+    <p class="fine">Precio en tu moneda local con impuestos incluidos, tal como lo informa Google Play. Al continuar aceptas los <button type="button" class="text-button" data-open-external="${LEGAL.terms}">Términos de uso</button>; tus datos se tratan según la <button type="button" class="text-button" data-open-external="${LEGAL.privacy}">Política de privacidad</button>.</p>
+    <div class="billing-actions"><button data-play-confirm="${escape(product.product_id)}">Continuar a Google Play</button><button class="text-button" data-billing-action="dismiss-review">Cancelar</button></div>
+  </section>`;
+}
+
 function subscriptionView(state, escape, m = null) {
   // Una suscripción de Google Play reemplaza el bloque de pagos anteriores (Transbank).
   if (m?.play_subscription && !state.subscription?.access_active)
@@ -467,6 +510,8 @@ export function mountBilling(
   };
   const store = user ? monetization?.store || null : null;
   const ads = user ? monetization?.ads || null : null;
+  // Antes de comprar (por ejemplo, aceptar una versión nueva de los términos). false = no seguir.
+  const beforePurchase = monetization?.beforePurchase || (async () => true);
   let credits = null,
     catalog = {};
   const paint = () => {
@@ -524,6 +569,16 @@ export function mountBilling(
     if (results.some((r) => r.kind === "subscription" && r.active))
       return `¡Listo! Tu plan ${credits?.plan?.name || ""} ya está activo y sin anuncios.`;
     return "Compra registrada. Estamos confirmándola con Google Play.";
+  };
+  // Primero el resumen de la compra; Google Play se abre sólo con "Continuar a Google Play".
+  const review = async (productId) => {
+    const product = (credits?.products || []).find((p) => p.product_id === productId);
+    if (!store || !product) throw new Error("Este producto no está disponible.");
+    if (!(await beforePurchase()) || disposed) return;
+    const target = host.querySelector("[data-billing-review]");
+    target.innerHTML = purchaseSummary(product, credits, catalog, escapeText);
+    target.scrollIntoView?.({ block: "center" });
+    target.querySelector("h2")?.focus({ preventScroll: true });
   };
   const buy = async (productId) => {
     const product = (credits?.products || []).find((p) => p.product_id === productId);
@@ -693,7 +748,11 @@ export function mountBilling(
       return;
     }
     if (button.hasAttribute("data-play-buy") && store) {
-      void operation(() => buy(button.dataset.playBuy));
+      void review(button.dataset.playBuy).catch(showError);
+      return;
+    }
+    if (button.hasAttribute("data-play-confirm") && store) {
+      void operation(() => buy(button.dataset.playConfirm));
       return;
     }
     if (button.hasAttribute("data-play-restore") && store) {

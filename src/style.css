@@ -1434,3 +1434,125 @@ code {
     font-size: 9.5px;
   }
 }
+
+/* Casilla de edad y aceptación de los términos (registro y nueva aceptación). */
+.legal-consent {
+  align-items: flex-start !important;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.legal-consent input[type="checkbox"] {
+  flex: none;
+  width: 20px;
+  min-height: 20px;
+  margin-top: 1px;
+}
+.legal-update {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 16px;
+  border: 1px solid #d5e5d6;
+  background: #f7fbf4;
+}
+.legal-update h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+.legal-update p,
+.legal-update ul {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.legal-update ul {
+  padding-left: 18px;
+}
+.legal-update form {
+  display: grid;
+  gap: 10px;
+}
+
+/* Aviso fijo de crisis con líneas de ayuda (lo escribe la app, no la IA). */
+.crisis-help {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+  padding: 14px 16px;
+  border: 1px solid #e8c9a8;
+  border-radius: 12px;
+  background: #fff7ec;
+  color: #4b3416;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.crisis-help p,
+.crisis-help ul {
+  margin: 0;
+}
+.crisis-help ul {
+  padding-left: 18px;
+}
+.crisis-help li strong {
+  font-size: 15px;
+}
+.lumi-chat-safety {
+  align-self: stretch;
+  max-width: 100%;
+  padding: 0;
+}
+.lumi-chat-safety .crisis-help {
+  margin: 0;
+}
+
+/* "Reportar respuesta" en el chat y en los planes de la IA. */
+.ai-report {
+  margin-top: 6px;
+}
+.ai-report-toggle {
+  font-size: 12px;
+  color: var(--muted);
+}
+.ai-report-form {
+  display: grid;
+  gap: 10px;
+  margin-top: 8px;
+}
+.ai-report-form fieldset {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+}
+.ai-report-form label:has(input[type="radio"]) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 450;
+}
+.ai-report-form input[type="radio"] {
+  width: 16px;
+  min-height: 16px;
+  accent-color: var(--green);
+}
+.ai-report-done {
+  margin: 6px 0 0;
+}
+
+/* Resumen visible antes de abrir Google Play. */
+.purchase-summary dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 14px;
+  margin: 0 0 12px;
+}
+.purchase-summary dt {
+  font-weight: 650;
+  color: var(--muted);
+}
+.purchase-summary dd {
+  margin: 0;
+  font-weight: 650;
+}
+.purchase-summary ul {
+  padding-left: 18px;
+  line-height: 1.5;
+}

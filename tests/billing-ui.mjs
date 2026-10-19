@@ -4,6 +4,7 @@ import { spawn } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import assert from "node:assert/strict";
+import { LEGAL_VERSION } from "../src/legal.js";
 
 const origin = "http://127.0.0.1:5186";
 const server = spawn(
@@ -331,7 +332,9 @@ async function mainFixture(hash = "") {
         throw new Error(
           `Acción del montaje principal no prevista: ${body.action}`,
         );
-    } else if (url.pathname.startsWith("/rest/v1/")) result = [];
+    } else if (url.pathname === "/rest/v1/legal_acceptances")
+      result = [{ terms_version: LEGAL_VERSION.terms, privacy_version: LEGAL_VERSION.privacy, platform: "web" }];
+    else if (url.pathname.startsWith("/rest/v1/")) result = [];
     else
       throw new Error(
         `Solicitud de fixture no prevista: ${request.method()} ${url.pathname}`,
@@ -798,6 +801,22 @@ try {
       assert.match(await page.locator("[data-ad-free-offer]").innerText(), /Quitar anuncios por \$2\.900/);
       assert.match(await page.locator('[data-plan-card="free"]').innerText(), /Video de anuncio al usar la IA/);
       await page.locator('[data-play-buy="planifia_plus"]').click();
+      // Antes de abrir Google Play se muestra qué se compra, el precio, la renovación y cómo cancelar.
+      const summary = page.locator("[data-purchase-summary]");
+      await summary.waitFor();
+      const summaryText = await summary.innerText();
+      assert.match(summaryText, /Suscripción mensual Plus/);
+      assert.match(summaryText, /\$900 el primer mes; luego \$2\.700 al mes/);
+      assert.match(summaryText, /Se renueva automáticamente cada mes/);
+      assert.match(summaryText, /Puedes cancelar cuando quieras/);
+      assert.match(summaryText, /Términos de uso/);
+      assert.equal(
+        (await page.evaluate(() => window.playCalls)).some(([c]) => c === "purchase"),
+        false,
+        "Google Play no se abre antes de confirmar el resumen",
+      );
+      await capture(page, "google-play-purchase-summary-mobile");
+      await page.locator('[data-play-confirm="planifia_plus"]').click();
       await page.waitForFunction(() => window.notes.some((n) => /activo/.test(n)));
       const purchase = (await page.evaluate(() => window.playCalls)).find(([c]) => c === "purchase")[1];
       assert.equal(purchase.accountId, "user-fixture", "La compra se liga a la cuenta de Supabase");
@@ -813,6 +832,8 @@ try {
       const page = await playPage("plans");
       await page.locator("[data-ad-free-offer]").waitFor();
       await page.locator('[data-play-buy="sin_anuncios"]').click();
+      assert.match(await page.locator("[data-purchase-summary]").innerText(), /Quitar anuncios[\s\S]*\$2\.900, pago único[\s\S]*sin renovación/);
+      await page.locator('[data-play-confirm="sin_anuncios"]').click();
       await page.waitForFunction(() => window.notes.some((n) => /quitamos los videos/.test(n)));
       const purchase = (await page.evaluate(() => window.playCalls)).find(([c]) => c === "purchase")[1];
       assert.equal(purchase.type, "inapp", "Quitar anuncios es una compra única");

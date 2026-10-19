@@ -1,6 +1,8 @@
 // Oferta de "Quitar anuncios" que aparece al cerrar un video de AdMob.
 // La compra es la misma de Mi plan: Google Play cobra y el servidor la verifica.
 
+import { LEGAL_URLS } from "./legal.js";
+
 // Precio de Play Console por si Google Play no informa el precio en ese momento.
 export const AD_FREE_FALLBACK_PRICE = "$2.900";
 
@@ -47,7 +49,7 @@ export function mountAdFreeOffer({ price, onBuy, doc = document }) {
     <p>Quita los anuncios para siempre con un pago único. Sin suscripción.</p>
     <p class="error" role="alert" data-ad-free-error hidden></p>
     <div class="ad-free-offer-actions"><button type="button" data-ad-free-buy></button><button type="button" class="text-button" data-ad-free-later>Ahora no</button></div>
-    <p class="fine">Podrás seguir viendo anuncios voluntarios para ganar créditos.</p></div>`;
+    <p class="fine">Podrás seguir viendo anuncios voluntarios para ganar créditos. Pago único con tu cuenta de Google Play, sin renovación. Al comprar aceptas los <a href="${LEGAL_URLS.terms}" target="_blank" rel="noopener noreferrer" data-external-link>Términos de uso</a>.</p></div>`;
   const buy = offer.querySelector("[data-ad-free-buy]");
   const error = offer.querySelector("[data-ad-free-error]");
   const label = `Quitar anuncios por ${price}`;

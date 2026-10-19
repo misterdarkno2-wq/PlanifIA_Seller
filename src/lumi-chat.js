@@ -5,6 +5,9 @@ import { portrait } from "./pet-art.js";
 import { createLumiUtterance, lumiMouthFrames } from "./lumi-speech.js";
 import { getPetMotionSettings } from "./pet-motion.js";
 import { aiSourceLabel } from "./ai-source.js";
+import { crisisHelp, detectCrisis } from "./crisis-help.js";
+import { CRISIS_TITLE } from "../supabase/functions/_shared/crisis.js";
+import { reportControl } from "./ai-report.js";
 
 export const LUMI_CHAT_MAX = 500;
 
@@ -33,6 +36,17 @@ export const lumiChatApi = {
     return data;
   },
   clear: () => checked(cloud.rpc("lumi_chat_clear")),
+  /** El servidor comprueba que Lumi le haya dicho ese texto a esta cuenta y guarda su propia copia. */
+  report: ({ id = null, content, reason, details }) =>
+    checked(
+      cloud.rpc("report_ai_content", {
+        p_kind: "chat",
+        p_ref: id == null ? null : String(id),
+        p_content: content,
+        p_reason: reason,
+        p_details: details,
+      }),
+    ),
 };
 
 const greeting = (name) =>
@@ -56,7 +70,7 @@ export function lumiChatPage({ stage = 1, name = "", escape }) {
       <p class="fine" data-lumi-chat-cost></p>
       <p class="fine lumi-chat-source" data-lumi-chat-source hidden></p>
     </form>
-    <p class="muted fine lumi-chat-note">Lumi es una IA: puede equivocarse. Tus mensajes se envían a la IA de PlanifIA y se guardan los últimos 100. No compartas datos sensibles.</p>
+    <p class="muted fine lumi-chat-note">Lumi es una IA: puede equivocarse y no da consejos médicos, psicológicos, legales ni financieros. Tus mensajes se envían a la IA de PlanifIA o, si no está disponible, a la de respaldo de NVIDIA, y se guardan los últimos 100. No compartas datos sensibles. Si una respuesta te parece ofensiva o peligrosa, usa «Reportar respuesta».</p>
   </section>`;
 }
 
@@ -69,6 +83,8 @@ export function mountLumiChat(root, {
   voice,
   credits = () => null,
   onCredits = () => {},
+  // Antes de enviar a la IA (por ejemplo, aceptar una versión nueva de los términos). false = no enviar.
+  beforeSend = async () => true,
   api = lumiChatApi,
   uuid = () => crypto.randomUUID(),
 } = {}) {
@@ -94,7 +110,8 @@ export function mountLumiChat(root, {
     textTimer,
     talkTimer,
     mouth,
-    clearArmed;
+    clearArmed,
+    consenting = false;
 
   function updateControls() {
     send.disabled = loading || clearing || sending;
@@ -110,7 +127,8 @@ export function mountLumiChat(root, {
       ? `Cada mensaje usa ${c.chat_cost ?? 5} créditos · Tienes ${c.balance}`
       : "Cada mensaje usa 5 créditos";
   }
-  function item(role, text) {
+  // `report`: texto completo de una respuesta de la IA, que se puede reportar (id si ya está guardada).
+  function item(role, text, report = null) {
     const li = document.createElement("li");
     li.className = `lumi-chat-message lumi-chat-${role}`;
     const who = document.createElement("span");
@@ -119,9 +137,22 @@ export function mountLumiChat(root, {
     const body = document.createElement("p");
     body.textContent = text;
     li.append(who, body);
+    if (report?.content)
+      li.append(reportControl({ submit: (input) => api.report({ ...input, id: report.id, content: report.content }) }));
     log.append(li);
     li.scrollIntoView?.({ block: "end", behavior: textMotion.matches ? "auto" : "smooth" });
     return body;
+  }
+  // Aviso fijo de crisis: no lo escribe la IA, no se guarda y no se puede reportar.
+  function safety(refunded = true) {
+    const li = document.createElement("li");
+    li.className = "lumi-chat-message lumi-chat-safety";
+    li.append(crisisHelp({ refunded }));
+    log.append(li);
+    li.scrollIntoView?.({ block: "end", behavior: textMotion.matches ? "auto" : "smooth" });
+    stopTalking();
+    say.removeAttribute("aria-label");
+    say.textContent = CRISIS_TITLE;
   }
   function stopTalking() {
     clearInterval(textTimer);
@@ -184,6 +215,24 @@ export function mountLumiChat(root, {
     if (loading || clearing || sending || disposed) return;
     if (!text) return input.focus();
     if (text.length > LUMI_CHAT_MAX) return showError(`Escribe un mensaje de hasta ${LUMI_CHAT_MAX} caracteres.`);
+    alert.hidden = true;
+    // Una crisis no se envía a la IA ni se cobra: se muestran líneas de ayuda de inmediato.
+    if (detectCrisis(text)) {
+      item("user", text);
+      safety(true);
+      input.value = "";
+      return;
+    }
+    if (consenting) return;
+    consenting = true;
+    let allowed = false;
+    try {
+      allowed = await beforeSend();
+    } catch {
+    } finally {
+      consenting = false;
+    }
+    if (!allowed || disposed) return;
     voice?.unlock?.();
     sending = true;
     alert.hidden = true;
@@ -201,7 +250,11 @@ export function mountLumiChat(root, {
       input.value = "";
       thinking(false);
       const reply = String(result?.reply || "");
-      speak(reply, [say, item("lumi", "")]);
+      if (result?.crisis) {
+        safety(result.refunded !== false);
+        return;
+      }
+      speak(reply, [say, item("lumi", "", { content: reply })]);
       if (Number.isFinite(result?.credits)) onCredits(result.credits);
       // Indicador discreto de qué IA respondió el último mensaje.
       const label = aiSourceLabel(result?.source);
@@ -273,7 +326,8 @@ export function mountLumiChat(root, {
     .load()
     .then((messages) => {
       if (disposed) return;
-      for (const m of messages) item(m.role === "lumi" ? "lumi" : "user", m.content);
+      for (const m of messages)
+        m.role === "lumi" ? item("lumi", m.content, { id: m.id, content: m.content }) : item("user", m.content);
       const last = [...messages].reverse().find((m) => m.role === "lumi");
       if (last) say.textContent = last.content;
     })

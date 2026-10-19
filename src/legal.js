@@ -36,7 +36,7 @@ export function signupLegal(platform) {
   };
 }
 
-const longDate = (value) =>
+export const legalDateLabel = (value) =>
   new Intl.DateTimeFormat("es-CL", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(
     new Date(`${value}T12:00:00Z`),
   );
@@ -60,7 +60,7 @@ export function legalUpdateCard({ doc = document, accept, onAccepted = () => {},
   card.dataset.legalUpdate = "";
   card.setAttribute("aria-labelledby", "legal-update-title");
   card.innerHTML = `<h2 id="legal-update-title" tabindex="-1">Actualizamos los Términos y la Política de privacidad</h2>
-    <p>${reason ? `${reason} ` : ""}Revisa y acepta la versión del ${longDate(LEGAL_VERSION.terms)} para seguir usando la IA y comprar en PlanifIA. Tus metas y tu progreso siguen disponibles aunque no aceptes.</p>
+    <p>${reason ? `${reason} ` : ""}Revisa y acepta la versión del ${legalDateLabel(LEGAL_VERSION.terms)} para seguir usando la IA y comprar en PlanifIA. Tus metas y tu progreso siguen disponibles aunque no aceptes.</p>
     <ul class="legal-update-changes">
       <li>Identificamos a quien responde por tus datos y explicamos todos tus derechos y cómo ejercerlos.</li>
       <li>Detallamos qué datos recibe cada proveedor (Supabase, NVIDIA, Google, Cloudflare y GitHub) y en qué país.</li>

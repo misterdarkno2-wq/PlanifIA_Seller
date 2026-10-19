@@ -5,6 +5,7 @@ import { mkdir } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import assert from "node:assert/strict";
 import { today, progression } from "../src/domain.js";
+import { LEGAL_VERSION } from "../src/legal.js";
 const origin = "http://127.0.0.1:5188";
 const server = spawn(
   process.execPath,
@@ -222,7 +223,9 @@ try {
               }
             : table === "tasks"
               ? [task]
-              : [];
+              : table === "legal_acceptances"
+                ? [{ terms_version: LEGAL_VERSION.terms, privacy_version: LEGAL_VERSION.privacy, platform: "web" }]
+                : [];
       }
       await route.fulfill({
         status: url.pathname.includes("/functions/v1/goal-plan") ? 202 : 200,
