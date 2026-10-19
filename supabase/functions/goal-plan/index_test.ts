@@ -1,5 +1,6 @@
 // Contratos de la función: Auth y proveedor son respuestas sintéticas, sin claves reales.
 import { handleGoalPlan } from "./handler.ts";
+import { CRISIS_MESSAGE } from "../_shared/crisis.js";
 
 function assert(condition: unknown, message = "Assertion failed") {
   if (!condition) throw new Error(message);
@@ -253,3 +254,36 @@ Deno.test(
     }
   },
 );
+
+Deno.test("Una meta que describe una crisis no se encola ni se cobra: responde las líneas de ayuda", async () => {
+  const f = setup();
+  try {
+    const response = await handleGoalPlan(request("test-valid-session", "https://web.example.test", {
+      idea: "Dejar todo",
+      current_situation: "Pienso en quitarme la vida",
+    }));
+    assert(response.status === 422, `status ${response.status}`);
+    const body = await response.json();
+    assert(body.crisis === true && body.error === CRISIS_MESSAGE);
+    assert(f.submission() === null && f.calls() === 0, "No llega a la cola ni a la IA");
+  } finally {
+    f.close();
+  }
+});
+
+Deno.test("Un cuerpo que no es JSON recibe un mensaje genérico, sin detalles técnicos", async () => {
+  const f = setup();
+  try {
+    const response = await handleGoalPlan(new Request("https://function.example.test", {
+      method: "POST",
+      headers: { Origin: "https://web.example.test", Authorization: "Bearer test-valid-session", "Content-Type": "application/json" },
+      body: "{no es json",
+    }));
+    assert(response.status === 400, `status ${response.status}`);
+    const body = await response.json();
+    assert(body.error === "Envía una solicitud válida.", body.error);
+    assert(f.submission() === null);
+  } finally {
+    f.close();
+  }
+});

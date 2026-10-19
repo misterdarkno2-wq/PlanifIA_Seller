@@ -3,6 +3,8 @@
 // Si Lumi no responde, devuelve los créditos. Nunca usa la cola de planes.
 import { createClient } from "npm:@supabase/supabase-js@2.58.0";
 import { BodyTooLarge, readRequestText } from "../_shared/request-body.ts";
+import { CRISIS_CLOSING, CRISIS_MESSAGE, detectCrisis } from "../_shared/crisis.js";
+import { allowIp, IP_LIMITED } from "../_shared/rate-limit.ts";
 import {
   CLOUD_CHAT_ADDENDUM,
   CloudLimited,
@@ -69,6 +71,17 @@ export function cleanReply(reply: unknown) {
 
 const json = (data: unknown, status: number, headers: HeadersInit) => Response.json(data, { status, headers });
 
+/**
+ * Respuesta fija ante una crisis: no la escribe la IA, no se guarda en la conversación y no se cobra.
+ * Si la devolución de créditos no se pudo confirmar, el aviso no afirma que no se cobró.
+ */
+export function crisisReply(headers: HeadersInit, refunded = true) {
+  const reply = refunded
+    ? CRISIS_MESSAGE
+    : CRISIS_MESSAGE.replace(CRISIS_CLOSING, "Si puedes, cuéntale también a alguien de confianza. Revisa tu saldo: no pudimos confirmar la devolución de créditos.");
+  return json({ reply, source: "safety", crisis: true, credits: null, refunded }, 200, headers);
+}
+
 export async function handleLumiChat(req: Request) {
   const origin = req.headers.get("origin") || "";
   const origins = (Deno.env.get("ALLOWED_ORIGINS") || "").split(",").map((x) => x.trim());
@@ -116,8 +129,11 @@ export async function handleLumiChat(req: Request) {
   if (text.length < 1 || text.length > 500) {
     return json({ error: "Escribe un mensaje de 1 a 500 caracteres." }, 422, headers);
   }
+  // Una crisis no se envía al modelo ni se cobra: se responde con las líneas de ayuda.
+  if (detectCrisis(text)) return crisisReply(headers);
   const requestId = String(input.request_id);
   const admin = createClient(url, service, { auth: { persistSession: false } });
+  if (!(await allowIp(admin, req))) return json({ error: IP_LIMITED }, 429, headers);
 
   // 1. Valida límites y cobra en la base de datos (el teléfono nunca descuenta créditos).
   const begun = await admin.rpc("lumi_chat_begin", { p_user: user.id, p_request: requestId, p_text: text });
@@ -180,6 +196,8 @@ export async function handleLumiChat(req: Request) {
   if (!reply) {
     return await failedReply(failure);
   }
+  // Si el modelo habló de autolesión o violencia, su texto no se muestra ni se guarda.
+  if (detectCrisis(reply)) return crisisReply(headers, await refund());
 
   // 3. Guarda la pregunta y la respuesta; si no se pudo guardar, también se devuelve el cobro.
   const finished = await admin.rpc("lumi_chat_finish", {

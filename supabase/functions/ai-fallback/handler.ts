@@ -6,6 +6,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.58.0";
 import { BodyTooLarge, readRequestText } from "../_shared/request-body.ts";
 import { CLOUD_PLAN_ADDENDUM, CloudUnavailable, cloudSettings, isRetiredModel, type CloudSettings } from "../_shared/ai-fallback.ts";
 import { generateValidatedPlan, PlanGenerationError, planJobResult } from "../_shared/generate-plan.ts";
+import { allowIp } from "../_shared/rate-limit.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const UNAVAILABLE = "La IA de respaldo no está disponible. Tu solicitud sigue guardada y se preparará cuando vuelva la IA local.";
@@ -120,6 +121,10 @@ export async function handleAiFallback(req: Request) {
   if (!settings) return json({ status: "unavailable", error: UNAVAILABLE }, 503, headers);
 
   const admin = createClient(url, service, { auth: { persistSession: false } });
+  // Cuota propia: la app consulta esta función cada minuto mientras el PC está apagado.
+  if (!(await allowIp(admin, req, { limit: { bucket: "ai_fallback", limit: 60, windowSeconds: 600 } }))) {
+    return json({ status: "limited", error: LIMITED }, 429, headers);
+  }
   const claimed = await admin.rpc("claim_ai_job_cloud", { p_user: user.id, p_job: input?.job_id ?? null });
   if (claimed.error) {
     console.error("ai-fallback claim", claimed.error.code);
