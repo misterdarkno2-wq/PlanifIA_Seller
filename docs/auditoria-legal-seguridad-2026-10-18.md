@@ -24,7 +24,7 @@ Revisión hecha con `docs/prompt-legal-seguridad.md` en la rama `feature/legal-s
 Además se dejó en su propio commit el cambio del dueño de NVIDIA a Groq.
 
 **Qué falta**:
-- El RUT y el domicilio del responsable. El nombre ya está. El dueño no tiene empresa y prefiere no publicar el RUT; las opciones están en la [sección 5.1](#51-identificación-del-responsable-sin-publicar-datos-personales).
+- La dirección completa del responsable, si el abogado dice que no basta la comuna. El nombre, el RUT y la comuna ya están en los textos.
 - Decisiones legales: retracto, anuncios en Chile, datos sensibles, transferencias, incidente NVIDIA.
 - Los pasos manuales en Supabase, Groq, Play y GitHub ([sección 7](#7-pasos-manuales-en-orden)).
 
@@ -317,8 +317,8 @@ Todas pasaron el 19 de octubre de 2026, en Windows con Edge:
 | # | Pendiente | Dónde |
 | --- | --- | --- |
 | P1 | ~~Nombre del responsable~~. **Resuelto (19 de octubre):** Claudia Valenzuela, persona natural (no hay empresa). Ya está en la política, los términos, el plan de incidentes y el registro | — |
-| P2 | RUT. **Decisión del dueño (19 de octubre):** no publicarlo por ahora. No se escribe en ningún archivo, porque el repositorio de GitHub es público y el historial lo conservaría. Queda `[PENDIENTE]` hasta que el abogado diga si es obligatorio (pregunta 9) o hasta usar el RUT de una empresa (sección 5.1) | `privacidad.html` §1, `terminos.html` §1, registro |
-| P3 | Domicilio en Chile. El dueño lo enviará; si es particular, preguntar al abogado si basta un domicilio comercial (pregunta 9) | `privacidad.html` §1, `terminos.html` §1, registro |
+| P2 | ~~RUT~~. **Resuelto (19 de octubre):** la persona responsable pidió publicarlo; está en la política, los términos y el registro. Al hacer push queda público en GitHub y en su historial | — |
+| P3 | Domicilio: se indica la comuna (San Javier de Loncomilla, Región del Maule, Chile). No se inventó una dirección. Falta que el abogado diga si basta la comuna o hay que indicar la dirección completa, que es donde llegarían las notificaciones (pregunta 9) | `privacidad.html` §1, `terminos.html` §1, registro |
 | P4 | ~~País de la región del proyecto de Supabase~~. **Resuelto (19 de octubre):** `us-east-2`, East US (Ohio), Estados Unidos | — |
 | P5 | ~~Plan de Supabase~~. **Resuelto (19 de octubre):** plan Free. Según supabase.com/pricing, los registros duran 1 día y no hay copias de seguridad automáticas; la política ya lo dice. Queda confirmar en **Authentication → Audit Logs** si los registros de auditoría también se guardan en la tabla `auth.audit_log_entries` (ver B11) | `privacidad.html` §6 |
 | P6 | Aceptar los DPA de Supabase, Cloudflare y Groq, activar Zero Data Retention en Groq y archivarlos | `privacidad.html` §5, registro |

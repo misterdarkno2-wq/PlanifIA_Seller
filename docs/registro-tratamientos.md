@@ -2,7 +2,7 @@
 
 Inventario de qué datos personales trata PlanifIA, para qué, con qué base legal, quién los recibe, dónde y por cuánto tiempo. Se hizo a partir de la revisión del código del 18 de octubre de 2026 (ver `docs/auditoria-legal-seguridad-2026-10-18.md`, sección 1) y debe coincidir con `public/privacidad.html`. Actualízalo cada vez que cambie un tratamiento, un proveedor o un plazo.
 
-- **Responsable**: Claudia Valenzuela (persona natural), RUT [PENDIENTE: decidir con el abogado si se publica], domicilio [PENDIENTE]. Contacto: planifiaprivacity@gmail.com.
+- **Responsable**: Claudia Valenzuela (persona natural), RUT 13.709.226-3, domicilio en San Javier de Loncomilla, Región del Maule, Chile [PENDIENTE: validar con abogado si basta la comuna]. Contacto: planifiaprivacity@gmail.com.
 - **Titulares**: personas de 18 años o más que crean una cuenta en planifia.cl o en la app para Android, y quienes visitan la web.
 - **Última revisión**: 19 de octubre de 2026. Supabase: región `us-east-2` (East US, Ohio), plan Free (registros por 1 día, sin copias de seguridad automáticas).
 
