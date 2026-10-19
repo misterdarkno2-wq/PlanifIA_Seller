@@ -1,0 +1,17 @@
+# Reglas de gitleaks (workflow security.yml): las de siempre más los valores de prueba conocidos.
+# Nunca agregues aquí una clave real: rótala y sácala del historial (docs/plan-incidentes.md).
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Valores ficticios de las pruebas"
+paths = [
+  '''^tests/''',
+  '''_test\.ts$''',
+]
+regexes = [
+  '''nvapi-test-only[A-Za-z0-9_-]*''',
+  '''sb_secret_test[A-Za-z0-9_-]*''',
+  '''sb_publishable_(test|fixture|billing)[A-Za-z0-9_-]*''',
+  '''eyJhbGciOiJIUzI1NiJ9\.[A-Za-z0-9_-]+\.fixture''',
+]

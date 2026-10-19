@@ -32,7 +32,7 @@ try {
     await new Promise((r) => setTimeout(r, 150));
   }
   await mkdir("dist/qa", { recursive: true });
-  browser = await chromium.launch({ channel: "msedge", headless: true });
+  browser = await chromium.launch({ channel: process.platform === "win32" ? "msedge" : undefined, headless: true });
 
   const uid = randomUUID();
   const user = { id: uid, email: "ana@example.test", aud: "authenticated", role: "authenticated", user_metadata: { name: "Ana" } };
