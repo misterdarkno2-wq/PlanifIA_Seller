@@ -322,10 +322,10 @@ Todas pasaron el 19 de octubre de 2026, en Windows con Edge:
 | P4 | ~~País de la región del proyecto de Supabase~~. **Resuelto (19 de octubre):** `us-east-2`, East US (Ohio), Estados Unidos | — |
 | P5 | ~~Plan de Supabase~~. **Resuelto (19 de octubre):** plan Free. Según supabase.com/pricing, los registros duran 1 día y no hay copias de seguridad automáticas; la política ya lo dice. Queda confirmar en **Authentication → Audit Logs** si los registros de auditoría también se guardan en la tabla `auth.audit_log_entries` (ver B11) | `privacidad.html` §6 |
 | P6 | Aceptar los DPA de Supabase, Cloudflare y Groq, activar Zero Data Retention en Groq y archivarlos | `privacidad.html` §5, registro |
-| P7 | Plazo de conservación de los correos de soporte | `privacidad.html` §6, registro |
-| P8 | Plazo máximo de los reportes de contenido (por ejemplo, 12 meses) | `privacidad.html` §6 |
-| P9 | Plazo de aviso previo de cambios en los términos (por ejemplo, 15 días) | `terminos.html` §14 |
-| P10 | Plazo de respuesta a reclamos (por ejemplo, 10 días hábiles) | `terminos.html` §15 |
+| P7 | ~~Plazo de los correos de soporte~~. **Resuelto (19 de octubre):** 12 meses después de resolver la consulta; borrado manual mensual (`docs/plan-incidentes.md`, sección 8) | — |
+| P8 | ~~Plazo máximo de los reportes~~. **Resuelto (19 de octubre):** 12 meses; `report_ai_content` borra los vencidos | — |
+| P9 | ~~Aviso previo de cambios en los términos~~. **Resuelto (19 de octubre):** 15 días | — |
+| P10 | ~~Plazo de respuesta a reclamos~~. **Resuelto (19 de octubre):** 10 días hábiles | — |
 | P11 | Sitio y canal de reclamos de la Agencia de Protección de Datos Personales cuando esté operativa | `privacidad.html` §9, `plan-incidentes.md` |
 | P12 | Contactos del plan de incidentes: persona de respaldo, teléfono y abogado | `plan-incidentes.md` §1 |
 | P13 | ~~Confirmar si hubo pagos reales con Webpay u Oneclick~~. **Resuelto (19 de octubre):** no hubo pagos reales; Transbank sólo funcionó en integración, así que la política no lo menciona. Si algún día se activa en producción, hay que declararlo antes | — |

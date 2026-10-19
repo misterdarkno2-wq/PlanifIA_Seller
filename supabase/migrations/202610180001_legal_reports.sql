@@ -6,8 +6,8 @@
 --    Al crear la cuenta lo registra un trigger con lo que la app envía en raw_user_meta_data->'legal'
 --    (la sesión todavía no existe porque se confirma el correo); después, accept_legal().
 -- 2. public.ai_content_reports: reportes de respuestas de Lumi y de planes propuestos por la IA. El
---    servidor guarda su propia copia del contenido, tomada de la base. Los revisa el dueño desde el
---    panel de Supabase (consulta en docs/plan-incidentes.md).
+--    servidor guarda su propia copia del contenido, tomada de la base, por 12 meses como máximo. Los
+--    revisa la persona responsable desde el panel de Supabase (consulta en docs/plan-incidentes.md).
 -- 3. private.rate_limits: límite por IP para las funciones que gastan IA. Sólo guarda un hash con
 --    secreto de la IP, por ventanas de pocos minutos, y borra lo que tiene más de un día.
 
@@ -115,6 +115,8 @@ begin
  if length(details)>500 then raise exception 'Los detalles pueden tener hasta 500 caracteres.' using errcode='P0001'; end if;
  -- Serializa los reportes de la cuenta para que el límite diario no se pueda saltar en paralelo.
  perform pg_advisory_xact_lock(hashtextextended('planifia-ai-report:'||u::text,0));
+ -- Plazo de la política de privacidad: los reportes se borran a los 12 meses.
+ delete from public.ai_content_reports where created_at<now()-interval '12 months';
  select count(*) into recent from public.ai_content_reports where user_id=u and created_at>now()-interval '1 day';
  if p_kind='chat' then
   if coalesce(p_ref,'') ~ '^[0-9]{1,18}$' then

@@ -146,6 +146,26 @@ test("Reportar un plan propuesto copia la propuesta y el proveedor; hay un lími
   await assert.rejects(report(db, "chat", null, "Mensaje 19"), /muchos reportes hoy/);
 });
 
+test("Los reportes se borran a los 12 meses, como dice la política de privacidad", async (t) => {
+  const db = await setup(t);
+  const old = await lumiSaid(db, B, "Respuesta reportada hace más de un año.");
+  await owner(db);
+  await db.query(
+    "insert into public.ai_content_reports(user_id,kind,message_id,content,reason,created_at) values($1,'chat',$2,'copia antigua','other',now()-interval '13 months'),($1,'chat',$2+1000,'copia reciente','other',now()-interval '11 months')",
+    [B, old],
+  );
+  const said = "Respuesta nueva.";
+  await lumiSaid(db, A, said);
+  await user(db, A);
+  await report(db, "chat", null, said);
+  await owner(db);
+  assert.deepEqual(
+    (await rows(db, "select content from public.ai_content_reports order by created_at")).map((r) => r.content),
+    ["copia reciente", said],
+    "Borra sólo los reportes de más de 12 meses, de cualquier cuenta",
+  );
+});
+
 test("Eliminar la cuenta borra su historial de aceptación y sus reportes", async (t) => {
   const db = await setup(t);
   const said = "Respuesta a reportar.";

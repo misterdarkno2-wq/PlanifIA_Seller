@@ -145,6 +145,13 @@ update public.ai_content_reports set status = 'reviewed', reviewed_at = now() wh
 - Contenido ofensivo o incorrecto: ajusta `LUMI_SYSTEM` en `supabase/functions/lumi-chat/handler.ts` o las instrucciones de planes en `supabase/functions/_shared/plan.js`.
 - Si un reporte revela un riesgo para alguien, trátalo como incidente de gravedad alta.
 - Revisa una vez al año los números de `CRISIS_LINES` (Minsal, ChileAtiende).
+- Plazos de la política de privacidad:
+  - Los reportes se borran solos a los 12 meses cuando alguien envía un reporte nuevo. Si pasan meses sin reportes, bórralos a mano:
+    ```sql
+    delete from public.ai_content_reports where created_at < now() - interval '12 months';
+    ```
+  - Una vez al mes, borra en Gmail (planifiaprivacity@gmail.com) los correos de consultas resueltas hace más de 12 meses.
+  - Responde los reclamos dentro de 10 días hábiles (términos, sección 15).
 
 ## 9. Registro de incidentes
 
