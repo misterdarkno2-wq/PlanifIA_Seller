@@ -685,7 +685,7 @@ export function mountBilling(
     if (button.hasAttribute("data-open-external")) {
       const url = button.dataset.openExternal;
       if (store) void store.openExternal(url).catch(showError);
-      else window.open(url, "_blank", "noopener");
+      else window.open(url, "_blank", "noopener,noreferrer");
       return;
     }
     if (button.hasAttribute("data-copy-referral") && credits?.referral) {
