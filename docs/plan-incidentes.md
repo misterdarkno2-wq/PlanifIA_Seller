@@ -152,6 +152,8 @@ update public.ai_content_reports set status = 'reviewed', reviewed_at = now() wh
     ```
   - Una vez al mes, borra en Gmail (planifiaprivacity@gmail.com) los correos de consultas resueltas hace más de 12 meses.
   - Responde los reclamos dentro de 10 días hábiles (términos, sección 15).
+  - Responde las solicitudes de derechos sobre los datos dentro de 15 días corridos y aplica un bloqueo pedido dentro de 2 días hábiles (política, sección 9).
+  - Si alguien se retracta de una compra dentro de 10 días, reembolsa el pedido completo en Play Console (**Gestión de pedidos → Reembolsar**) dentro de 10 días hábiles. Google avisa el reembolso y la app retira los beneficios y créditos que queden (términos, sección 10).
 
 ## 9. Registro de incidentes
 

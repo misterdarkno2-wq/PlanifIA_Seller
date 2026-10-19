@@ -362,7 +362,7 @@ export function purchaseSummary(product, m, catalog, escape) {
     points = [
       "Se renueva automáticamente cada mes y Google Play cobra a tu cuenta de Google hasta que la canceles.",
       "Puedes cancelar cuando quieras en Google Play (Pagos y suscripciones) o con «Gestionar o cancelar suscripción». Conservas el acceso hasta el final del período pagado.",
-      "Cancelar detiene los próximos cobros; no devuelve automáticamente lo ya pagado. Los reembolsos y el retracto se explican en los Términos de uso.",
+      "Cancelar detiene los próximos cobros; no devuelve automáticamente lo ya pagado.",
     ];
   } else if (product.kind === "credits") {
     name = `Paquete de ${number(product.credits)} créditos de IA`;
@@ -379,6 +379,7 @@ export function purchaseSummary(product, m, catalog, escape) {
       "Los anuncios voluntarios para ganar créditos siguen disponibles si los quieres ver.",
     ];
   }
+  points.push("Tienes 10 días desde la compra para retractarte y recibir la devolución completa (Términos de uso, sección 10).");
   return `<section class="billing-review panel purchase-summary" data-purchase-summary aria-labelledby="purchase-summary-title">
     <h2 id="purchase-summary-title" tabindex="-1">Antes de pagar</h2>
     <dl><dt>Compras</dt><dd>${escape(name)}</dd><dt>Precio</dt><dd>${escape(price)}</dd></dl>

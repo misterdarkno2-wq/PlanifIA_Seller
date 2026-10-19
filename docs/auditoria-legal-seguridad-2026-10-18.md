@@ -318,20 +318,34 @@ Todas pasaron el 19 de octubre de 2026, en Windows con Edge:
 | --- | --- | --- |
 | P1 | ~~Nombre del responsable~~. **Resuelto (19 de octubre):** Claudia Valenzuela, persona natural (no hay empresa). Ya está en la política, los términos, el plan de incidentes y el registro | — |
 | P2 | ~~RUT~~. **Resuelto (19 de octubre):** la persona responsable pidió publicarlo; está en la política, los términos y el registro. Al hacer push queda público en GitHub y en su historial | — |
-| P3 | Domicilio: se indica la comuna (San Javier de Loncomilla, Región del Maule, Chile). No se inventó una dirección. Falta que el abogado diga si basta la comuna o hay que indicar la dirección completa, que es donde llegarían las notificaciones (pregunta 9) | `privacidad.html` §1, `terminos.html` §1, registro |
+| P3 | ~~Domicilio~~. **Resuelto (19 de octubre):** la comuna real (San Javier de Loncomilla, Región del Maule). No se inventó una calle; el abogado puede pedir la dirección completa (pregunta 9) | — |
 | P4 | ~~País de la región del proyecto de Supabase~~. **Resuelto (19 de octubre):** `us-east-2`, East US (Ohio), Estados Unidos | — |
 | P5 | ~~Plan de Supabase~~. **Resuelto (19 de octubre):** plan Free. Según supabase.com/pricing, los registros duran 1 día y no hay copias de seguridad automáticas; la política ya lo dice. Queda confirmar en **Authentication → Audit Logs** si los registros de auditoría también se guardan en la tabla `auth.audit_log_entries` (ver B11) | `privacidad.html` §6 |
-| P6 | Aceptar los DPA de Supabase, Cloudflare y Groq, activar Zero Data Retention en Groq y archivarlos | `privacidad.html` §5, registro |
+| P6 | ~~DPA de proveedores~~. **Resuelto (19 de octubre):** el DPA de Supabase forma parte de sus términos, con cláusulas contractuales tipo; el de Cloudflare, de su contrato; el de Groq está incorporado a su Services Agreement. Descarga y archiva una copia de cada uno. Groq: activar la retención cero **antes** de encender el respaldo (paso 7.2) | Registro |
 | P7 | ~~Plazo de los correos de soporte~~. **Resuelto (19 de octubre):** 12 meses después de resolver la consulta; borrado manual mensual (`docs/plan-incidentes.md`, sección 8) | — |
 | P8 | ~~Plazo máximo de los reportes~~. **Resuelto (19 de octubre):** 12 meses; `report_ai_content` borra los vencidos | — |
 | P9 | ~~Aviso previo de cambios en los términos~~. **Resuelto (19 de octubre):** 15 días | — |
 | P10 | ~~Plazo de respuesta a reclamos~~. **Resuelto (19 de octubre):** 10 días hábiles | — |
-| P11 | Sitio y canal de reclamos de la Agencia de Protección de Datos Personales cuando esté operativa | `privacidad.html` §9, `plan-incidentes.md` |
+| P11 | ~~Canal de la Agencia~~. **Resuelto (19 de octubre):** la política remite a los canales que publique la Agencia cuando entre en funciones, o a los tribunales | — |
 | P12 | Contactos del plan de incidentes: persona de respaldo, teléfono y abogado | `plan-incidentes.md` §1 |
 | P13 | ~~Confirmar si hubo pagos reales con Webpay u Oneclick~~. **Resuelto (19 de octubre):** no hubo pagos reales; Transbank sólo funcionó en integración, así que la política no lo menciona. Si algún día se activa en producción, hay que declararlo antes | — |
 | P14 | Verificación en dos pasos en Gmail, GitHub, Google Play, AdMob, Supabase, Cloudflare y Groq | Registro |
 
-Además quedan los `[PENDIENTE: validar con abogado]` de la sección 6.
+**19 de octubre: los textos ya no tienen `[PENDIENTE]`.** La persona responsable pidió resolverlos considerando que los cobros se hacen sólo en la app, con Google Play. Las decisiones legales se tomaron por el lado más protector para quien usa la app. `tests/legal-security.test.js` impide publicar una página con `[PENDIENTE]`. El abogado puede revisar cualquiera de estas decisiones (sección 6):
+
+| Tema | Decisión en los textos |
+| --- | --- |
+| Pagos | Sólo dentro de la app, con Google Play. La web no cobra y nunca se piden datos de tarjeta por otro medio (términos §9) |
+| Retracto | 10 días corridos desde la compra, para toda compra y sin excluir el contenido digital. Devolución completa vía Play Console dentro de 10 días hábiles, sin descontar los créditos ya usados (términos §10). El riesgo es que alguien compre créditos, los use y se retracte; es bajo frente a una cláusula que podría considerarse abusiva |
+| Cierre por incumplimiento grave | Se devuelve la parte no usada del período pagado y de los créditos comprados, salvo una compra fraudulenta (términos §11) |
+| Plazos de derechos | Respuesta en 15 días corridos y bloqueo en 2 días hábiles: más corto que los 30 días prorrogables que citan las fuentes de la Ley 21.719 (política §9) |
+| Reclamos de datos | Ante la Agencia, por los canales que publique, o ante los tribunales (política §9) |
+| Anuncios en Chile | Interés legítimo con derecho de oposición (borrar el ID de publicidad, plan pagado o Quitar anuncios); consentimiento donde la ley lo exige. **Es la decisión más expuesta**: la alternativa más segura son anuncios no personalizados para quien no dio consentimiento (recomendación R6) |
+| Revisión de crisis | Base legal: protección de la vida e integridad (interés vital) |
+| Datos sensibles | Se tratan sólo para prestar el servicio; se recomienda no escribirlos y se pueden borrar |
+| Transferencias | Necesarias para el contrato, con los DPA de cada proveedor (cláusulas contractuales tipo en Supabase y Cloudflare) |
+| Registros de Auth | La política dice 1 día. **Antes de publicar** hay que desactivar en Supabase el guardado de auditoría de Auth en la base y vaciar `auth.audit_log_entries` (paso 7.4) |
+| Groq | La política dice que el respaldo sólo se usa con la retención cero activada. **Antes de encender el respaldo**, actívala (paso 7.2) |
 
 ### 5.1 Identificación del responsable sin publicar datos personales
 
@@ -361,13 +375,13 @@ Revisa también qué datos tuyos muestra hoy Google Play en la ficha y en la pá
 
 Ninguno se hizo. Cada uno necesita tu aprobación.
 
-1. **Completar los pendientes** P1 a P14 y revisar los textos con el abogado. Después, actualizar `LEGAL_VERSION` en `src/legal.js` y la fecha de las páginas si los textos cambian antes de publicarse.
+1. **Revisar los textos con el abogado** (las decisiones de la sección 5 se pueden cambiar). Completar P14 (verificación en dos pasos). Después, actualizar `LEGAL_VERSION` en `src/legal.js` y la fecha de las páginas si los textos cambian antes de publicarse.
 2. **NVIDIA y Groq** (ver `docs/respaldo-nube.md`):
    - Revocar la clave de NVIDIA en build.nvidia.com y ejecutar `npx.cmd supabase secrets unset NVIDIA_API_KEY`.
    - En Groq: aceptar el DPA, activar Zero Data Retention y, si es posible, pasar al plan Developer. Después `npx.cmd supabase secrets set GROQ_API_KEY=...`. La clave que se pegó en un chat debe rotarse.
    - No poner `enabled=true` hasta que la política nueva esté publicada.
 3. **Migración** `supabase/migrations/202610180001_legal_reports.sql` en el Supabase real: `npx.cmd supabase db push`. Revisa antes la lista que muestra el comando.
-4. **Auth en el panel de Supabase** (o `npx.cmd supabase config push`, que reemplaza la configuración remota completa):
+4. **Antes de publicar la política**: en Supabase, **Authentication → Audit Logs**, desactiva el guardado en la base de datos y vacía la tabla (`delete from auth.audit_log_entries;`), porque la política dice que esos registros duran 1 día. Después, **Auth en el panel de Supabase** (o `npx.cmd supabase config push`, que reemplaza la configuración remota completa):
    - Contraseña de al menos 10 caracteres con letras y números.
    - Protección contra contraseñas filtradas, si el plan la incluye.
    - Rotación de refresh tokens.
@@ -420,4 +434,6 @@ Ninguno se hizo. Cada uno necesita tu aprobación.
 - **R4. Exigir la aceptación vigente en el servidor** (`goal-plan`, `lumi-chat`, `play-billing`), además de en la app.
   - Se dejó sólo en la app para no bloquear las versiones antiguas de Android mientras se actualizan.
   - Conviene activarlo cuando la versión mínima soportada incluya la pantalla de nueva aceptación.
+- **R6. Anuncios no personalizados** para quien no dio consentimiento, en `AdsPlugin.kt`. Reduce el riesgo de la base legal de los anuncios en Chile. Hay que probarlo en un teléfono.
+- **R7. Retirar el cobro web con Transbank.** Nunca se usó en producción y no se usará: hoy son tablas y funciones (`billing`, `billing-return`, `billing-renew`) que sólo aumentan la superficie de ataque.
 - **R5. Revisar anualmente** los números de `CRISIS_LINES` y la lista de expresiones de crisis, con los reportes como fuente.

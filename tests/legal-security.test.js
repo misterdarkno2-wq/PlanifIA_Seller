@@ -28,6 +28,10 @@ test("La versión vigente está en un solo lugar y coincide con las páginas pub
   }
 });
 
+test("Las páginas publicadas no tienen datos [PENDIENTE]", async () => {
+  for (const page of PAGES) assert.doesNotMatch(await read(page), /\[PENDIENTE/, page);
+});
+
 test("Las páginas legales tienen CSP sin scripts y política de referencia", async () => {
   const pages = [...PAGES, ...(await readdir(new URL("../public/legal/", import.meta.url))).map((f) => `public/legal/${f}`)];
   for (const page of pages) {
