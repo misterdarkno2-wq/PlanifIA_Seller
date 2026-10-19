@@ -24,7 +24,7 @@ Revisión hecha con `docs/prompt-legal-seguridad.md` en la rama `feature/legal-s
 Además se dejó en su propio commit el cambio del dueño de NVIDIA a Groq.
 
 **Qué falta**:
-- Los datos del responsable: nombre o razón social, RUT y domicilio ([lista](#5-pendientes-que-debe-completar-el-dueño)).
+- Los datos del responsable: nombre o razón social, RUT y domicilio. El dueño no tiene empresa y no quiere publicar sus datos personales; las opciones están en la [sección 5.1](#51-identificación-del-responsable-sin-publicar-datos-personales).
 - Decisiones legales: retracto, anuncios en Chile, datos sensibles, transferencias, incidente NVIDIA.
 - Los pasos manuales en Supabase, Groq, Play y GitHub ([sección 7](#7-pasos-manuales-en-orden)).
 
@@ -307,9 +307,9 @@ Todas pasaron el 19 de octubre de 2026, en Windows con Edge:
 
 | # | Pendiente | Dónde |
 | --- | --- | --- |
-| P1 | Nombre completo o razón social del responsable | `privacidad.html` §1, `terminos.html` §1, `plan-incidentes.md`, `registro-tratamientos.md` |
-| P2 | RUT | Igual |
-| P3 | Domicilio en Chile | Igual |
+| P1 | Nombre completo o razón social del responsable. **Decisión del dueño (19 de octubre):** no hay empresa y no quiere publicar su nombre ni su RUT personal. Queda abierto hasta elegir una de las opciones de la sección 5.1 | `privacidad.html` §1, `terminos.html` §1, `plan-incidentes.md`, `registro-tratamientos.md` |
+| P2 | RUT (ver P1) | Igual |
+| P3 | Domicilio en Chile (ver P1) | Igual |
 | P4 | País de la región del proyecto de Supabase (Project Settings → General) | `privacidad.html` §5, registro |
 | P5 | Plan de Supabase: plazo de logs y de copias de seguridad (hoy se dice 30 días como máximo) | `privacidad.html` §6 |
 | P6 | Aceptar los DPA de Supabase, Cloudflare y Groq, activar Zero Data Retention en Groq y archivarlos | `privacidad.html` §5, registro |
@@ -319,10 +319,20 @@ Todas pasaron el 19 de octubre de 2026, en Windows con Edge:
 | P10 | Plazo de respuesta a reclamos (por ejemplo, 10 días hábiles) | `terminos.html` §15 |
 | P11 | Sitio y canal de reclamos de la Agencia de Protección de Datos Personales cuando esté operativa | `privacidad.html` §9, `plan-incidentes.md` |
 | P12 | Contactos del plan de incidentes: persona de respaldo, teléfono y abogado | `plan-incidentes.md` §1 |
-| P13 | Confirmar si hubo pagos reales con Webpay u Oneclick. Hoy Transbank está en integración y la política no lo menciona; si los hubo, declarar a Transbank y revisar cuánto se conservan esos pagos (SII) | Política e informe |
+| P13 | ~~Confirmar si hubo pagos reales con Webpay u Oneclick~~. **Resuelto (19 de octubre):** no hubo pagos reales; Transbank sólo funcionó en integración, así que la política no lo menciona. Si algún día se activa en producción, hay que declararlo antes | — |
 | P14 | Verificación en dos pasos en Gmail, GitHub, Google Play, AdMob, Supabase, Cloudflare y Groq | Registro |
 
 Además quedan los `[PENDIENTE: validar con abogado]` de la sección 6.
+
+### 5.1 Identificación del responsable sin publicar datos personales
+
+La Ley 21.719 exige informar quién es el responsable de los datos, y la ley del consumidor exige identificar al proveedor en las ventas a distancia. Dejar esos datos en blanco mantiene abierto el hallazgo A5, y los textos nuevos **no deben publicarse con `[PENDIENTE]`**. La política publicada hoy (9 de octubre) tampoco identifica al responsable. Opciones, para decidir con el abogado (pregunta 9):
+
+1. **Constituir una empresa (por ejemplo, una SpA)** en *Tu Empresa en un Día* (registrodeempresasysociedades.cl). La inscripción es gratuita y en línea con ClaveÚnica, y la empresa obtiene su propio RUT. Después hay que hacer el inicio de actividades en el SII. En los textos se publicarían la razón social, el RUT de la empresa y un domicilio comercial: por ejemplo, una oficina virtual, si el SII la acepta como domicilio (confírmalo con un contador). Es la opción que permite no publicar el nombre ni el RUT personales. Además separa las responsabilidades de la app de tu patrimonio personal.
+2. **Seguir como persona natural** y publicar el nombre, el RUT y un domicilio. Preguntar al abogado si basta un domicilio comercial o una casilla en vez del domicilio particular.
+3. **Publicar sólo la marca y el correo**, entregando la identidad cuando alguien la pida. No parece cumplir la exigencia de identificar al responsable: no se recomienda sin la opinión del abogado.
+
+Revisa también qué datos tuyos muestra hoy Google Play en la ficha y en la página de desarrollador (Play Console → **Configuración → Detalles de la cuenta de desarrollador**): las apps con compras pueden mostrar información de contacto del vendedor.
 
 ## 6. Preguntas para el abogado
 
@@ -334,7 +344,7 @@ Además quedan los `[PENDIENTE: validar con abogado]` de la sección 6.
 6. **Transferencias internacionales**: con Supabase, Cloudflare, Groq y GitHub en EE. UU., ¿basta con «necesaria para ejecutar el contrato» más los DPA de cada proveedor, o se necesitan cláusulas contractuales tipo u otro mecanismo de la Ley 21.719?
 7. **Conservación tras eliminar la cuenta**: ¿hay que conservar la prueba de aceptación de los términos, los registros de compras o los reportes de contenido después de que la persona elimina su cuenta (prueba ante reclamos, obligaciones tributarias)? Hoy todo se borra en cascada.
 8. **Plazos de la Ley 21.719**: confirmar los 30 días corridos prorrogables para responder solicitudes, el plazo del bloqueo temporal y la fecha de vigencia, ya que hay un proyecto de aplazamiento (boletín 18.623-07).
-9. **Identificación del responsable**: si el responsable es una persona natural, ¿es obligatorio publicar su domicilio particular, o basta un domicilio comercial o una casilla? ¿Conviene constituir una empresa (por ejemplo, una SpA)?
+9. **Identificación del responsable**: el dueño no tiene empresa y no quiere publicar su nombre ni su RUT personal. ¿Qué datos exigen exactamente la Ley 21.719 (información al titular) y la Ley 19.496 y su reglamento de comercio electrónico (identificación del proveedor)? Si es persona natural, ¿basta un domicilio comercial o una casilla? ¿Conviene constituir una SpA antes de publicar los textos y de seguir cobrando en Google Play? Ver opciones en la sección 5.1.
 10. **Distribución fuera de Chile**: ¿conviene limitar la app a Chile en Play Console hasta revisar el RGPD y las leyes de EE. UU.?
 11. **Revisión general**: revisar `public/privacidad.html` y `public/terminos.html` completos, sobre todo la limitación de responsabilidad (sección 13), los cambios a los términos (sección 14) y la jurisdicción (sección 15).
 
