@@ -21,7 +21,7 @@ th { background: #eef5e8; }
 <body>
 <main>
 <h1>Política de privacidad de PlanifIA</h1>
-<p class="muted">Última actualización: 9 de octubre de 2026. Aplica a la web <a href="https://planifia.cl/">planifia.cl</a> y a la app PlanifIA para Android (<code>cl.planifia.app</code>).</p>
+<p class="muted">Última actualización: 18 de octubre de 2026. Aplica a la web <a href="https://planifia.cl/">planifia.cl</a> y a la app PlanifIA para Android (<code>cl.planifia.app</code>).</p>
 
 <h2>Quién es responsable</h2>
 <p>PlanifIA es un planificador de metas desarrollado en Chile. Para cualquier consulta sobre privacidad escribe a <a href="mailto:planifiaprivacity@gmail.com">planifiaprivacity@gmail.com</a>.</p>
@@ -32,8 +32,8 @@ th { background: #eef5e8; }
 <tr><td>Correo electrónico y contraseña (cifrada por el proveedor de autenticación)</td><td>Crear tu cuenta, iniciar sesión, confirmar el correo y recuperar la contraseña.</td></tr>
 <tr><td>Nombre, zona horaria, minutos y días disponibles</td><td>Personalizar tu espacio y repartir acciones según tu tiempo.</td></tr>
 <tr><td>Metas, hitos, acciones, hábitos y su historial</td><td>Funcionamiento principal de la app y sincronización entre tus dispositivos.</td></tr>
-<tr><td>Texto que escribes al pedir un plan con IA</td><td>Generar la propuesta de plan. Se procesa en un servidor propio de PlanifIA, no en servicios de IA de terceros, y no se usa para entrenar modelos.</td></tr>
-<tr><td>Mensajes del chat <strong>Hablar con Lumi</strong> y las respuestas de Lumi</td><td>Responderte. Cada mensaje se envía a la IA del servidor propio de PlanifIA junto con tu nombre, la etapa de Lumi y hasta 3 metas activas con su próxima acción. Guardamos solo los últimos 100 mensajes de tu conversación para mostrarlos y dar contexto a Lumi; puedes borrarlos con <strong>Borrar conversación</strong> y se eliminan al eliminar tu cuenta. No se usan para entrenar modelos.</td></tr>
+<tr><td>Texto que escribes al pedir un plan con IA y los datos de la meta que se planifica (título, descripción, situación actual, resultado esperado, acciones completadas y tu tiempo disponible)</td><td>Generar la propuesta de plan. Normalmente se procesa en un servidor propio de PlanifIA. Si ese servidor no está disponible (por ejemplo, porque está apagado), la propuesta la prepara la IA de respaldo en la nube de NVIDIA y la app lo indica con <strong>Preparada con IA en la nube (respaldo)</strong>. A NVIDIA no se envían tu correo, tu nombre ni el identificador de tu cuenta. PlanifIA no usa este texto para entrenar modelos.</td></tr>
+<tr><td>Mensajes del chat <strong>Hablar con Lumi</strong> y las respuestas de Lumi</td><td>Responderte. Cada mensaje se envía a la IA del servidor propio de PlanifIA o, si ese servidor no está disponible, a la IA de respaldo en la nube de NVIDIA, junto con tu nombre, el nombre y la etapa de Lumi, hasta 3 metas activas con su próxima acción y los últimos 6 mensajes de la conversación. Debajo de cada respuesta la app indica si respondió la IA local o la IA en la nube (respaldo). Guardamos solo los últimos 100 mensajes de tu conversación para mostrarlos y dar contexto a Lumi; puedes borrarlos con <strong>Borrar conversación</strong> y se eliminan al eliminar tu cuenta. PlanifIA no los usa para entrenar modelos.</td></tr>
 <tr><td>Progreso de Lumi (XP, nivel)</td><td>Recompensas del juego.</td></tr>
 <tr><td>Créditos de IA: saldo, movimientos, anuncios recompensados vistos e invitaciones (código y cuenta invitada)</td><td>Calcular tu saldo, entregar las recompensas y evitar abusos (por ejemplo, un máximo de anuncios por día).</td></tr>
 <tr><td>Plan contratado, compras de Google Play (identificador de la compra, producto, estado y vencimiento)</td><td>Aplicar los beneficios de tu plan y de los paquetes de créditos, y procesar renovaciones, cancelaciones y reembolsos. Los pagos los procesa Google Play; PlanifIA no recibe los datos de tu tarjeta.</td></tr>
@@ -46,11 +46,12 @@ th { background: #eef5e8; }
 <ul>
 <li><strong>Supabase</strong>: alojamiento de la base de datos y autenticación.</li>
 <li><strong>Cloudflare</strong>: transporte seguro hacia el servidor de IA de PlanifIA.</li>
+<li><strong>NVIDIA (API de NVIDIA NIM)</strong>: IA de respaldo en la nube. Solo se usa cuando el servidor de IA de PlanifIA no está disponible y recibe el texto de los planes y los mensajes del chat descritos arriba, únicamente para generar la respuesta. Más información en la <a href="https://www.nvidia.com/en-us/about-nvidia/privacy-policy/">política de privacidad de NVIDIA</a>.</li>
 <li><strong>GitHub Pages</strong>: publicación de la web.</li>
 <li><strong>Google Play</strong>: distribución de la app y cobro de suscripciones y paquetes de créditos.</li>
 <li><strong>Google AdMob y Google User Messaging Platform</strong>: anuncios del plan Gratis en Android y gestión del consentimiento. Más información en <a href="https://policies.google.com/technologies/partner-sites">cómo usa Google la información de los sitios y apps que usan sus servicios</a>.</li>
 </ul>
-<p>Supabase, Cloudflare y GitHub actúan por cuenta de PlanifIA. Google trata los datos de anuncios y pagos también según sus propias políticas. Toda la comunicación usa HTTPS cifrado.</p>
+<p>Supabase, Cloudflare y GitHub actúan por cuenta de PlanifIA. NVIDIA trata el contenido que recibe según sus propias condiciones y su política de privacidad. Google trata los datos de anuncios y pagos también según sus propias políticas. Toda la comunicación usa HTTPS cifrado.</p>
 
 <h2>Cuánto tiempo conservamos tus datos</h2>
 <p>Mientras tu cuenta exista. Al eliminarla se borran de inmediato tu cuenta y todos sus datos asociados. Las copias de seguridad del proveedor se sobrescriben automáticamente en un plazo máximo de 30 días.</p>
