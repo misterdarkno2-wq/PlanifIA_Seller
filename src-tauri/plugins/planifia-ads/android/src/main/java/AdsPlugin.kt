@@ -3,6 +3,7 @@ package cl.planifia.ads
 import android.app.Activity
 import android.content.pm.ApplicationInfo
 import android.graphics.Color
+import android.os.Bundle
 import android.util.Log
 import android.view.Gravity
 import android.view.View
@@ -42,6 +43,8 @@ import com.google.android.ump.UserMessagingPlatform
 import java.util.concurrent.atomic.AtomicBoolean
 
 private const val TAG = "PlanifiaAds"
+// Google Advertising Products en la lista global de proveedores del IAB TCF.
+private const val GOOGLE_TCF_VENDOR = 755
 
 @InvokeArg
 class BannerArgs {
@@ -113,15 +116,44 @@ class AdsPlugin(private val created: Activity) : Plugin(created) {
 
   @Volatile private var interstitial: InterstitialAd? = null
   @Volatile private var interstitialLoading = false
+  @Volatile private var interstitialPersonalized = false
   @Volatile private var rewarded: RewardedAd? = null
   @Volatile private var rewardedLoading = false
+  @Volatile private var rewardedPersonalized = false
 
   private fun ready() = sdkReady && consent.canRequestAds()
+
+  /**
+   * Anuncios personalizados sólo con consentimiento válido de UMP. UMP sólo lo pide donde la ley
+   * lo exige (EEE, Reino Unido y Suiza) y lo guarda como cadena IAB TCF en las preferencias por
+   * defecto. Hacen falta los propósitos 1, 3 y 4 y el proveedor Google. En los demás casos (por
+   * ejemplo en Chile, donde no hay formulario, o si la persona rechazó) se piden con npa=1.
+   */
+  private fun personalizedAds(): Boolean {
+    if (consent.consentStatus != ConsentInformation.ConsentStatus.OBTAINED) return false
+    // El estándar TCF exige las preferencias por defecto; androidx.preference no es dependencia.
+    @Suppress("DEPRECATION")
+    val tcf = android.preference.PreferenceManager.getDefaultSharedPreferences(activity.applicationContext)
+    val gdprApplies = when (val value = tcf.all["IABTCF_gdprApplies"]) {
+      is Number -> value.toInt() == 1
+      is String -> value == "1"
+      else -> false
+    }
+    if (!gdprApplies) return false
+    val purposes = tcf.getString("IABTCF_PurposeConsents", null).orEmpty()
+    val vendors = tcf.getString("IABTCF_VendorConsents", null).orEmpty()
+    return listOf(1, 3, 4).all { purposes.getOrNull(it - 1) == '1' } &&
+      vendors.getOrNull(GOOGLE_TCF_VENDOR - 1) == '1'
+  }
+
+  /** Extras de Google: npa=1 pide anuncios no personalizados. AdMob aplica lo más restrictivo entre npa y TCF. */
+  private fun googleExtras(personalized: Boolean) = Bundle().apply { if (!personalized) putInt("npa", 1) }
 
   private fun state() = JSObject().apply {
     put("available", true)
     put("initialized", sdkReady)
     put("canRequestAds", consent.canRequestAds())
+    put("personalizedAds", personalizedAds())
     put(
       "privacyOptionsRequired",
       consent.privacyOptionsRequirementStatus == ConsentInformation.PrivacyOptionsRequirementStatus.REQUIRED,
@@ -292,7 +324,7 @@ class AdsPlugin(private val created: Activity) : Plugin(created) {
       val widthDp = ((if (root.width > 0) root.width else metrics.widthPixels) / metrics.density).toInt()
       val size = AdSize.getLargeAnchoredAdaptiveBannerAdSize(activity, widthDp)
       view.loadAd(
-        BannerAdRequest.Builder(ids.banner, size).build(),
+        BannerAdRequest.Builder(ids.banner, size).setGoogleExtrasBundle(googleExtras(personalizedAds())).build(),
         object : AdLoadCallback<BannerAd> {
           override fun onAdLoaded(ad: BannerAd) {
             onUi(invoke, "showBanner") {
@@ -374,10 +406,12 @@ class AdsPlugin(private val created: Activity) : Plugin(created) {
       return
     }
     interstitialLoading = true
+    val personalized = personalizedAds()
     InterstitialAd.load(
-      AdRequest.Builder(ids.interstitial).build(),
+      AdRequest.Builder(ids.interstitial).setGoogleExtrasBundle(googleExtras(personalized)).build(),
       object : AdLoadCallback<InterstitialAd> {
         override fun onAdLoaded(ad: InterstitialAd) {
+          interstitialPersonalized = personalized
           interstitial = ad
           interstitialLoading = false
           done?.invoke(true)
@@ -399,6 +433,12 @@ class AdsPlugin(private val created: Activity) : Plugin(created) {
 
   @Command
   fun showInterstitial(invoke: Invoke) {
+    val stale = interstitial
+    if (stale != null && interstitialPersonalized && !personalizedAds()) {
+      // Se cargó personalizado y la persona retiró el consentimiento: se descarta y se pide otro.
+      interstitial = null
+      guard(null, "intersticial") { stale.destroy() }
+    }
     val ad = interstitial
     if (ad == null || !ready()) {
       preloadInterstitial()
@@ -441,10 +481,12 @@ class AdsPlugin(private val created: Activity) : Plugin(created) {
       return
     }
     rewardedLoading = true
+    val personalized = personalizedAds()
     RewardedAd.load(
-      AdRequest.Builder(ids.rewarded).build(),
+      AdRequest.Builder(ids.rewarded).setGoogleExtrasBundle(googleExtras(personalized)).build(),
       object : AdLoadCallback<RewardedAd> {
         override fun onAdLoaded(ad: RewardedAd) {
+          rewardedPersonalized = personalized
           rewarded = ad
           rewardedLoading = false
           done?.invoke(true)
@@ -471,6 +513,11 @@ class AdsPlugin(private val created: Activity) : Plugin(created) {
     if (userId == null) {
       invoke.reject("Falta la cuenta para acreditar la recompensa.")
       return
+    }
+    val stale = rewarded
+    if (stale != null && rewardedPersonalized && !personalizedAds()) {
+      rewarded = null
+      guard(null, "recompensado") { stale.destroy() }
     }
     val ad = rewarded
     if (ad == null || !ready()) {

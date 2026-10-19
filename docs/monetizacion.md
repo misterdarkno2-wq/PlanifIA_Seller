@@ -83,9 +83,20 @@ Pasos originales, por si necesitas repetirlos:
 5. Abre `src-tauri/gen/android/app/src/main/res/values/admob.xml` y reemplaza los cuatro IDs de prueba por los tuyos.
    - Las compilaciones de depuración siguen usando los de prueba automáticamente.
 6. **Privacidad y mensajes → GDPR (Europa) y regulaciones de EE. UU.:** crea los mensajes de consentimiento para la app. Sin ellos, la app no muestra el formulario donde la ley lo exige.
-   - En Chile no se muestra formulario: la app carga anuncios directamente.
+   - En Chile no se muestra formulario: la app carga anuncios **no personalizados** directamente (ver "Anuncios personalizados y no personalizados", más abajo).
 7. **Configuración de la app → Contenido:** clasificación máxima de anuncios **T (adolescentes)**, la misma que fija el código.
 8. Nunca hagas clic en tus propios anuncios reales. Para probar, usa la compilación de depuración.
+
+### Anuncios personalizados y no personalizados
+
+`AdsPlugin.kt` pide anuncios personalizados sólo si UMP obtuvo un consentimiento válido. Se tienen que cumplir las tres condiciones:
+- El estado de UMP es `OBTAINED`. Ese estado sólo dice que la persona respondió, no qué eligió.
+- La cadena IAB TCF que guarda UMP aplica (`IABTCF_gdprApplies` = 1).
+- Tiene consentimiento para los propósitos 1, 3 y 4 y para Google (proveedor 755), en `IABTCF_PurposeConsents` y `IABTCF_VendorConsents`.
+
+En los demás casos, por ejemplo en Chile, donde no hay formulario, o si la persona rechazó, cada solicitud lleva `npa=1`. El intersticial, el recompensado y el banner lo pasan con `setGoogleExtrasBundle`, como indica la guía de migración del SDK Next-Gen. AdMob aplica lo más restrictivo entre `npa` y la cadena TCF. Si la persona retira el consentimiento en **Ajustes → Anuncios y privacidad**, el anuncio que ya estaba cargado como personalizado se descarta y se pide otro.
+
+`get_ads_state` devuelve `personalizedAds`: con el teléfono conectado, `node scripts/android-cdp.mjs 9222` lo muestra.
 
 ## 4. Play Console: perfil de pagos y productos
 
@@ -239,6 +250,7 @@ Instala la app desde el enlace de prueba cerrada con una cuenta de prueba de lic
 - [ ] Con una VPN o un emulador en un país del EEE aparece el formulario de consentimiento antes de cualquier anuncio.
 - [ ] En **Ajustes → Anuncios y privacidad** se puede volver a abrir el formulario.
 - [ ] Al rechazar el consentimiento no aparecen anuncios.
+- [ ] En Chile (sin VPN), `get_ads_state` devuelve `personalizedAds: false`. Con una VPN del EEE y **Consentir**, devuelve `true`. Después de **No consentir** en **Ajustes → Anuncios y privacidad**, vuelve a `false`.
 - [ ] No aparece ningún banner. En el plan Gratis, al crear o ajustar un plan con IA aparece un video, como máximo uno cada 5 minutos y nunca en el primer plan.
 - [ ] Al cerrar ese video aparece la tarjeta "Quitar anuncios por $2.900" con el precio de Google Play; "Ahora no" la cierra y la compra quita los videos sin reiniciar la app.
 - [ ] Con **Quitar anuncios** comprado (Mi plan → Planes), la IA ya no muestra videos y el anuncio voluntario para ganar créditos sigue disponible. **Restaurar compras** lo recupera en otro teléfono.
