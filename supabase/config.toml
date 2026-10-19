@@ -32,6 +32,6 @@ verify_jwt = false
 [functions.lumi-chat]
 verify_jwt = false
 
-# Respaldo en la nube (NVIDIA): verifica la sesión dentro de la función, como lumi-chat.
+# Respaldo en la nube (Groq): verifica la sesión dentro de la función, como lumi-chat.
 [functions.ai-fallback]
 verify_jwt = false

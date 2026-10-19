@@ -1,6 +1,6 @@
 // Respaldo de planes: con el PC apagado (o Ollama detenido) la cola no avanza. La app llama a esta
 // función con la sesión de la persona; si la IA local sigue sin señal, toma UNA solicitud en cola
-// de esa cuenta y la prepara con NVIDIA NIM. La clave sólo existe en Deno.env. Los créditos ya se
+// de esa cuenta y la prepara con Groq. La clave sólo existe en Deno.env. Los créditos ya se
 // cobraron al encolar y la base los devuelve si la solicitud termina en error o cancelada.
 import { createClient } from "npm:@supabase/supabase-js@2.58.0";
 import { BodyTooLarge, readRequestText } from "../_shared/request-body.ts";

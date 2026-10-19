@@ -1,14 +1,14 @@
 // Contratos del chat de Lumi: Auth, base de datos y gateway son respuestas sintéticas, sin claves reales.
 import { cleanReply, handleLumiChat, lumiMessages, RESTING, BUSY, CLEARED, CLOUD_LIMITED } from "./handler.ts";
 import { CRISIS_MESSAGE } from "../_shared/crisis.js";
-import { NVIDIA_DEFAULT_MODEL } from "../_shared/ai-fallback.ts";
+import { GROQ_DEFAULT_MODEL } from "../_shared/ai-fallback.ts";
 
 function assert(condition: unknown, message = "Assertion failed") {
   if (!condition) throw new Error(message);
 }
 const REQUEST = "44444444-4444-4444-8444-444444444444";
 
-// cloud: "none" = sin NVIDIA_API_KEY (sin respaldo), "ok" o "down". online: señal del trabajador del PC.
+// cloud: "none" = sin GROQ_API_KEY (sin respaldo), "ok" o "down". online: señal del trabajador del PC.
 function setup({ ai = "ok", begin = "ok", refund = "ok", finish = "ok", cloud = "none", online = true, take = true, ip = true }: {
   ai?: string; begin?: string; refund?: string; finish?: string; cloud?: string; online?: boolean; take?: boolean; ip?: boolean;
 } = {}) {
@@ -19,7 +19,7 @@ function setup({ ai = "ok", begin = "ok", refund = "ok", finish = "ok", cloud = 
   let cloudBody: { model: string; messages: { role: string; content: string }[] } | null = null;
   let cloudAuth = "";
   const keys = ["SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY", "AI_BASE_URL", "AI_API_KEY", "ALLOWED_ORIGINS",
-    "NVIDIA_API_KEY", "NVIDIA_MODEL", "NVIDIA_CHAT_MODEL"];
+    "GROQ_API_KEY", "GROQ_MODEL", "GROQ_CHAT_MODEL"];
   const saved = new Map(keys.map((key) => [key, Deno.env.get(key)]));
   for (const [key, value] of Object.entries({
     SUPABASE_URL: "https://supabase.example.test",
@@ -30,8 +30,8 @@ function setup({ ai = "ok", begin = "ok", refund = "ok", finish = "ok", cloud = 
     ALLOWED_ORIGINS: "https://web.example.test,https://tauri.localhost",
   }))
     Deno.env.set(key, value);
-  for (const key of ["NVIDIA_API_KEY", "NVIDIA_MODEL", "NVIDIA_CHAT_MODEL"]) Deno.env.delete(key);
-  if (cloud !== "none") Deno.env.set("NVIDIA_API_KEY", "nvapi-test-only-not-a-real-key");
+  for (const key of ["GROQ_API_KEY", "GROQ_MODEL", "GROQ_CHAT_MODEL"]) Deno.env.delete(key);
+  if (cloud !== "none") Deno.env.set("GROQ_API_KEY", "gsk_test-only-not-a-real-key");
   globalThis.fetch = async (input, options) => {
     const url = String(input);
     if (url.includes("/auth/v1/user")) {
@@ -67,7 +67,7 @@ function setup({ ai = "ok", begin = "ok", refund = "ok", finish = "ok", cloud = 
       if (rpc === "ai_fallback_take") return Response.json(take);
       if (rpc === "rate_limit_take") return Response.json(ip);
     }
-    if (url === "https://integrate.api.nvidia.com/v1/chat/completions") {
+    if (url === "https://api.groq.com/openai/v1/chat/completions") {
       cloudBody = JSON.parse(String(options?.body));
       cloudAuth = new Headers(options?.headers).get("authorization") || "";
       if (cloud === "down") return Response.json({ error: "overloaded" }, { status: 503 });
@@ -224,7 +224,7 @@ Deno.test("Nunca envía el secreto del gateway por HTTP", async () => {
   } finally { f.close(); }
 });
 
-Deno.test("Respaldo: una caída a mitad de camino (red, timeout, 502, 503, 530, vacío) se reintenta una vez en NVIDIA", async () => {
+Deno.test("Respaldo: una caída a mitad de camino (red, timeout, 502, 503, 530, vacío) se reintenta una vez en Groq", async () => {
   for (const ai of ["down", "timeout", "502", "503", "530", "empty"]) {
     const f = setup({ ai, cloud: "ok" });
     try {
@@ -233,8 +233,8 @@ Deno.test("Respaldo: una caída a mitad de camino (red, timeout, 502, 503, 530, 
       const body = await response.json();
       assert(body.source === "cloud" && body.reply === "¡Desde la nube, Ana! Trota 10 minutos.", `${ai}: ${body.reply}`);
       assert(f.aiBody() !== null, "Primero intentó la IA local");
-      assert(f.cloudAuth() === "Bearer nvapi-test-only-not-a-real-key");
-      assert(f.cloudBody()?.model === NVIDIA_DEFAULT_MODEL);
+      assert(f.cloudAuth() === "Bearer gsk_test-only-not-a-real-key");
+      assert(f.cloudBody()?.model === GROQ_DEFAULT_MODEL);
       const system = f.cloudBody()!.messages[0];
       assert(system.role === "system" && /Eres Lumi/.test(system.content) && /Formato de respuesta/.test(system.content));
       assert(f.cloudBody()!.messages.at(-1)?.content === "¿Qué hago hoy?");
@@ -276,20 +276,20 @@ Deno.test("Respaldo: si la nube también falla o se alcanzó su límite, devuelv
       assert(response.status === 503 && body.error === message && body.refunded === true, body.error);
       const names = f.rpcs().map((r) => r.name);
       assert(names.includes("lumi_chat_refund") && !names.includes("lumi_chat_finish"), names.join());
-      if (options.take === false) assert(f.cloudBody() === null, "Con el límite alcanzado no llama a NVIDIA");
+      if (options.take === false) assert(f.cloudBody() === null, "Con el límite alcanzado no llama a Groq");
     } finally {
       f.close();
     }
   }
 });
 
-Deno.test("Respaldo: el modelo de chat se configura con NVIDIA_CHAT_MODEL", async () => {
+Deno.test("Respaldo: el modelo de chat se configura con GROQ_CHAT_MODEL", async () => {
   const f = setup({ online: false, cloud: "ok" });
   try {
-    Deno.env.set("NVIDIA_MODEL", "nvidia/plan-model");
-    Deno.env.set("NVIDIA_CHAT_MODEL", "nvidia/chat-model");
+    Deno.env.set("GROQ_MODEL", "groq/plan-model");
+    Deno.env.set("GROQ_CHAT_MODEL", "groq/chat-model");
     assert((await handleLumiChat(request())).status === 200);
-    assert(f.cloudBody()?.model === "nvidia/chat-model");
+    assert(f.cloudBody()?.model === "groq/chat-model");
   } finally { f.close(); }
 });
 

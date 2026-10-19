@@ -1,4 +1,4 @@
-// Conmutación IA local ↔ respaldo en la nube (NVIDIA), simulando caídas de red, del túnel y de Ollama.
+// Conmutación IA local ↔ respaldo en la nube (Groq), simulando caídas de red, del túnel y de Ollama.
 // Ninguna prueba usa la red ni claves reales.
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -12,7 +12,7 @@ import {
   LocalBusy,
   localChat,
   LocalUnavailable,
-  NVIDIA_DEFAULT_MODEL,
+  GROQ_DEFAULT_MODEL,
   withCloudFallback,
 } from "../supabase/functions/_shared/ai-fallback.ts";
 import { parseJsonContent } from "../supabase/functions/_shared/generate-plan.ts";
@@ -23,7 +23,7 @@ import { jobDescription } from "../src/ai-jobs.js";
 
 const BASE = "https://ia.example.test/v1";
 const KEY = "test-only-gateway-key";
-const settings = cloudSettings((k) => ({ NVIDIA_API_KEY: "nvapi-test-only" })[k]);
+const settings = cloudSettings((k) => ({ GROQ_API_KEY: "gsk_test-only" })[k]);
 const messages = [{ role: "user", content: "Hola" }];
 const pause = (ms = 10) => new Promise((r) => setTimeout(r, ms));
 
@@ -138,14 +138,14 @@ test("El secreto del gateway nunca viaja por HTTP sin cifrar", async () => {
   assert.equal(local.calls.length, 0);
 });
 
-test("NVIDIA: clave sólo del entorno del servidor, modelo configurable y respuesta normalizada", async () => {
+test("Groq: clave sólo del entorno del servidor, modelo configurable y respuesta normalizada", async () => {
   assert.equal(cloudSettings(() => undefined), null, "Sin clave no hay respaldo");
-  assert.equal(settings.model, NVIDIA_DEFAULT_MODEL);
-  assert.equal(settings.endpoint, "https://integrate.api.nvidia.com/v1/chat/completions");
-  const custom = cloudSettings((k) => ({ NVIDIA_API_KEY: "k", NVIDIA_MODEL: "nvidia/plan", NVIDIA_CHAT_MODEL: "nvidia/chat" })[k]);
-  assert.equal(custom.model, "nvidia/plan");
-  assert.equal(custom.chatModel, "nvidia/chat");
-  assert.throws(() => cloudSettings((k) => ({ NVIDIA_API_KEY: "k", NVIDIA_MODEL: "bad model; rm" })[k]), CloudUnavailable);
+  assert.equal(settings.model, GROQ_DEFAULT_MODEL);
+  assert.equal(settings.endpoint, "https://api.groq.com/openai/v1/chat/completions");
+  const custom = cloudSettings((k) => ({ GROQ_API_KEY: "k", GROQ_MODEL: "groq/plan", GROQ_CHAT_MODEL: "groq/chat" })[k]);
+  assert.equal(custom.model, "groq/plan");
+  assert.equal(custom.chatModel, "groq/chat");
+  assert.throws(() => cloudSettings((k) => ({ GROQ_API_KEY: "k", GROQ_MODEL: "bad model; rm" })[k]), CloudUnavailable);
   let sent;
   const reply = await cloudChat({
     settings,
@@ -156,9 +156,9 @@ test("NVIDIA: clave sólo del entorno del servidor, modelo configurable y respue
     },
   });
   assert.equal(reply, "¡Hola desde la nube!", "Mismo formato que la IA local: sólo el texto");
-  assert.equal(sent.url, "https://integrate.api.nvidia.com/v1/chat/completions");
-  assert.equal(new Headers(sent.options.headers).get("authorization"), "Bearer nvapi-test-only");
-  assert.equal(sent.body.model, NVIDIA_DEFAULT_MODEL);
+  assert.equal(sent.url, "https://api.groq.com/openai/v1/chat/completions");
+  assert.equal(new Headers(sent.options.headers).get("authorization"), "Bearer gsk_test-only");
+  assert.equal(sent.body.model, GROQ_DEFAULT_MODEL);
   assert.equal(sent.body.stream, false);
   await assert.rejects(cloudChat({ settings: null, messages }), CloudUnavailable);
   await assert.rejects(cloudChat({ settings, messages, fetchImpl: async () => { throw new TypeError("fetch failed"); } }), CloudUnavailable);
@@ -304,8 +304,8 @@ test("La app muestra un indicador discreto del origen de la IA", () => {
   assert.doesNotMatch(jobDescription({ status: "completed", provider: "local" }), /nube/);
 });
 
-test("Si NVIDIA retiró un modelo (404/410) el chat usa el siguiente de la lista; otros errores no", async () => {
-  const chain = cloudSettings((k) => ({ NVIDIA_API_KEY: "k", NVIDIA_MODEL: "viejo/retirado, nuevo/activo" })[k]);
+test("Si Groq retiró un modelo (404/410) el chat usa el siguiente de la lista; otros errores no", async () => {
+  const chain = cloudSettings((k) => ({ GROQ_API_KEY: "k", GROQ_MODEL: "viejo/retirado, nuevo/activo" })[k]);
   assert.deepEqual(chain.models, ["viejo/retirado", "nuevo/activo"]);
   assert.deepEqual(chain.chatModels, chain.models, "El chat usa la misma lista si no se configura otra");
   for (const retired of [404, 410]) {
@@ -330,5 +330,5 @@ test("Si NVIDIA retiró un modelo (404/410) el chat usa el siguiente de la lista
     CloudUnavailable,
   );
   assert.deepEqual(asked, ["viejo/retirado"], "Una clave inválida no se arregla cambiando de modelo");
-  assert.deepEqual(cloudSettings((k) => ({ NVIDIA_API_KEY: "k" })[k]).models, ["openai/gpt-oss-20b", "z-ai/glm-5.3-flash"]);
+  assert.deepEqual(cloudSettings((k) => ({ GROQ_API_KEY: "k" })[k]).models, ["openai/gpt-oss-20b"]);
 });

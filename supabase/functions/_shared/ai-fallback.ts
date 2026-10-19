@@ -1,15 +1,15 @@
-// Conmutación IA local (Ollama en el PC, vía túnel) ↔ respaldo en la nube (NVIDIA NIM).
-// La clave de NVIDIA sólo existe como secreto de Supabase (Deno.env); nunca llega al teléfono.
+// Conmutación IA local (Ollama en el PC, vía túnel) ↔ respaldo en la nube (Groq, API compatible con OpenAI).
+// La clave de Groq sólo existe como secreto de Supabase (Deno.env); nunca llega al teléfono.
 // Sin imports npm: también lo cargan las pruebas de Node en tests/.
 
-export const NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1";
+export const GROQ_BASE_URL = "https://api.groq.com/openai/v1";
 /**
- * Modelos de build.nvidia.com probados el 2026-10-14 con chat en español y JSON Schema. NVIDIA retira
- * modelos (meta/llama-3.3-70b-instruct responde 410 desde el 2026-08-26): ante 404/410 se usa el
- * siguiente. Se cambian con NVIDIA_MODEL, que acepta una lista separada por comas.
+ * gpt-oss-20b: el mismo modelo probado el 2026-10-14 con chat en español y JSON Schema. Se cambia con
+ * GROQ_MODEL, que acepta una lista separada por comas: ante 404/410 (modelo inexistente o retirado)
+ * se usa el siguiente.
  */
-export const NVIDIA_DEFAULT_MODELS = ["openai/gpt-oss-20b", "z-ai/glm-5.3-flash"];
-export const NVIDIA_DEFAULT_MODEL = NVIDIA_DEFAULT_MODELS[0];
+export const GROQ_DEFAULT_MODELS = ["openai/gpt-oss-20b"];
+export const GROQ_DEFAULT_MODEL = GROQ_DEFAULT_MODELS[0];
 const MODEL_NAME = /^[A-Za-z0-9_./:-]{1,200}$/;
 const LOCAL_TIMEOUT_MS = 35000;
 const CLOUD_CHAT_TIMEOUT_MS = 25000;
@@ -19,7 +19,7 @@ export type PlanFormat = "json_schema" | "json_object" | "none";
 export type CloudSettings = {
   apiKey: string;
   endpoint: string;
-  /** Primer modelo de cada lista; los siguientes se usan si NVIDIA retiró el anterior. */
+  /** Primer modelo de cada lista; los siguientes se usan si el proveedor retiró el anterior. */
   model: string;
   chatModel: string;
   models: string[];
@@ -64,23 +64,23 @@ export class CloudLimited extends Error {
   }
 }
 
-/** null = respaldo apagado (falta NVIDIA_API_KEY). */
+/** null = respaldo apagado (falta GROQ_API_KEY). */
 export function cloudSettings(get: EnvGetter = denoEnv): CloudSettings | null {
-  const apiKey = (get("NVIDIA_API_KEY") || "").trim();
+  const apiKey = (get("GROQ_API_KEY") || "").trim();
   if (!apiKey) return null;
   const list = (value: string | undefined) => (value || "").split(",").map((m) => m.trim()).filter(Boolean);
-  const models = list(get("NVIDIA_MODEL"));
-  if (!models.length) models.push(...NVIDIA_DEFAULT_MODELS);
-  const chatModels = list(get("NVIDIA_CHAT_MODEL"));
+  const models = list(get("GROQ_MODEL"));
+  if (!models.length) models.push(...GROQ_DEFAULT_MODELS);
+  const chatModels = list(get("GROQ_CHAT_MODEL"));
   if (!chatModels.length) chatModels.push(...models);
   if (models.length > 5 || chatModels.length > 5 || ![...models, ...chatModels].every((m) => MODEL_NAME.test(m)))
-    throw new CloudUnavailable("NVIDIA_MODEL o NVIDIA_CHAT_MODEL tiene un nombre inválido (máximo 5 por lista).");
-  const format = (get("NVIDIA_PLAN_FORMAT") || "json_schema").trim();
+    throw new CloudUnavailable("GROQ_MODEL o GROQ_CHAT_MODEL tiene un nombre inválido (máximo 5 por lista).");
+  const format = (get("GROQ_PLAN_FORMAT") || "json_schema").trim();
   if (!["json_schema", "json_object", "none"].includes(format))
-    throw new CloudUnavailable("NVIDIA_PLAN_FORMAT debe ser json_schema, json_object o none.");
+    throw new CloudUnavailable("GROQ_PLAN_FORMAT debe ser json_schema, json_object o none.");
   return {
     apiKey,
-    endpoint: `${NVIDIA_BASE_URL}/chat/completions`,
+    endpoint: `${GROQ_BASE_URL}/chat/completions`,
     model: models[0],
     chatModel: chatModels[0],
     models,
@@ -89,7 +89,7 @@ export function cloudSettings(get: EnvGetter = denoEnv): CloudSettings | null {
   };
 }
 
-/** NVIDIA retiró el modelo (410) o no lo ofrece (404): se prueba el siguiente de la lista. */
+/** El proveedor retiró el modelo (410) o no lo ofrece (404): se prueba el siguiente de la lista. */
 export const isRetiredModel = (status: number | undefined) => status === 404 || status === 410;
 
 /**
@@ -157,7 +157,7 @@ export async function localChat({
   return text;
 }
 
-/** Respuesta de texto de NVIDIA (formato OpenAI). Lanza CloudUnavailable. */
+/** Respuesta de texto de Groq (formato OpenAI). Lanza CloudUnavailable. */
 export async function cloudChat({
   settings,
   messages,
@@ -174,7 +174,7 @@ export async function cloudChat({
   timeoutMs?: number;
   fetchImpl?: typeof fetch;
 }) {
-  if (!settings) throw new CloudUnavailable("Falta NVIDIA_API_KEY");
+  if (!settings) throw new CloudUnavailable("Falta GROQ_API_KEY");
   const deadline = Date.now() + timeoutMs;
   let lastError = new CloudUnavailable("Sin modelos configurados");
   for (const model of settings.chatModels) {
@@ -269,11 +269,11 @@ export async function withCloudFallback<T>({
   return { source: "cloud", value: await cloud() };
 }
 
-/** Ajustes del prompt para los modelos de NVIDIA, que se comportan distinto a los Qwen locales. */
+/** Ajustes del prompt para los modelos de la nube, que se comportan distinto a los Qwen locales. */
 export const CLOUD_CHAT_ADDENDUM = `
 Formato de respuesta (obligatorio):
 - Escribe sólo lo que Lumi diría, en texto plano y en español. Sin razonamiento, sin etiquetas, sin Markdown, sin listas ni emojis en exceso.
-- No te presentes como un modelo de lenguaje ni menciones a NVIDIA, Meta u otros proveedores: eres Lumi.`;
+- No te presentes como un modelo de lenguaje ni menciones a Groq, OpenAI u otros proveedores: eres Lumi.`;
 
 export const CLOUD_PLAN_ADDENDUM = `
 Formato de respuesta (obligatorio): devuelve únicamente el objeto JSON del esquema, sin texto antes ni después y sin bloques de código. Todas las cadenas en español. Usa exactamente los nombres de campos del esquema.`;

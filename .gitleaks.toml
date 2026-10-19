@@ -11,6 +11,7 @@ paths = [
 ]
 regexes = [
   '''nvapi-test-only[A-Za-z0-9_-]*''',
+  '''gsk_test-only[A-Za-z0-9_-]*''',
   '''sb_secret_test[A-Za-z0-9_-]*''',
   '''sb_publishable_(test|fixture|billing)[A-Za-z0-9_-]*''',
   '''eyJhbGciOiJIUzI1NiJ9\.[A-Za-z0-9_-]+\.fixture''',

@@ -63,7 +63,7 @@ export function legalUpdateCard({ doc = document, accept, onAccepted = () => {},
     <p>${reason ? `${reason} ` : ""}Revisa y acepta la versión del ${legalDateLabel(LEGAL_VERSION.terms)} para seguir usando la IA y comprar en PlanifIA. Tus metas y tu progreso siguen disponibles aunque no aceptes.</p>
     <ul class="legal-update-changes">
       <li>Identificamos a quien responde por tus datos y explicamos todos tus derechos y cómo ejercerlos.</li>
-      <li>Detallamos qué datos recibe cada proveedor (Supabase, NVIDIA, Google, Cloudflare y GitHub) y en qué país.</li>
+      <li>Detallamos qué datos recibe cada proveedor (Supabase, Groq, Google, Cloudflare y GitHub) y en qué país.</li>
       <li>Explicamos los límites de la IA, las líneas de ayuda y cómo reportar una respuesta.</li>
       <li>Aclaramos las compras, la renovación de las suscripciones, el retracto y los reembolsos.</li>
     </ul>

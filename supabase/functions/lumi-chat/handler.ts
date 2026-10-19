@@ -1,5 +1,5 @@
 // Chat "Hablar con Lumi": cobra el mensaje, pide la respuesta al modo rápido del gateway local y
-// guarda la conversación. Con el PC apagado o el túnel caído responde la IA de respaldo (NVIDIA).
+// guarda la conversación. Con el PC apagado o el túnel caído responde la IA de respaldo (Groq).
 // Si Lumi no responde, devuelve los créditos. Nunca usa la cola de planes.
 import { createClient } from "npm:@supabase/supabase-js@2.58.0";
 import { BodyTooLarge, readRequestText } from "../_shared/request-body.ts";
