@@ -5,7 +5,13 @@
     <!-- AndroidTV support -->
     <uses-feature android:name="android.software.leanback" android:required="false" />
 
+    <!-- Sin respaldo en la nube de Google ni copia a otro teléfono: la sesión de Supabase vive en el
+         almacenamiento del WebView y no debe restaurarse en otro dispositivo (ver
+         res/xml/data_extraction_rules.xml y docs/auditoria-legal-seguridad-2026-10-18.md). -->
     <application
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:theme="@style/Theme.planifia_seller"
