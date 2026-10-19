@@ -56,7 +56,7 @@ export function lumiChatPage({ stage = 1, name = "", escape }) {
       <p class="fine" data-lumi-chat-cost></p>
       <p class="fine lumi-chat-source" data-lumi-chat-source hidden></p>
     </form>
-    <p class="muted fine lumi-chat-note">Lumi es una IA: puede equivocarse. Tus mensajes se envían a la IA de PlanifIA y se guardan los últimos 100. No compartas datos sensibles.</p>
+    <p class="muted fine lumi-chat-note">Lumi es una IA: puede equivocarse. Tus mensajes se envían a la IA de PlanifIA o, si no está disponible, a la de respaldo de Groq, y se guardan los últimos 100. No compartas datos sensibles.</p>
   </section>`;
 }
 

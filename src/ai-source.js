@@ -1,5 +1,5 @@
 // Origen de la IA que se muestra en la app. La conmutación local ↔ nube ocurre en el servidor
-// (lumi-chat y ai-fallback): la clave de NVIDIA nunca llega al teléfono. Aquí sólo se muestra el
+// (lumi-chat y ai-fallback): la clave de Groq nunca llega al teléfono. Aquí sólo se muestra el
 // origen y se pide el respaldo para una propuesta en cola mientras el PC está apagado.
 
 export const AI_SOURCE_LABELS = {

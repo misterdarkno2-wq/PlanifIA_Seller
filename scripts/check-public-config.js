@@ -3,12 +3,13 @@ const env = { ...loadEnv("production", process.cwd(), ""), ...process.env };
 for (const [key, value] of Object.entries(env))
   if (key.startsWith("VITE_") && value) {
     if (
-      /SECRET|PASSWORD|SERVICE_ROLE|AI_.*KEY|OPENAI|NVIDIA|TOKEN|TRANSBANK|BILLING_.*KEY/.test(
+      /SECRET|PASSWORD|SERVICE_ROLE|AI_.*KEY|OPENAI|NVIDIA|GROQ|TOKEN|TRANSBANK|BILLING_.*KEY/.test(
         key,
       ) ||
       value.startsWith("sb_secret_") ||
       value.startsWith("sk-") ||
-      value.startsWith("nvapi-")
+      value.startsWith("nvapi-") ||
+      value.startsWith("gsk_")
     )
       throw new Error(
         "Una variable VITE_ contiene una clave privada. Retírala antes de compilar.",
