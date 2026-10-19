@@ -2,68 +2,168 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Política de privacidad · PlanifIA</title>
 <link rel="icon" href="favicon.svg">
 <style>
 :root { color: #183b39; background: #f5f7f4; font-family: Inter, "Segoe UI", system-ui, sans-serif; line-height: 1.6; }
 body { margin: 0; }
-main { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; }
+main { max-width: 820px; margin: 0 auto; padding: 32px 16px 64px; }
 h1 { line-height: 1.2; }
 h2 { margin-top: 2em; font-size: 1.2rem; }
-a { color: #10796c; }
-table { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
+h3 { margin-top: 1.4em; font-size: 1rem; }
+a { color: #10796c; overflow-wrap: anywhere; }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 0.92rem; }
 th, td { border: 1px solid #dce6df; padding: 8px; text-align: left; vertical-align: top; }
 th { background: #eef5e8; }
+code { font-size: 0.9em; overflow-wrap: anywhere; }
 .muted { color: #677c77; }
+.summary { padding: 14px 18px; border: 1px solid #d5e5d6; border-radius: 12px; background: #edf6eb; }
+.summary ul { margin: 0; padding-left: 20px; }
+.pending { background: #fff3c4; padding: 0 3px; border-radius: 3px; }
 </style>
 </head>
 <body>
 <main>
 <h1>Política de privacidad de PlanifIA</h1>
-<p class="muted">Última actualización: 18 de octubre de 2026. Aplica a la web <a href="https://planifia.cl/">planifia.cl</a> y a la app PlanifIA para Android (<code>cl.planifia.app</code>).</p>
+<p class="muted" data-legal-version="2026-10-18">Versión del 18 de octubre de 2026 (vigente). Aplica a la web <a href="https://planifia.cl/" rel="noopener noreferrer">planifia.cl</a> y a la app PlanifIA para Android (<code>cl.planifia.app</code>). Las versiones anteriores están en el <a href="#historial">historial de versiones</a>.</p>
 
-<h2>Quién es responsable</h2>
-<p>PlanifIA es un planificador de metas desarrollado en Chile. Para cualquier consulta sobre privacidad escribe a <a href="mailto:planifiaprivacity@gmail.com">planifiaprivacity@gmail.com</a>.</p>
-
-<h2>Qué datos tratamos y para qué</h2>
-<table>
-<tr><th>Dato</th><th>Uso</th></tr>
-<tr><td>Correo electrónico y contraseña (cifrada por el proveedor de autenticación)</td><td>Crear tu cuenta, iniciar sesión, confirmar el correo y recuperar la contraseña.</td></tr>
-<tr><td>Nombre, zona horaria, minutos y días disponibles</td><td>Personalizar tu espacio y repartir acciones según tu tiempo.</td></tr>
-<tr><td>Metas, hitos, acciones, hábitos y su historial</td><td>Funcionamiento principal de la app y sincronización entre tus dispositivos.</td></tr>
-<tr><td>Texto que escribes al pedir un plan con IA y los datos de la meta que se planifica (título, descripción, situación actual, resultado esperado, acciones completadas y tu tiempo disponible)</td><td>Generar la propuesta de plan. Normalmente se procesa en un servidor propio de PlanifIA. Si ese servidor no está disponible (por ejemplo, porque está apagado), la propuesta la prepara la IA de respaldo en la nube de Groq y la app lo indica con <strong>Preparada con IA en la nube (respaldo)</strong>. A Groq no se envían tu correo, tu nombre ni el identificador de tu cuenta. Este texto no se usa para entrenar modelos.</td></tr>
-<tr><td>Mensajes del chat <strong>Hablar con Lumi</strong> y las respuestas de Lumi</td><td>Responderte. Cada mensaje se envía a la IA del servidor propio de PlanifIA o, si ese servidor no está disponible, a la IA de respaldo en la nube de Groq, junto con tu nombre, el nombre y la etapa de Lumi, hasta 3 metas activas con su próxima acción y los últimos 6 mensajes de la conversación. Debajo de cada respuesta la app indica si respondió la IA local o la IA en la nube (respaldo). Guardamos solo los últimos 100 mensajes de tu conversación para mostrarlos y dar contexto a Lumi; puedes borrarlos con <strong>Borrar conversación</strong> y se eliminan al eliminar tu cuenta. No se usan para entrenar modelos.</td></tr>
-<tr><td>Progreso de Lumi (XP, nivel)</td><td>Recompensas del juego.</td></tr>
-<tr><td>Créditos de IA: saldo, movimientos, anuncios recompensados vistos e invitaciones (código y cuenta invitada)</td><td>Calcular tu saldo, entregar las recompensas y evitar abusos (por ejemplo, un máximo de anuncios por día).</td></tr>
-<tr><td>Plan contratado, compras de Google Play (identificador de la compra, producto, estado y vencimiento)</td><td>Aplicar los beneficios de tu plan y de los paquetes de créditos, y procesar renovaciones, cancelaciones y reembolsos. Los pagos los procesa Google Play; PlanifIA no recibe los datos de tu tarjeta.</td></tr>
-<tr><td>Solo plan Gratis en la app Android: identificador de publicidad del dispositivo, información técnica del dispositivo y de la app, y las interacciones con los anuncios</td><td>Mostrar anuncios de Google AdMob, limitar su frecuencia, medirlos y prevenir fraude. Los trata Google según su propia política.</td></tr>
-<tr><td>Preferencias locales (animaciones, voz de Lumi)</td><td>Se guardan solo en tu dispositivo.</td></tr>
-</table>
-<p>El plan Gratis de la app para Android muestra anuncios de Google AdMob; los planes Plus y Pro, la compra Quitar anuncios (salvo los anuncios voluntarios para ganar créditos) y la web no muestran anuncios. Cuando la ley lo exige (por ejemplo, en el Espacio Económico Europeo, Reino Unido o Suiza), te pedimos tu consentimiento con la herramienta de Google antes de cargar anuncios, y puedes cambiarlo en <strong>Ajustes → Anuncios y privacidad</strong>. Puedes restablecer o eliminar tu identificador de publicidad en los ajustes de Android (Privacidad → Anuncios). No usamos herramientas de analítica propias, no vendemos datos y no los compartimos con fines de marketing. La app no pide permisos que requieran tu autorización.</p>
-
-<h2>Proveedores que nos ayudan</h2>
+<section class="summary" aria-labelledby="resumen">
+<h2 id="resumen" style="margin-top:0">En pocas palabras</h2>
 <ul>
-<li><strong>Supabase</strong>: alojamiento de la base de datos y autenticación.</li>
-<li><strong>Cloudflare</strong>: transporte seguro hacia el servidor de IA de PlanifIA.</li>
-<li><strong>Groq</strong>: IA de respaldo en la nube. Solo se usa cuando el servidor de IA de PlanifIA no está disponible y recibe el texto de los planes y los mensajes del chat descritos arriba, únicamente para generar la respuesta. No los usa para entrenar modelos ni los conserva después de responder. Más información en la <a href="https://groq.com/privacy">política de privacidad de Groq</a>.</li>
-<li><strong>GitHub Pages</strong>: publicación de la web.</li>
-<li><strong>Google Play</strong>: distribución de la app y cobro de suscripciones y paquetes de créditos.</li>
-<li><strong>Google AdMob y Google User Messaging Platform</strong>: anuncios del plan Gratis en Android y gestión del consentimiento. Más información en <a href="https://policies.google.com/technologies/partner-sites">cómo usa Google la información de los sitios y apps que usan sus servicios</a>.</li>
+<li>Usamos tus datos para darte el servicio: tu cuenta, tus metas, la IA que propone planes y el chat con Lumi.</li>
+<li>No vendemos tus datos, no usamos analítica propia y no entrenamos modelos con lo que escribes.</li>
+<li>La IA funciona en un servidor propio en Chile; si no está disponible, responde la IA de respaldo de Groq, en Estados Unidos.</li>
+<li>El plan Gratis de la app para Android muestra anuncios de Google AdMob.</li>
+<li>Puedes ver, corregir, exportar y eliminar tus datos desde <strong>Ajustes</strong>, y ejercer todos tus derechos escribiéndonos.</li>
 </ul>
-<p>Supabase, Cloudflare, Groq y GitHub actúan por cuenta de PlanifIA. Google trata los datos de anuncios y pagos también según sus propias políticas. Toda la comunicación usa HTTPS cifrado.</p>
+</section>
 
-<h2>Cuánto tiempo conservamos tus datos</h2>
-<p>Mientras tu cuenta exista. Al eliminarla se borran de inmediato tu cuenta y todos sus datos asociados. Las copias de seguridad del proveedor se sobrescriben automáticamente en un plazo máximo de 30 días.</p>
+<h2 id="responsable">1. Quién es responsable de tus datos</h2>
+<p>El responsable del tratamiento de tus datos personales es <span class="pending">[PENDIENTE: nombre completo o razón social del responsable]</span>, RUT <span class="pending">[PENDIENTE: RUT]</span>, con domicilio en <span class="pending">[PENDIENTE: domicilio en Chile]</span> (en esta política, «PlanifIA»).</p>
+<p>Para cualquier consulta o solicitud sobre tus datos escribe a <a href="mailto:planifiaprivacity@gmail.com">planifiaprivacity@gmail.com</a>.</p>
 
-<h2>Tus derechos y cómo eliminar tu cuenta</h2>
-<p>Puedes consultar y editar tus datos en la app, descargarlos en <strong>Ajustes → Exportar mis datos</strong> y eliminar tu cuenta en <strong>Ajustes → Eliminar cuenta</strong>. También puedes seguir las instrucciones de <a href="eliminar-cuenta.html">eliminar cuenta</a> o escribirnos.</p>
+<h2 id="datos">2. Qué datos tratamos, para qué y con qué base legal</h2>
+<p>Tratamos sólo los datos que necesitamos para prestarte el servicio. La «base legal» es el motivo que permite tratarlos según la ley chilena de protección de datos personales (Ley 19.628, modificada por la Ley 21.719): la ejecución del contrato contigo (estos términos), tu consentimiento, una obligación legal o un interés legítimo que no afecta tus derechos.</p>
+<div class="table-wrap"><table>
+<tr><th>Datos</th><th>Para qué los usamos</th><th>Base legal</th></tr>
+<tr><td>Correo electrónico y contraseña (guardada cifrada, nunca en texto legible)</td><td>Crear tu cuenta, iniciar sesión, confirmar el correo y recuperar la contraseña.</td><td>Contrato</td></tr>
+<tr><td>Registros técnicos de acceso: dirección IP, navegador o dispositivo y fecha y hora de inicio de sesión y de las solicitudes</td><td>Mantener tu sesión, proteger las cuentas y detectar abusos. Los genera nuestro proveedor de base de datos.</td><td>Interés legítimo (seguridad)</td></tr>
+<tr><td>Nombre, zona horaria, minutos y días disponibles</td><td>Personalizar tu espacio y repartir acciones según tu tiempo.</td><td>Contrato</td></tr>
+<tr><td>Metas, hitos, acciones, hábitos, su historial y los archivos que importes</td><td>Funcionamiento principal de la app y sincronización entre tus dispositivos.</td><td>Contrato</td></tr>
+<tr><td>Texto que escribes al pedir un plan con IA y los datos de la meta que se planifica (título, descripción, situación actual, resultado esperado, acciones completadas y tu tiempo disponible), y la propuesta que entrega la IA</td><td>Generar la propuesta y mostrártela en <strong>Mis solicitudes de IA</strong>. Normalmente se procesa en un servidor propio de PlanifIA. Si ese servidor no está disponible, la prepara la IA de respaldo de Groq y la app lo indica con <strong>Preparada con IA en la nube (respaldo)</strong>. A Groq no se envían tu correo, tu nombre ni el identificador de tu cuenta.</td><td>Contrato</td></tr>
+<tr><td>Mensajes del chat <strong>Hablar con Lumi</strong> y las respuestas de Lumi</td><td>Responderte. Cada mensaje se envía a la IA del servidor propio de PlanifIA o, si no está disponible, a la IA de respaldo de Groq, junto con tu nombre, el nombre y la etapa de Lumi, hasta 3 metas activas con su próxima acción y los últimos 6 mensajes. Debajo de cada respuesta la app indica qué IA respondió. Guardamos sólo los últimos 100 mensajes; puedes borrarlos con <strong>Borrar conversación</strong>.</td><td>Contrato</td></tr>
+<tr><td>Revisión automática de los mensajes al chat y de las metas que se envían a la IA, para detectar expresiones de crisis (suicidio, autolesión o violencia)</td><td>Si se detectan, el texto no se envía a la IA, no se guarda ni se cobra, y la app te muestra líneas de ayuda de Chile. No guardamos el resultado de la revisión.</td><td>Protección de tu vida e integridad <span class="pending">[PENDIENTE: validar con abogado la base legal para esta revisión]</span></td></tr>
+<tr><td>Reportes de contenido de la IA: la respuesta o el plan reportado (una copia), el motivo y tus comentarios</td><td>Revisar respuestas ofensivas, peligrosas o incorrectas y mejorar a Lumi. Lo exige Google Play para las apps con contenido generado por IA.</td><td>Interés legítimo y cumplimiento de las políticas de Google Play</td></tr>
+<tr><td>Progreso de Lumi (XP y nivel)</td><td>Recompensas del juego.</td><td>Contrato</td></tr>
+<tr><td>Créditos de IA: saldo, movimientos, anuncios recompensados vistos (identificador de la transacción) e invitaciones (código y cuenta invitada)</td><td>Calcular tu saldo, entregar las recompensas y evitar abusos (por ejemplo, un máximo de anuncios por día).</td><td>Contrato e interés legítimo (prevención de fraude)</td></tr>
+<tr><td>Plan contratado y compras de Google Play: identificador de la compra y del pedido, producto, estado, vencimiento y renovación</td><td>Aplicar los beneficios de tu plan y de tus compras, y procesar renovaciones, cancelaciones y reembolsos. Los pagos los procesa Google Play; PlanifIA no recibe los datos de tu tarjeta.</td><td>Contrato</td></tr>
+<tr><td>Aceptación de los términos y de esta política: versión aceptada, confirmación de mayoría de edad, fecha y hora, y plataforma (web o Android)</td><td>Poder demostrar qué condiciones aceptaste y cuándo, y pedirte aceptar de nuevo cuando cambien.</td><td>Obligación legal e interés legítimo</td></tr>
+<tr><td>Huella cifrada (hash con clave secreta) de tu dirección IP</td><td>Limitar la cantidad de solicitudes a la IA desde una misma conexión. La IP no se guarda en la base de datos.</td><td>Interés legítimo (seguridad y prevención de abusos)</td></tr>
+<tr><td>Sólo plan Gratis en la app para Android: identificador de publicidad del dispositivo, dirección IP, información técnica del dispositivo y de la app, y las interacciones con los anuncios</td><td>Mostrar anuncios de Google AdMob, limitar su frecuencia, medirlos y prevenir fraude. Los recoge el SDK de Google, que los trata como responsable según su propia política.</td><td>Consentimiento cuando la ley lo exige; en los demás casos, interés legítimo <span class="pending">[PENDIENTE: validar con abogado la base legal de los anuncios personalizados en Chile]</span></td></tr>
+<tr><td>Correos que nos envíes</td><td>Responder tus consultas y solicitudes.</td><td>Contrato e interés legítimo</td></tr>
+</table></div>
+<p><strong>Lo que no hacemos:</strong> no vendemos tus datos, no los compartimos con fines de marketing, no usamos herramientas de analítica propias y no usamos lo que escribes para entrenar modelos de IA. La app no pide permisos que requieran tu autorización (ubicación, contactos, cámara, micrófono o archivos); la voz de Lumi se sintetiza en el dispositivo.</p>
+<p><strong>Datos sensibles:</strong> no necesitas entregar datos de salud ni otros datos sensibles para usar PlanifIA. Si los escribes en tus metas o en el chat, los tratamos sólo para prestarte el servicio, como el resto de tu contenido. Te recomendamos no hacerlo. <span class="pending">[PENDIENTE: validar con abogado el tratamiento de datos sensibles que la persona escribe por iniciativa propia]</span></p>
 
-<h2>Menores de edad</h2>
-<p>PlanifIA está dirigida a personas mayores de 18 años y no está diseñada para niños ni adolescentes.</p>
+<h2 id="ia">3. La inteligencia artificial y las decisiones automatizadas</h2>
+<p>Los planes y las respuestas de Lumi son sugerencias automáticas: tú decides qué guardar. La IA no toma decisiones que produzcan efectos jurídicos sobre ti ni te afecten de forma significativa. Algunas medidas sí son automáticas: los límites de uso de la IA y de anuncios, la revisión de crisis descrita arriba y la detección de abusos con los créditos. Puedes pedir que una persona revise cualquiera de esas medidas escribiéndonos.</p>
+<p>Cada respuesta de Lumi y cada plan tienen un botón <strong>Reportar</strong>. Revisamos los reportes y podemos ajustar las instrucciones de la IA.</p>
 
-<h2>Cambios</h2>
-<p>Si cambiamos esta política publicaremos la nueva versión en esta página con su fecha de actualización.</p>
+<h2 id="anuncios">4. Anuncios en la app para Android</h2>
+<p>El plan Gratis de la app para Android muestra anuncios de Google AdMob: un video al usar la IA (como máximo uno cada 5 minutos) y anuncios voluntarios para ganar créditos. Los planes Plus y Pro, la compra Quitar anuncios (salvo los anuncios voluntarios) y la web no muestran anuncios.</p>
+<p>Cuando la ley lo exige (por ejemplo, en el Espacio Económico Europeo, el Reino Unido o Suiza), la app pide tu consentimiento con la herramienta de Google antes de cargar cualquier anuncio, y puedes cambiarlo en <strong>Ajustes → Anuncios y privacidad</strong>. Puedes restablecer o eliminar tu identificador de publicidad en los ajustes de Android (Privacidad → Anuncios). Más información en <a href="https://policies.google.com/technologies/partner-sites" rel="noopener noreferrer">cómo usa Google la información de los sitios y apps que usan sus servicios</a>.</p>
+
+<h2 id="proveedores">5. Con quién compartimos tus datos y en qué país</h2>
+<p>No vendemos ni cedemos tus datos. Los tratan, en nuestro nombre y sólo para prestarte el servicio, estos proveedores:</p>
+<div class="table-wrap"><table>
+<tr><th>Proveedor</th><th>Qué hace</th><th>Datos que recibe</th><th>País</th><th>Resguardo</th></tr>
+<tr><td>Supabase Inc.</td><td>Base de datos, autenticación y funciones del servidor</td><td>Todos los datos de tu cuenta descritos arriba y los registros técnicos de acceso</td><td><span class="pending">[PENDIENTE: país de la región del proyecto de Supabase]</span>; empresa en Estados Unidos</td><td>Acuerdo de tratamiento de datos de Supabase <span class="pending">[PENDIENTE: aceptar el DPA de Supabase]</span></td></tr>
+<tr><td>Servidor de IA de PlanifIA</td><td>IA local que prepara planes y respuestas de Lumi</td><td>El texto de los planes y del chat descritos arriba</td><td>Chile</td><td>Equipo propio, sin registros del contenido</td></tr>
+<tr><td>Cloudflare, Inc.</td><td>Transporte cifrado entre Supabase y el servidor de IA de PlanifIA; nombre de dominio</td><td>El texto de los planes y del chat, en tránsito</td><td>Red mundial; empresa en Estados Unidos</td><td>Acuerdo de tratamiento de datos de Cloudflare <span class="pending">[PENDIENTE: aceptar el DPA de Cloudflare]</span></td></tr>
+<tr><td>Groq, Inc.</td><td>IA de respaldo en la nube, sólo cuando el servidor propio no está disponible</td><td>El texto de los planes y del chat descritos arriba, sin tu correo ni el identificador de tu cuenta</td><td>Estados Unidos</td><td>Acuerdo de tratamiento de datos de Groq y retención cero: no usa los datos para entrenar ni los conserva después de responder <span class="pending">[PENDIENTE: aceptar el DPA de Groq y activar Zero Data Retention antes de publicar]</span></td></tr>
+<tr><td>GitHub, Inc.</td><td>Publicación de la web planifia.cl</td><td>Dirección IP y datos técnicos de quien visita la web</td><td>Estados Unidos</td><td>Términos y acuerdo de protección de datos de GitHub</td></tr>
+<tr><td>Google LLC (Google Play)</td><td>Distribución de la app, cobro de compras y suscripciones, y actualizaciones</td><td>Tus compras y el identificador de tu cuenta de PlanifIA asociado a cada compra</td><td>Estados Unidos y otros países</td><td>Google actúa además como responsable de los pagos según sus propias condiciones</td></tr>
+<tr><td>Google LLC (AdMob y User Messaging Platform)</td><td>Anuncios del plan Gratis en Android y gestión del consentimiento</td><td>Los datos de anuncios descritos arriba y el identificador de tu cuenta de PlanifIA en los anuncios recompensados</td><td>Estados Unidos y otros países</td><td>Google actúa como responsable según su política de privacidad</td></tr>
+</table></div>
+<p>También podemos comunicar datos a una autoridad cuando una ley o una resolución judicial lo exija.</p>
+
+<h3 id="transferencias">Transferencias internacionales</h3>
+<p>Varios proveedores procesan datos fuera de Chile, principalmente en Estados Unidos. Hacemos esas transferencias porque son necesarias para prestarte el servicio que contratas, y las protegemos con los acuerdos de tratamiento de datos de cada proveedor, que los obligan a usar los datos sólo para lo que les encargamos y a mantenerlos seguros. <span class="pending">[PENDIENTE: validar con abogado el mecanismo de transferencia internacional que exige la Ley 21.719 para cada proveedor]</span></p>
+
+<h2 id="conservacion">6. Cuánto tiempo conservamos tus datos</h2>
+<div class="table-wrap"><table>
+<tr><th>Datos</th><th>Plazo</th></tr>
+<tr><td>Cuenta, perfil, metas, acciones, hábitos, Lumi, solicitudes y propuestas de la IA, créditos, compras, aceptaciones y reportes</td><td>Mientras tu cuenta exista. Al eliminarla se borran de inmediato de nuestra base de datos.</td></tr>
+<tr><td>Conversación con Lumi</td><td>Los últimos 100 mensajes, hasta que uses <strong>Borrar conversación</strong> o elimines tu cuenta.</td></tr>
+<tr><td>Copia del contenido que reportaste</td><td>Mientras tu cuenta exista, aunque borres la conversación <span class="pending">[PENDIENTE: definir un plazo máximo, por ejemplo 12 meses]</span>.</td></tr>
+<tr><td>Huella cifrada de la IP para los límites de uso</td><td>Máximo 24 horas.</td></tr>
+<tr><td>Registros técnicos de acceso y de las funciones del servidor</td><td>Los borra el proveedor automáticamente <span class="pending">[PENDIENTE: plazo según el plan de Supabase]</span>.</td></tr>
+<tr><td>Copias de seguridad de la base de datos</td><td>Se sobrescriben automáticamente <span class="pending">[PENDIENTE: confirmar el plazo según el plan de Supabase; hoy se informa un máximo de 30 días]</span>.</td></tr>
+<tr><td>Correos que nos envíes</td><td>Hasta resolver tu consulta y luego <span class="pending">[PENDIENTE: plazo]</span>.</td></tr>
+<tr><td>Contenido enviado a Groq</td><td>No se conserva después de responder, con la retención cero activada.</td></tr>
+<tr><td>Registros de compras de Google Play y datos de anuncios</td><td>Los conserva Google según sus propias políticas, también después de que elimines tu cuenta de PlanifIA.</td></tr>
+</table></div>
+<p>Cuando eliminas tu cuenta, sus datos pueden seguir unos días en los registros técnicos y en las copias de seguridad hasta que se sobrescriban; no los usamos para nada más.</p>
+
+<h2 id="almacenamiento">7. Cookies y almacenamiento local</h2>
+<p>La web y la app <strong>no usan cookies</strong> ni herramientas de analítica o publicidad en la web. Guardan en tu navegador o teléfono sólo lo necesario para funcionar y tus preferencias, sin enviarlo a terceros. Por eso no te pedimos aceptar cookies.</p>
+<div class="table-wrap"><table>
+<tr><th>Nombre</th><th>Dónde</th><th>Para qué</th><th>Duración</th><th>Tipo</th></tr>
+<tr><td><code>planifia-seller-auth</code></td><td>Almacenamiento local</td><td>Tu sesión iniciada (credenciales temporales de acceso y de renovación)</td><td>Hasta que cierres sesión</td><td>Esencial</td></tr>
+<tr><td><code>planifia-ai-request:…</code></td><td>Almacenamiento local</td><td>Identificador de una solicitud de IA en curso, para no cobrarla dos veces (no guarda el texto)</td><td>Hasta que termina la solicitud</td><td>Esencial</td></tr>
+<tr><td><code>planifia-billing-intent</code></td><td>Almacenamiento de sesión</td><td>Plan elegido antes de iniciar sesión</td><td>Hasta usarlo o cerrar la pestaña</td><td>Esencial</td></tr>
+<tr><td><code>planifia-plan:…</code></td><td>Almacenamiento local (Android)</td><td>Último plan confirmado, para no mostrar anuncios a quien paga mientras se consulta el servidor</td><td>Se actualiza en cada consulta</td><td>Esencial</td></tr>
+<tr><td><code>planifia-ads-last-video</code></td><td>Almacenamiento local (Android)</td><td>Hora del último video, para respetar un máximo de uno cada 5 minutos</td><td>Se actualiza con cada video</td><td>Esencial</td></tr>
+<tr><td><code>planifia-update-later</code></td><td>Almacenamiento local (Android)</td><td>Posponer el aviso de una versión nueva</td><td>24 horas</td><td>Preferencia</td></tr>
+<tr><td><code>planifia-lumi-motion</code>, <code>planifia-lumi-conversation</code></td><td>Almacenamiento local</td><td>Animaciones, saludos, sonido y volumen de Lumi</td><td>Hasta que los cambies</td><td>Preferencia</td></tr>
+<tr><td><code>lumi-seen:…</code>, <code>planifia.game.…</code></td><td>Almacenamiento local</td><td>Último saludo de Lumi y mejor puntaje de los minijuegos</td><td>Hasta que borres los datos del sitio o de la app</td><td>Preferencia</td></tr>
+<tr><td><code>lumi-greeted:…</code>, <code>lumi-mood:…</code></td><td>Almacenamiento de sesión</td><td>Saludo y ánimo elegidos en esta visita</td><td>Hasta cerrar la pestaña o la app</td><td>Preferencia</td></tr>
+<tr><td><code>planifia-tareas</code>, <code>planifia-tasks</code>, <code>planifia-evaluaciones</code></td><td>Almacenamiento local</td><td>Datos de la versión anterior de PlanifIA. La app sólo los lee si eliges importarlos y no los escribe</td><td>Los que tenía la versión anterior</td><td>Esencial (importación)</td></tr>
+<tr><td>Consentimiento de anuncios y caché de los SDK de Google</td><td>Almacenamiento de la app (Android)</td><td>Recordar tu decisión de consentimiento de anuncios (User Messaging Platform) y el funcionamiento de AdMob y de Google Play Billing</td><td>Lo administra Google</td><td>Esencial para anuncios y compras</td></tr>
+</table></div>
+<p>La app para Android no se incluye en las copias de seguridad en la nube ni en la copia a otro teléfono: en un equipo nuevo inicias sesión de nuevo.</p>
+
+<h2 id="seguridad">8. Cómo protegemos tus datos</h2>
+<ul>
+<li>Toda la comunicación usa conexiones cifradas (HTTPS).</li>
+<li>Cada cuenta sólo puede leer sus propios datos, gracias a reglas de acceso en la base de datos; los cambios pasan por funciones del servidor que validan cada dato.</li>
+<li>Las claves de los servicios (IA, pagos y anuncios) sólo existen en el servidor, nunca en la app ni en la web.</li>
+<li>La web limita los recursos que puede cargar (política de seguridad de contenido) y la app no permite conexiones sin cifrar.</li>
+<li>El servidor de IA sólo acepta conexiones autenticadas a través de un túnel cifrado y no registra el contenido de los mensajes.</li>
+<li>Limitamos el uso de la IA por cuenta y por conexión para prevenir abusos.</li>
+</ul>
+<p>Ningún sistema es infalible. Si ocurre una vulneración de seguridad que afecte tus datos, la informaremos sin demora indebida a la Agencia de Protección de Datos Personales y, cuando la ley lo exija o pueda afectarte, también a ti, con lo que ocurrió y lo que puedes hacer.</p>
+
+<h2 id="derechos">9. Tus derechos y cómo ejercerlos</h2>
+<p>Tienes derecho a:</p>
+<ul>
+<li><strong>Acceso</strong>: saber qué datos tuyos tratamos, para qué, de dónde vienen y a quién se comunican.</li>
+<li><strong>Rectificación</strong>: corregir datos inexactos o incompletos.</li>
+<li><strong>Supresión</strong>: pedir que eliminemos tus datos.</li>
+<li><strong>Oposición</strong>: oponerte a un tratamiento, por ejemplo al basado en interés legítimo.</li>
+<li><strong>Portabilidad</strong>: recibir tus datos en un formato estructurado y de uso común.</li>
+<li><strong>Bloqueo</strong>: pedir que suspendamos temporalmente el tratamiento mientras se resuelve otra solicitud tuya.</li>
+<li><strong>No ser objeto de decisiones basadas sólo en un tratamiento automatizado</strong>, y pedir que una persona revise una medida automática.</li>
+</ul>
+<p><strong>Desde la app, al instante:</strong> corrige tu perfil en <strong>Ajustes</strong>, descarga tus datos en <strong>Ajustes → Exportar mis datos</strong> (archivo JSON con tus metas, chat, solicitudes de IA, créditos, compras y aceptaciones) y elimina tu cuenta en <strong>Ajustes → Eliminar cuenta</strong> o siguiendo <a href="eliminar-cuenta.html">estas instrucciones</a>.</p>
+<p><strong>Por correo:</strong> escribe a <a href="mailto:planifiaprivacity@gmail.com">planifiaprivacity@gmail.com</a> desde el correo de tu cuenta, indicando qué derecho quieres ejercer. Es gratuito. Te responderemos dentro de 30 días corridos, plazo que podemos extender una vez por igual período si es necesario, avisándote el motivo <span class="pending">[PENDIENTE: validar con abogado los plazos de respuesta y de bloqueo de la Ley 21.719]</span>.</p>
+<p>Si no respondemos a tiempo o no estás de acuerdo con la respuesta, puedes reclamar ante la <strong>Agencia de Protección de Datos Personales</strong> <span class="pending">[PENDIENTE: sitio web y canal de reclamos de la Agencia cuando esté operativa]</span>.</p>
+
+<h2 id="menores">10. Menores de edad</h2>
+<p>PlanifIA está dirigida a personas de 18 años o más: al crear la cuenta confirmas tu edad. No está diseñada para niños ni adolescentes. Si sabemos que una cuenta pertenece a una persona menor de 18 años, la eliminaremos. Si eres madre, padre o tutor y crees que tu hijo o hija creó una cuenta, escríbenos.</p>
+
+<h2 id="cambios">11. Cambios a esta política</h2>
+<p>Si hacemos un cambio importante te avisaremos en la app antes de que empiece a aplicarse y te pediremos aceptarlo para seguir usando la IA y comprar. Si no estás de acuerdo, puedes exportar tus datos y eliminar tu cuenta. Cada versión queda publicada con su fecha en el historial.</p>
+
+<h2 id="historial">12. Historial de versiones</h2>
+<ul>
+<li><strong>18 de octubre de 2026</strong> (vigente): responsable, base legal de cada tratamiento, proveedores con su país, transferencias internacionales, todos tus derechos, almacenamiento local, seguridad, plazos de conservación, revisión de crisis, reportes de contenido de IA y respaldo de IA de Groq.</li>
+<li><a href="legal/privacidad-2026-10-09.html">9 de octubre de 2026</a>: chat «Hablar con Lumi».</li>
+</ul>
 </main>
 </body>
 </html>

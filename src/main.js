@@ -990,7 +990,7 @@ function deleteAccountForm() {
     "form",
     modal(
       "Eliminar tu cuenta",
-      `<form><p>Se borrarán permanentemente tu cuenta (${e(user.email)}) y todos tus datos de PlanifIA. Esta acción no se puede deshacer.</p><label>Escribe ELIMINAR para confirmar<input name="confirm" autocomplete="off" required pattern="ELIMINAR"></label><p class="error" role="alert" hidden></p><div class="actions"><button type="button" class="secondary" data-cancel>Cancelar</button><button class="danger">Eliminar definitivamente</button></div></form>`,
+      `<form><p>Se borrarán permanentemente tu cuenta (${e(user.email)}) y todos tus datos de PlanifIA. Esta acción no se puede deshacer.</p><p class="muted">Perderás tus créditos. Si tienes una suscripción de Google Play, cancélala también en Google Play para que no se renueve. Puedes exportar tus datos antes desde Ajustes.</p><label>Escribe ELIMINAR para confirmar<input name="confirm" autocomplete="off" required pattern="ELIMINAR"></label><p class="error" role="alert" hidden></p><div class="actions"><button type="button" class="secondary" data-cancel>Cancelar</button><button class="danger">Eliminar definitivamente</button></div></form>`,
     ),
   );
   $("[data-cancel]", form).onclick = closeModal;

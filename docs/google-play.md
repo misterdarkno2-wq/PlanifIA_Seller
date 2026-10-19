@@ -42,22 +42,38 @@ Selecciona únicamente **18 años o más**. Responde **No** a "¿podría atraer 
 
 ## 6. Seguridad de los datos
 
-- ¿Recopila o comparte datos? **Sí recopila**. ¿Comparte con terceros? **Sí**, con Google AdMob (ver [monetización](monetizacion.md)). Supabase, Cloudflare y Groq (la IA de respaldo en la nube) son proveedores que tratan datos en nombre de PlanifIA, y Google no lo considera "compartir". Groq sólo cuenta como proveedor si aceptaste su DPA y activaste Zero Data Retention (ver [respaldo en la nube](respaldo-nube.md)); si no, declara el nombre y el contenido generado por el usuario como **compartidos**.
+Esta sección debe coincidir con `public/privacidad.html` (versión del 18 de octubre de 2026). Si cambias una, cambia la otra. `tests/legal-security.test.js` comprueba que la política nombre a cada proveedor de IA y cada dato guardado en el teléfono.
+
+- ¿Recopila o comparte datos? **Sí recopila** y **sí comparte**: el SDK de Google AdMob recoge y comparte datos de anuncios en el plan Gratis (ver [monetización](monetizacion.md)). Supabase, Cloudflare y Groq (la IA de respaldo en la nube) son proveedores que tratan datos en nombre de PlanifIA, y Google no lo considera "compartir". Groq sólo cuenta como proveedor si aceptaste su DPA y activaste Zero Data Retention (ver [respaldo en la nube](respaldo-nube.md)); si no, declara el nombre y el contenido generado por el usuario como **compartidos** y corrige la política antes de publicarla.
 - ¿Datos cifrados en tránsito? **Sí**.
 - ¿Las personas pueden pedir que se eliminen sus datos? **Sí**. URL: `https://planifia.cl/eliminar-cuenta.html`.
 - Las cuentas se crean **con nombre de usuario (correo) y contraseña**.
+- ¿Sigue la política de Familias? **No aplica**: público objetivo de 18 años o más (sección 5).
 
-Tipos de datos (todos: *recopilados*, *no compartidos*, *no efímeros*, *obligatorios* salvo que se indique, propósito **Funcionalidad de la app** y **Administración de la cuenta**):
+Tipos de datos. Salvo que se indique otra cosa: *recopilado*, *no compartido*, *no efímero*, *obligatorio*, propósitos **Funcionalidad de la app** y **Administración de la cuenta**.
 
 | Sección de Play | Dato | Notas |
 | --- | --- | --- |
 | Información personal → Nombre | Nombre del perfil | Opcional. Groq lo recibe como proveedor con cada mensaje a Lumi que responde la IA de respaldo |
 | Información personal → Dirección de correo | Correo de la cuenta | Obligatorio |
-| Actividad en apps → Otro contenido generado por el usuario | Metas, acciones, hábitos, texto enviado a la IA y mensajes de **Hablar con Lumi** | Obligatorio. Groq lo recibe como proveedor (planes y chat cuando responde la IA de respaldo) |
-| Actividad en apps → Interacciones con la app | Progreso de Lumi, XP y uso mensual de IA | Obligatorio |
-| Información financiera → Historial de compras | Plan y periodos de suscripción | Sólo si contratas un plan |
+| Actividad en apps → Otro contenido generado por el usuario | Metas, acciones, hábitos, texto enviado a la IA, mensajes de **Hablar con Lumi** y reportes de contenido de la IA | Obligatorio. Groq lo recibe como proveedor (planes y chat cuando responde la IA de respaldo). Los reportes también tienen el propósito **Seguridad, cumplimiento y prevención de fraudes** |
+| Actividad en apps → Interacciones con la app | Progreso de Lumi, XP, uso de IA, créditos y aceptación de los términos | Obligatorio. Propósitos: Funcionalidad de la app y **Prevención de fraudes, seguridad y cumplimiento**. También **compartido** con AdMob (plan Gratis), para **Publicidad o marketing** y **Estadísticas** |
+| Información financiera → Historial de compras | Compras y suscripciones de Google Play | Sólo si compras algo |
+| Identificadores del dispositivo u otros → ID de dispositivo o de publicidad | ID de publicidad | Sólo plan Gratis en Android. **Recopilado y compartido** con AdMob, propósitos **Publicidad o marketing** y **Prevención de fraudes** |
+| Información de la app y rendimiento → Registros de fallas y Diagnóstico | Datos técnicos que recoge el SDK de anuncios | Sólo plan Gratis en Android. **Recopilados y compartidos** con AdMob, propósito **Estadísticas** |
+| Ubicación → Ubicación aproximada | Dirección IP que usa el SDK de anuncios | Sólo plan Gratis en Android. Confírmalo en la guía oficial "Google Mobile Ads SDK – Seguridad de los datos" antes de enviar |
 
-No marques ubicación, contactos, fotos, audio, salud, mensajes, identificadores de dispositivo, diagnósticos ni analítica: la app no los recopila (la voz de Lumi se sintetiza en el dispositivo y no usa el micrófono).
+Antes de enviar, compara la tabla con la guía oficial "Google Mobile Ads SDK – Seguridad de los datos" y con la versión vigente de `public/privacidad.html`.
+
+No marques contactos, fotos, audio, salud, mensajes ni ubicación precisa: la app no los recopila (la voz de Lumi se sintetiza en el dispositivo y no usa el micrófono). La revisión automática de mensajes de crisis no guarda nada.
+
+### Contenido generado por IA
+
+La política de Google Play exige que la persona pueda reportar contenido ofensivo sin salir de la app. Cada respuesta de Lumi y cada plan propuesto tienen un botón **Reportar**, que guarda el reporte en `public.ai_content_reports`. Revisa los reportes como indica `docs/plan-incidentes.md` (sección "Reportes de contenido de IA"). Si Play Console pregunta por funciones de IA generativa, responde **Sí** y describe el botón de reporte y los filtros (crisis y reglas del sistema de Lumi).
+
+### Países de distribución
+
+La política de privacidad está pensada para la ley chilena. Hasta que un abogado la revise para otros países, distribuye la app **sólo en Chile** (**Producción → Países o regiones**). Si la distribuyes en la Unión Europea, el Reino Unido o Suiza, el RGPD exige además un representante en la UE y revisar las transferencias. En Estados Unidos, algunos estados (por ejemplo, California) tienen leyes propias.
 
 ## 7. Apps gubernamentales
 
@@ -103,7 +119,7 @@ Para cada nueva subida incrementa `version` en `src-tauri/tauri.conf.json` y `bu
 1. **Prueba y lanza → Pruebas → Prueba cerrada → Alpha → Administrar pista**.
 2. Pestaña **Verificadores**: crea una lista de correo con las cuentas Google de tus probadores y guarda. Copia el enlace de participación.
 3. **Crear versión**: acepta **Firma de apps de Google Play**, sube el `.aab`, nombre `2.1.0` y notas de la versión.
-4. **Países/regiones**: Chile (y los que quieras).
+4. **Países/regiones**: sólo Chile, hasta que un abogado revise los textos legales para otros países (ver la sección 6).
 5. **Revisar versión → Iniciar lanzamiento a Alpha**. Se envía a revisión (habitualmente de horas a pocos días).
 6. Envía el enlace de participación a los probadores; deben aceptarlo con la misma cuenta Google de la lista.
 

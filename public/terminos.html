@@ -2,63 +2,134 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Términos de uso · PlanifIA</title>
 <link rel="icon" href="favicon.svg">
 <style>
 :root { color: #183b39; background: #f5f7f4; font-family: Inter, "Segoe UI", system-ui, sans-serif; line-height: 1.6; }
 body { margin: 0; }
-main { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; }
+main { max-width: 820px; margin: 0 auto; padding: 32px 16px 64px; }
 h1 { line-height: 1.2; }
 h2 { margin-top: 2em; font-size: 1.2rem; }
-a { color: #10796c; }
+a { color: #10796c; overflow-wrap: anywhere; }
+code { font-size: 0.9em; }
 .muted { color: #677c77; }
+.box { padding: 14px 18px; border: 1px solid #d5e5d6; border-radius: 12px; background: #edf6eb; }
+.box.important { border-color: #e8c9a8; background: #fff7ec; }
+.box h2 { margin-top: 0; }
+.pending { background: #fff3c4; padding: 0 3px; border-radius: 3px; }
 </style>
 </head>
 <body>
 <main>
 <h1>Términos de uso de PlanifIA</h1>
-<p class="muted">Última actualización: 18 de octubre de 2026. Aplican a la web <a href="https://planifia.cl/">planifia.cl</a> y a la app PlanifIA para Android (<code>cl.planifia.app</code>).</p>
+<p class="muted" data-legal-version="2026-10-18">Versión del 18 de octubre de 2026 (vigente). Aplican a la web <a href="https://planifia.cl/" rel="noopener noreferrer">planifia.cl</a> y a la app PlanifIA para Android (<code>cl.planifia.app</code>). Puedes guardar o imprimir esta página en cualquier momento; las versiones anteriores están en el <a href="#historial">historial de versiones</a>.</p>
 
-<h2>El servicio</h2>
-<p>PlanifIA es un planificador de metas, acciones y hábitos con propuestas generadas por inteligencia artificial y la compañía de Lumi. Las propuestas de la IA son sugerencias: tú decides qué guardar y cómo usarlas. PlanifIA está dirigida a personas mayores de 18 años.</p>
+<h2 id="proveedor">1. Quién presta el servicio</h2>
+<p>PlanifIA es un servicio de <span class="pending">[PENDIENTE: nombre completo o razón social del proveedor]</span>, RUT <span class="pending">[PENDIENTE: RUT]</span>, con domicilio en <span class="pending">[PENDIENTE: domicilio en Chile]</span> (en estos términos, «PlanifIA»). Contacto: <a href="mailto:planifiaprivacity@gmail.com">planifiaprivacity@gmail.com</a>.</p>
 
-<h2>Tu cuenta</h2>
-<p>Eres responsable de mantener segura tu contraseña y de la información que guardas. Puedes exportar tus datos o eliminar tu cuenta en cualquier momento desde <strong>Ajustes</strong>, como se explica en la <a href="privacidad.html">política de privacidad</a>.</p>
+<h2 id="aceptacion">2. Aceptación y edad mínima</h2>
+<p>Para crear una cuenta debes tener <strong>18 años o más</strong> y aceptar estos términos y la <a href="privacidad.html">Política de privacidad</a> marcando la casilla del registro. Guardamos la versión que aceptas, la fecha y la hora. Si no estás de acuerdo, no crees una cuenta.</p>
 
-<h2>Planes</h2>
+<h2 id="servicio">3. El servicio</h2>
+<p>PlanifIA es un planificador de metas, acciones y hábitos con propuestas preparadas por inteligencia artificial y la compañía de Lumi, una mascota virtual. Tú decides qué guardar y cómo usar cada propuesta.</p>
+
+<section class="box important" aria-labelledby="ia">
+<h2 id="ia">4. Aviso sobre la inteligencia artificial</h2>
+<ul>
+<li>Los planes y las respuestas de Lumi son <strong>sugerencias automáticas</strong>. Pueden contener errores, omisiones o información desactualizada. Revísalas antes de guardarlas o seguirlas.</li>
+<li><strong>No son consejo médico, psicológico, legal ni financiero</strong>, y no reemplazan a un profesional. En metas de salud, alimentación, ejercicio o bienestar emocional, consulta a un profesional de la salud antes de empezar y detente si sientes molestias.</li>
+<li>Lumi no es una persona ni un servicio de emergencias. Si estás en una crisis o en peligro, llama a la <strong>Línea de Prevención del Suicidio *4141</strong>, a <strong>Salud Responde 600 360 7777</strong>, al <strong>SAMU 131</strong> o a <strong>Carabineros 133</strong>. Cuando la app detecta un mensaje de crisis, muestra estas líneas en vez de responder con la IA.</li>
+<li>Puedes reportar cualquier respuesta o plan con el botón <strong>Reportar</strong>. Revisamos los reportes.</li>
+<li>La IA funciona en un servidor propio de PlanifIA y, si no está disponible, en la IA de respaldo de Groq, como explica la <a href="privacidad.html">Política de privacidad</a>.</li>
+</ul>
+</section>
+
+<h2 id="cuenta">5. Tu cuenta</h2>
+<p>Eres responsable de mantener segura tu contraseña y de la información que guardas. Avísanos si crees que alguien entró a tu cuenta. Puedes exportar tus datos o eliminar tu cuenta en cualquier momento desde <strong>Ajustes</strong>.</p>
+
+<h2 id="propiedad">6. Propiedad intelectual</h2>
+<ul>
+<li>La app, la web, su código, la marca PlanifIA, el personaje Lumi, sus ilustraciones, animaciones y sonidos pertenecen a PlanifIA y están protegidos por la Ley 17.336 de Propiedad Intelectual y las normas de propiedad industrial. No puedes copiarlos, modificarlos ni distribuirlos fuera del uso normal de la app sin autorización.</li>
+<li><strong>Tu contenido es tuyo.</strong> Las metas, acciones, hábitos y mensajes que escribes siguen siendo tuyos. Nos das sólo el permiso necesario para guardarlos, procesarlos con la IA y mostrártelos mientras uses el servicio. Ese permiso termina cuando eliminas el contenido o tu cuenta.</li>
+<li>Puedes usar libremente los planes y las respuestas que la IA prepara para ti.</li>
+</ul>
+
+<h2 id="planes">7. Planes</h2>
 <ul>
 <li><strong>Gratis</strong>: hasta 3 metas activas, 60 créditos de bienvenida y anuncios en la app para Android (un video al usar la IA, como máximo uno cada 5 minutos). La compra única <strong>Quitar anuncios</strong> elimina esos videos para siempre sin cambiar de plan; los anuncios voluntarios para ganar créditos siguen disponibles.</li>
 <li><strong>Plus</strong>: hasta 15 metas activas, 1.000 créditos de IA por cada mes pagado y sin anuncios.</li>
 <li><strong>Pro</strong>: hasta 50 metas activas, 2.500 créditos de IA por cada mes pagado y sin anuncios.</li>
 </ul>
-<p>Los precios vigentes, incluidas las ofertas de primer mes, se muestran en Google Play antes de confirmar la compra, en pesos chilenos e impuestos incluidos.</p>
+<p>Antes de pagar, la app te muestra qué compras, el precio, si se renueva y cómo cancelar. Los precios vigentes, incluidas las ofertas de primer mes, los informa Google Play en tu moneda e impuestos incluidos.</p>
 
-<h2>Créditos de IA</h2>
+<h2 id="creditos">8. Créditos de IA</h2>
 <ul>
 <li>Cada uso de la IA (crear o ajustar un plan) descuenta los créditos indicados en la app al momento de pedirlo. Si la IA no entrega la propuesta, los créditos se devuelven automáticamente.</li>
-<li>Cada mensaje del chat <strong>Hablar con Lumi</strong> descuenta 5 créditos (o el valor indicado en la app). Si Lumi no responde, se devuelven. Hay un máximo de mensajes por minuto y por día. Tus mensajes se envían a la IA de PlanifIA o, si no está disponible, a la IA de respaldo en la nube de Groq, como explica la <a href="privacidad.html">política de privacidad</a>, y se guardan los últimos 100; puedes borrarlos cuando quieras. Lumi es una IA, puede equivocarse y no reemplaza ayuda profesional médica, legal, financiera ni de emergencia.</li>
+<li>Cada mensaje del chat <strong>Hablar con Lumi</strong> descuenta 5 créditos (o el valor indicado en la app). Si Lumi no responde, se devuelven. Hay un máximo de mensajes por minuto y por día. Se guardan los últimos 100 mensajes; puedes borrarlos cuando quieras.</li>
 <li>Los créditos de Plus y Pro se renuevan con cada mes pagado y no se acumulan de un mes a otro.</li>
 <li>Los créditos de bienvenida, anuncios recompensados, invitaciones y paquetes comprados no vencen mientras tu cuenta exista, y se usan después de los del plan.</li>
-<li>Los créditos no tienen valor en dinero, no se pueden transferir ni canjear por dinero y se pierden al eliminar la cuenta.</li>
+<li>Los créditos no tienen valor en dinero, no se pueden transferir ni canjear por dinero y se pierden al eliminar la cuenta. Te avisamos de esto antes de eliminarla.</li>
 <li>Los anuncios recompensados tienen un máximo diario. Las invitaciones se premian cuando la persona invitada confirma su correo y usa la IA por primera vez, con un máximo mensual.</li>
-<li>Podemos anular créditos obtenidos con cuentas falsas, automatizaciones, fraude publicitario o cualquier otro abuso.</li>
+<li>Podemos anular créditos obtenidos con cuentas falsas, automatizaciones, fraude publicitario u otro abuso (ver la sección 11).</li>
 </ul>
 
-<h2>Suscripciones y pagos en Google Play</h2>
-<p>Las suscripciones, los paquetes de créditos y la compra Quitar anuncios de la app se compran con Google Play y se rigen también por sus <a href="https://play.google.com/about/play-terms/">condiciones de servicio</a>. Las suscripciones se renuevan automáticamente cada mes hasta que las canceles en Google Play (<a href="https://play.google.com/store/account/subscriptions">Pagos y suscripciones</a>). Al cancelar conservas los beneficios hasta el final del período pagado. Los reembolsos se solicitan a Google según sus <a href="https://support.google.com/googleplay/answer/2479637">políticas de reembolso</a>; si Google reembolsa una compra, sus beneficios o créditos se retiran.</p>
+<h2 id="pagos">9. Suscripciones y pagos en Google Play</h2>
+<p>Las suscripciones, los paquetes de créditos y la compra Quitar anuncios se compran en la app con Google Play y se rigen también por sus <a href="https://play.google.com/about/play-terms/" rel="noopener noreferrer">condiciones de servicio</a>.</p>
+<ul>
+<li>Las suscripciones se <strong>renuevan automáticamente cada mes</strong> hasta que las canceles en Google Play (<a href="https://play.google.com/store/account/subscriptions" rel="noopener noreferrer">Pagos y suscripciones</a>) o desde <strong>Mi plan → Gestionar o cancelar suscripción</strong>. Al cancelar conservas los beneficios hasta el final del período pagado.</li>
+<li>Los cambios de precio de una suscripción se informan con anticipación a través de Google Play, que te pide aceptarlos cuando la ley o sus políticas lo exigen.</li>
+<li>Si Google reembolsa una compra, sus beneficios y créditos se retiran.</li>
+</ul>
 
-<h2>Anuncios</h2>
-<p>El plan Gratis de la app para Android muestra anuncios de Google AdMob: un video al usar la IA (como máximo uno cada 5 minutos) y anuncios voluntarios para ganar créditos. Quien compra Quitar anuncios deja de ver los videos. Puedes revisar tu consentimiento de anuncios en <strong>Ajustes → Anuncios y privacidad</strong> cuando tu región lo requiera.</p>
+<section class="box important" aria-labelledby="retracto">
+<h2 id="retracto">10. Derecho de retracto y reembolsos</h2>
+<p>Las compras en la app se hacen por medios electrónicos. Según el artículo 3 bis de la Ley 19.496, puedes <strong>retractarte dentro de los 10 días</strong> siguientes a la compra de una suscripción, un paquete de créditos o Quitar anuncios <span class="pending">[PENDIENTE: validar con abogado el plazo y desde cuándo se cuenta]</span>.</p>
+<ul>
+<li>Para retractarte, escríbenos a <a href="mailto:planifiaprivacity@gmail.com">planifiaprivacity@gmail.com</a> desde el correo de tu cuenta con el número de pedido de Google Play (empieza por «GPA.»). Haremos el reembolso a tu medio de pago a través de Google Play y se retirarán los beneficios de esa compra.</li>
+<li>Los créditos se entregan de inmediato al comprarlos. Si ya usaste créditos del paquete o del mes, el reembolso será por la parte que no usaste <span class="pending">[PENDIENTE: validar con abogado si se puede descontar lo ya usado o si conviene excluir el retracto para el contenido digital ya entregado, informándolo antes de la compra]</span>.</li>
+<li>Además, puedes pedir un reembolso directamente a Google según sus <a href="https://support.google.com/googleplay/answer/2479637" rel="noopener noreferrer">políticas de reembolso</a>.</li>
+<li>Nada de esto limita tus derechos de garantía si el servicio no funciona como se ofreció.</li>
+</ul>
+</section>
 
-<h2>Uso aceptable</h2>
-<p>No uses PlanifIA para actividades ilegales, para intentar acceder a cuentas ajenas, sobrecargar el servicio o vulnerar sus límites. Podemos suspender cuentas que incumplan estos términos.</p>
+<h2 id="uso">11. Uso aceptable, suspensión y cierre de cuentas</h2>
+<p>No uses PlanifIA para actividades ilegales; para crear cuentas falsas o automatizadas que acumulen créditos; para engañar al sistema de anuncios o de invitaciones; para intentar acceder a cuentas o sistemas ajenos (conductas sancionadas por la Ley 21.459 de delitos informáticos); para sobrecargar el servicio o saltarte sus límites; ni para obtener de la IA contenido que dañe a otras personas.</p>
+<p>Si incumples estos términos de forma grave podemos suspender o cerrar tu cuenta. Cuando sea posible te avisaremos antes por correo, con el motivo, y podrás darnos tu versión; sin aviso previo sólo actuaremos ante un riesgo para la seguridad del servicio o de otras personas, o un fraude en curso. En ese caso:</p>
+<ul>
+<li>Se anulan los créditos obtenidos de forma indebida.</li>
+<li>Si cerramos tu cuenta por un motivo que no es un incumplimiento tuyo (por ejemplo, porque dejamos de prestar el servicio), te avisaremos con al menos 30 días de anticipación, podrás exportar tus datos y te devolveremos la parte no usada de tu suscripción y de los paquetes de créditos comprados.</li>
+<li>Si la cerramos por un incumplimiento grave, cancelaremos la renovación de tu suscripción <span class="pending">[PENDIENTE: validar con abogado qué ocurre con el período ya pagado y los créditos comprados]</span>.</li>
+</ul>
+<p>Puedes cerrar tu cuenta cuando quieras desde <strong>Ajustes → Eliminar cuenta</strong>. Recuerda cancelar también tu suscripción en Google Play.</p>
 
-<h2>Disponibilidad y cambios</h2>
-<p>Trabajamos para que PlanifIA esté disponible, pero la generación con IA puede tardar o no estar disponible en algunos momentos. Si cambiamos estos términos publicaremos la nueva versión en esta página con su fecha; los cambios de precio de una suscripción se informan a través de Google Play.</p>
+<h2 id="disponibilidad">12. Disponibilidad del servicio</h2>
+<p>Trabajamos para que PlanifIA funcione siempre, pero puede haber interrupciones por mantención, fallas de proveedores o causas ajenas. La IA puede tardar o no estar disponible en algunos momentos; en ese caso no se cobran créditos o se devuelven.</p>
 
-<h2>Ley aplicable y contacto</h2>
-<p>Estos términos se rigen por las leyes de Chile, sin perjuicio de los derechos que te otorga la Ley 19.496 de Protección de los Derechos de los Consumidores. Consultas: <a href="mailto:planifiaprivacity@gmail.com">planifiaprivacity@gmail.com</a>.</p>
+<h2 id="responsabilidad">13. Responsabilidad</h2>
+<p>PlanifIA responde por el cumplimiento de estos términos y de la ley. Nada en estos términos excluye ni limita nuestra responsabilidad por dolo o culpa grave, ni los derechos irrenunciables que te otorga la Ley 19.496 de Protección de los Derechos de los Consumidores. Como la IA entrega sugerencias generales, revisa cada propuesta antes de seguirla y consulta a un profesional cuando corresponda (sección 4).</p>
+
+<h2 id="cambios">14. Cambios a estos términos</h2>
+<p>Si hacemos un cambio importante te avisaremos en la app y por correo al menos <span class="pending">[PENDIENTE: plazo de aviso, por ejemplo 15 días]</span> antes de que empiece a aplicarse, y te pediremos aceptarlo en la app para seguir usando la IA y comprar. Si no lo aceptas, puedes exportar tus datos, eliminar tu cuenta y pedir la devolución de la parte no usada de tu suscripción. Los cambios que sólo corrigen errores o te benefician pueden aplicarse de inmediato.</p>
+
+<h2 id="reclamos">15. Reclamos</h2>
+<ul>
+<li>Escríbenos primero a <a href="mailto:planifiaprivacity@gmail.com">planifiaprivacity@gmail.com</a>: te responderemos dentro de <span class="pending">[PENDIENTE: plazo de respuesta, por ejemplo 10 días hábiles]</span>.</li>
+<li>Puedes reclamar ante el Servicio Nacional del Consumidor (<a href="https://www.sernac.cl/" rel="noopener noreferrer">SERNAC</a>).</li>
+<li>También puedes acudir al juzgado de policía local competente, que puede ser el de tu domicilio, según la Ley 19.496.</li>
+<li>Los reclamos sobre tus datos personales se explican en la <a href="privacidad.html#derechos">Política de privacidad</a>.</li>
+</ul>
+
+<h2 id="ley">16. Ley aplicable, divisibilidad y fuerza mayor</h2>
+<p>Estos términos se rigen por las leyes de Chile. Si un tribunal declara que alguna cláusula es nula o abusiva, esa cláusula no se aplica y el resto sigue vigente. No respondemos por incumplimientos causados por fuerza mayor o caso fortuito (por ejemplo, desastres naturales o cortes generales de Internet o de energía) mientras duren, y te informaremos cuando sea posible.</p>
+
+<h2 id="historial">17. Historial de versiones</h2>
+<ul>
+<li><strong>18 de octubre de 2026</strong> (vigente): identificación del proveedor, aceptación y edad mínima, aviso sobre la IA y líneas de ayuda, propiedad intelectual, retracto y reembolsos, suspensión y cierre de cuentas, responsabilidad, cambios, reclamos y respaldo de IA de Groq.</li>
+<li><a href="legal/terminos-2026-10-09.html">9 de octubre de 2026</a>: chat «Hablar con Lumi».</li>
+</ul>
 </main>
 </body>
 </html>
