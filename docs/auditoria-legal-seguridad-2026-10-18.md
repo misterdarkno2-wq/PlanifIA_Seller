@@ -183,7 +183,7 @@ Las líneas indican dónde quedó cada corrección en la rama.
 - **Hecho (19 de octubre, R6)**: sin consentimiento válido de UMP, la app pide anuncios no personalizados (`npa=1`). La política lo dice en la tabla de la sección 2 y en la sección 4.
 - **Falta**:
   - Decisión del abogado (pregunta 2): si basta el interés legítimo para los anuncios no personalizados o hay que pedir consentimiento con un mensaje propio de UMP («otras regulaciones»).
-  - Probarlo en un teléfono.
+  - Confirmarlo en un teléfono real (ya se probó en emuladores).
 
 **A7. La política y `eliminar-cuenta.html` decían «No conservamos ningún dato tras la eliminación».**
 - **Hecho**: la base sí se borra en cascada, pero quedan los registros de Auth y de las funciones, las copias de seguridad, los registros de Google y los correos. Los textos ahora lo dicen, con una tabla de plazos.
@@ -441,6 +441,7 @@ Ninguno se hizo. Cada uno necesita tu aprobación.
   - `AdsPlugin.kt` pide anuncios personalizados sólo con consentimiento válido de UMP: estado `OBTAINED` y cadena TCF con los propósitos 1, 3 y 4 y el proveedor Google (755).
   - En los demás casos, incluido Chile, cada solicitud lleva `npa=1`.
   - Detalle en `monetizacion.md`, sección 3.
-  - Falta probarlo en un teléfono (lista de verificación de `monetizacion.md`).
+  - Probado en emuladores (depuración y release con R8; Chile y EEE simulado, con consentimiento y al retirarlo).
+  - Falta confirmarlo en un teléfono real (lista de verificación de `monetizacion.md`).
 - **R7. Retirar el cobro web con Transbank.** Nunca se usó en producción y no se usará: hoy son tablas y funciones (`billing`, `billing-return`, `billing-renew`) que sólo aumentan la superficie de ataque.
 - **R5. Revisar anualmente** los números de `CRISIS_LINES` y la lista de expresiones de crisis, con los reportes como fuente.

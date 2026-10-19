@@ -96,6 +96,38 @@ private class AdIds(
   }
 }
 
+/**
+ * Carga en curso de un formato. Quien pide cargar mientras ya hay una carga espera su resultado en vez
+ * de recibir false: al descartar un anuncio (por ejemplo, al retirar el consentimiento) se pide otro y
+ * el reintento de la app debe recibirlo.
+ */
+private class PendingLoad {
+  private val waiting = mutableListOf<(Boolean) -> Unit>()
+  private var loading = false
+
+  /** Anota a quien espera. Devuelve true si no había carga en curso y hay que iniciarla. */
+  fun join(done: ((Boolean) -> Unit)?): Boolean = synchronized(this) {
+    done?.let { waiting.add(it) }
+    val start = !loading
+    loading = true
+    start
+  }
+
+  fun finish(loaded: Boolean) {
+    val list = synchronized(this) {
+      loading = false
+      waiting.toList().also { waiting.clear() }
+    }
+    for (done in list) {
+      try {
+        done(loaded)
+      } catch (error: Throwable) {
+        Log.e(TAG, "Falló el aviso de carga", error)
+      }
+    }
+  }
+}
+
 @TauriPlugin
 class AdsPlugin(private val created: Activity) : Plugin(created) {
   // Tauri crea el plugin una vez por proceso, con la primera actividad. Al cerrar con Atrás y volver
@@ -115,10 +147,10 @@ class AdsPlugin(private val created: Activity) : Plugin(created) {
   private var reportedHeight = -1
 
   @Volatile private var interstitial: InterstitialAd? = null
-  @Volatile private var interstitialLoading = false
+  private val interstitialLoad = PendingLoad()
   @Volatile private var interstitialPersonalized = false
   @Volatile private var rewarded: RewardedAd? = null
-  @Volatile private var rewardedLoading = false
+  private val rewardedLoad = PendingLoad()
   @Volatile private var rewardedPersonalized = false
 
   private fun ready() = sdkReady && consent.canRequestAds()
@@ -401,29 +433,32 @@ class AdsPlugin(private val created: Activity) : Plugin(created) {
       done?.invoke(true)
       return
     }
-    if (interstitialLoading || !ready()) {
+    if (!ready()) {
       done?.invoke(false)
       return
     }
-    interstitialLoading = true
+    if (!interstitialLoad.join(done)) return
     val personalized = personalizedAds()
-    InterstitialAd.load(
-      AdRequest.Builder(ids.interstitial).setGoogleExtrasBundle(googleExtras(personalized)).build(),
-      object : AdLoadCallback<InterstitialAd> {
-        override fun onAdLoaded(ad: InterstitialAd) {
-          interstitialPersonalized = personalized
-          interstitial = ad
-          interstitialLoading = false
-          done?.invoke(true)
-        }
+    try {
+      InterstitialAd.load(
+        AdRequest.Builder(ids.interstitial).setGoogleExtrasBundle(googleExtras(personalized)).build(),
+        object : AdLoadCallback<InterstitialAd> {
+          override fun onAdLoaded(ad: InterstitialAd) {
+            interstitialPersonalized = personalized
+            interstitial = ad
+            interstitialLoad.finish(true)
+          }
 
-        override fun onAdFailedToLoad(adError: LoadAdError) {
-          interstitialLoading = false
-          Log.i(TAG, "Intersticial no disponible: ${adError.code}")
-          done?.invoke(false)
-        }
-      },
-    )
+          override fun onAdFailedToLoad(adError: LoadAdError) {
+            Log.i(TAG, "Intersticial no disponible: ${adError.code}")
+            interstitialLoad.finish(false)
+          }
+        },
+      )
+    } catch (error: Throwable) {
+      Log.e(TAG, "No se pudo pedir el intersticial", error)
+      interstitialLoad.finish(false)
+    }
   }
 
   @Command
@@ -476,29 +511,32 @@ class AdsPlugin(private val created: Activity) : Plugin(created) {
       done?.invoke(true)
       return
     }
-    if (rewardedLoading || !ready()) {
+    if (!ready()) {
       done?.invoke(false)
       return
     }
-    rewardedLoading = true
+    if (!rewardedLoad.join(done)) return
     val personalized = personalizedAds()
-    RewardedAd.load(
-      AdRequest.Builder(ids.rewarded).setGoogleExtrasBundle(googleExtras(personalized)).build(),
-      object : AdLoadCallback<RewardedAd> {
-        override fun onAdLoaded(ad: RewardedAd) {
-          rewardedPersonalized = personalized
-          rewarded = ad
-          rewardedLoading = false
-          done?.invoke(true)
-        }
+    try {
+      RewardedAd.load(
+        AdRequest.Builder(ids.rewarded).setGoogleExtrasBundle(googleExtras(personalized)).build(),
+        object : AdLoadCallback<RewardedAd> {
+          override fun onAdLoaded(ad: RewardedAd) {
+            rewardedPersonalized = personalized
+            rewarded = ad
+            rewardedLoad.finish(true)
+          }
 
-        override fun onAdFailedToLoad(adError: LoadAdError) {
-          rewardedLoading = false
-          Log.i(TAG, "Recompensado no disponible: ${adError.code}")
-          done?.invoke(false)
-        }
-      },
-    )
+          override fun onAdFailedToLoad(adError: LoadAdError) {
+            Log.i(TAG, "Recompensado no disponible: ${adError.code}")
+            rewardedLoad.finish(false)
+          }
+        },
+      )
+    } catch (error: Throwable) {
+      Log.e(TAG, "No se pudo pedir el recompensado", error)
+      rewardedLoad.finish(false)
+    }
   }
 
   @Command

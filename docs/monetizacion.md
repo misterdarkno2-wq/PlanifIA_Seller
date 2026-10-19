@@ -96,7 +96,16 @@ Pasos originales, por si necesitas repetirlos:
 
 En los demás casos, por ejemplo en Chile, donde no hay formulario, o si la persona rechazó, cada solicitud lleva `npa=1`. El intersticial, el recompensado y el banner lo pasan con `setGoogleExtrasBundle`, como indica la guía de migración del SDK Next-Gen. AdMob aplica lo más restrictivo entre `npa` y la cadena TCF. Si la persona retira el consentimiento en **Ajustes → Anuncios y privacidad**, el anuncio que ya estaba cargado como personalizado se descarta y se pide otro.
 
-`get_ads_state` devuelve `personalizedAds`: con el teléfono conectado, `node scripts/android-cdp.mjs 9222` lo muestra.
+`get_ads_state` devuelve `personalizedAds`: con el teléfono conectado, `node scripts/android-cdp.mjs 9222` lo muestra. En los dispositivos de prueba, logcat (`GoogleMobileAdsNetwork`) muestra cada solicitud a `/mads/gma` con `&npa=1` o sin él.
+
+Para simular el EEE sin VPN, agrega temporalmente a `ConsentRequestParameters` en `initAds` lo siguiente, y no lo subas:
+`.setConsentDebugSettings(ConsentDebugSettings.Builder(activity).setDebugGeography(ConsentDebugSettings.DebugGeography.DEBUG_GEOGRAPHY_EEA).build())`.
+Los emuladores ya cuentan como dispositivos de prueba. En un teléfono hay que sumar `addTestDeviceHashedId` con el ID que UMP escribe en logcat.
+
+Probado el 19 de octubre de 2026 en emuladores API 36: depuración y release con R8, este último con páginas de 16 KB.
+- Desde Chile: `personalizedAds: false`, y el banner, el intersticial y el recompensado salen con `npa=1`.
+- EEE simulado, con **Consent**: `personalizedAds: true`, solicitudes sin `npa` y con `gdpr=1`.
+- Luego **Do not consent**: los dos anuncios cargados como personalizados se descartan. La nueva carga sale con `npa=1` y el intersticial se muestra y se cierra bien.
 
 ## 4. Play Console: perfil de pagos y productos
 
