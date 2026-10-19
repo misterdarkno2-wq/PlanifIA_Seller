@@ -40,7 +40,7 @@ Además se dejó en su propio commit el cambio del dueño de NVIDIA a Groq.
 
 | Dato | Dónde se guarda | Quién lo recibe | País |
 | --- | --- | --- | --- |
-| Correo, contraseña (hash), accesos (IP, navegador) | Supabase Auth | Supabase | [PENDIENTE: región del proyecto `hlnzxgpdxgadbdcqavcd`]; Supabase Inc. en EE. UU. |
+| Correo, contraseña (hash), accesos (IP, navegador) | Supabase Auth | Supabase | EE. UU.: región `us-east-2` (East US, Ohio) del proyecto `hlnzxgpdxgadbdcqavcd`, plan Free |
 | Nombre, zona horaria, disponibilidad, metas, hitos, acciones, hábitos, XP, importaciones | `public.*` (RLS) y `private.commands`, `private.import_items` | Supabase | Igual |
 | Texto de planes y propuestas | `public.ai_jobs`, `private.ai_job_payloads` | Supabase; PC propio (Chile) por el túnel de Cloudflare; respaldo en la nube | Chile; EE. UU. (Cloudflare, Groq) |
 | Mensajes del chat (últimos 100) y contexto (nombre, 3 metas) | `public.lumi_chat_messages` | Igual que planes | Igual |
@@ -239,6 +239,12 @@ Las líneas indican dónde quedó cada corrección en la rama.
 - **M10. La app se distribuye fuera de Chile sin revisión del RGPD.**
   - **Hecho**: `docs/google-play.md` recomienda distribuir sólo en Chile.
   - **Falta**: decisión en Play Console.
+- **M12. El plan Free de Supabase no incluye copias de seguridad automáticas.**
+  - **Riesgo**: si la base se daña o se borra por error, se pierden las cuentas, las metas y las compras de todas las personas. La Ley 21.719 incluye la disponibilidad en el deber de seguridad.
+  - **Hecho**: la política dice que hoy no hay copias de seguridad automáticas (antes decía 30 días).
+  - **Recomendación**:
+    - Pasar al plan Pro, que guarda copias por 7 días, y actualizar la política.
+    - O hacer copias manuales con `npx.cmd supabase db dump`, guardadas cifradas fuera del PC y con un plazo definido. En ese caso también hay que actualizar la política.
 - **M11. La sección Seguridad de los datos de Play se contradecía con `monetizacion.md`**: decía «no marques identificadores ni diagnósticos».
   - **Hecho**: quedó una sola tabla, igual a la política, con los datos de AdMob.
 
@@ -257,6 +263,9 @@ Las líneas indican dónde quedó cada corrección en la rama.
 - **B8.** El correo de contacto es `planifiaprivacity@gmail.com`. Recomendación: usar una dirección del dominio (`privacidad@planifia.cl` con Cloudflare Email Routing, como explica `docs/google-play.md`).
 - **B9.** En `src-tauri/capabilities/default.json`, `fs:allow-write-text-file` no tiene un alcance explícito: sólo escribe en la ruta que la persona elige con el diálogo. Ya es mínimo y no se cambió.
 - **B10.** Hay 2 avisos de `cargo audit` en dependencias transitivas de Tauri, sin acción posible hasta que Tauri las actualice. Dependabot avisará.
+- **B11.** Supabase puede guardar los registros de auditoría de Auth (fecha, `user_id`, IP, navegador) también en la tabla `auth.audit_log_entries` de la base. Ahí no vencen y no se borran al eliminar la cuenta.
+  - **Recomendación**: en **Authentication → Audit Logs**, desactivar el guardado en la base de datos. Si la tabla ya tiene filas, borrar las antiguas (`delete from auth.audit_log_entries where created_at < now() - interval '30 days';`) y definir un plazo.
+  - Mientras tanto, la política lo deja como `[PENDIENTE]`.
 
 ## 3. Cambios hechos (commits en `feature/legal-seguridad`)
 
@@ -310,8 +319,8 @@ Todas pasaron el 19 de octubre de 2026, en Windows con Edge:
 | P1 | Nombre completo o razón social del responsable. **Decisión del dueño (19 de octubre):** no hay empresa y no quiere publicar su nombre ni su RUT personal. Queda abierto hasta elegir una de las opciones de la sección 5.1 | `privacidad.html` §1, `terminos.html` §1, `plan-incidentes.md`, `registro-tratamientos.md` |
 | P2 | RUT (ver P1) | Igual |
 | P3 | Domicilio en Chile (ver P1) | Igual |
-| P4 | País de la región del proyecto de Supabase (Project Settings → General) | `privacidad.html` §5, registro |
-| P5 | Plan de Supabase: plazo de logs y de copias de seguridad (hoy se dice 30 días como máximo) | `privacidad.html` §6 |
+| P4 | ~~País de la región del proyecto de Supabase~~. **Resuelto (19 de octubre):** `us-east-2`, East US (Ohio), Estados Unidos | — |
+| P5 | ~~Plan de Supabase~~. **Resuelto (19 de octubre):** plan Free. Según supabase.com/pricing, los registros duran 1 día y no hay copias de seguridad automáticas; la política ya lo dice. Queda confirmar en **Authentication → Audit Logs** si los registros de auditoría también se guardan en la tabla `auth.audit_log_entries` (ver B11) | `privacidad.html` §6 |
 | P6 | Aceptar los DPA de Supabase, Cloudflare y Groq, activar Zero Data Retention en Groq y archivarlos | `privacidad.html` §5, registro |
 | P7 | Plazo de conservación de los correos de soporte | `privacidad.html` §6, registro |
 | P8 | Plazo máximo de los reportes de contenido (por ejemplo, 12 meses) | `privacidad.html` §6 |

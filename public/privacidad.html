@@ -81,7 +81,7 @@ code { font-size: 0.9em; overflow-wrap: anywhere; }
 <p>No vendemos ni cedemos tus datos. Los tratan, en nuestro nombre y sólo para prestarte el servicio, estos proveedores:</p>
 <div class="table-wrap"><table>
 <tr><th>Proveedor</th><th>Qué hace</th><th>Datos que recibe</th><th>País</th><th>Resguardo</th></tr>
-<tr><td>Supabase Inc.</td><td>Base de datos, autenticación y funciones del servidor</td><td>Todos los datos de tu cuenta descritos arriba y los registros técnicos de acceso</td><td><span class="pending">[PENDIENTE: país de la región del proyecto de Supabase]</span>; empresa en Estados Unidos</td><td>Acuerdo de tratamiento de datos de Supabase <span class="pending">[PENDIENTE: aceptar el DPA de Supabase]</span></td></tr>
+<tr><td>Supabase Inc.</td><td>Base de datos, autenticación y funciones del servidor</td><td>Todos los datos de tu cuenta descritos arriba y los registros técnicos de acceso</td><td>Estados Unidos (región East US, Ohio)</td><td>Acuerdo de tratamiento de datos de Supabase <span class="pending">[PENDIENTE: aceptar el DPA de Supabase]</span></td></tr>
 <tr><td>Servidor de IA de PlanifIA</td><td>IA local que prepara planes y respuestas de Lumi</td><td>El texto de los planes y del chat descritos arriba</td><td>Chile</td><td>Equipo propio, sin registros del contenido</td></tr>
 <tr><td>Cloudflare, Inc.</td><td>Transporte cifrado entre Supabase y el servidor de IA de PlanifIA; nombre de dominio</td><td>El texto de los planes y del chat, en tránsito</td><td>Red mundial; empresa en Estados Unidos</td><td>Acuerdo de tratamiento de datos de Cloudflare <span class="pending">[PENDIENTE: aceptar el DPA de Cloudflare]</span></td></tr>
 <tr><td>Groq, Inc.</td><td>IA de respaldo en la nube, sólo cuando el servidor propio no está disponible</td><td>El texto de los planes y del chat descritos arriba, sin tu correo ni el identificador de tu cuenta</td><td>Estados Unidos</td><td>Acuerdo de tratamiento de datos de Groq y retención cero: no usa los datos para entrenar ni los conserva después de responder <span class="pending">[PENDIENTE: aceptar el DPA de Groq y activar Zero Data Retention antes de publicar]</span></td></tr>
@@ -101,13 +101,13 @@ code { font-size: 0.9em; overflow-wrap: anywhere; }
 <tr><td>Conversación con Lumi</td><td>Los últimos 100 mensajes, hasta que uses <strong>Borrar conversación</strong> o elimines tu cuenta.</td></tr>
 <tr><td>Copia del contenido que reportaste</td><td>Mientras tu cuenta exista, aunque borres la conversación <span class="pending">[PENDIENTE: definir un plazo máximo, por ejemplo 12 meses]</span>.</td></tr>
 <tr><td>Huella cifrada de la IP para los límites de uso</td><td>Máximo 24 horas.</td></tr>
-<tr><td>Registros técnicos de acceso y de las funciones del servidor</td><td>Los borra el proveedor automáticamente <span class="pending">[PENDIENTE: plazo según el plan de Supabase]</span>.</td></tr>
-<tr><td>Copias de seguridad de la base de datos</td><td>Se sobrescriben automáticamente <span class="pending">[PENDIENTE: confirmar el plazo según el plan de Supabase; hoy se informa un máximo de 30 días]</span>.</td></tr>
+<tr><td>Registros técnicos de acceso y de las funciones del servidor</td><td>Los borra el proveedor automáticamente después de 1 día. <span class="pending">[PENDIENTE: confirmar en Supabase (Authentication → Audit Logs) que los registros de auditoría de inicio de sesión no se guardan también en la base de datos; si se guardan, definir su plazo]</span></td></tr>
+<tr><td>Copias de seguridad de la base de datos</td><td>El plan que tenemos contratado con el proveedor no incluye copias de seguridad automáticas. Si las activamos, publicaremos aquí su plazo antes de hacerlo.</td></tr>
 <tr><td>Correos que nos envíes</td><td>Hasta resolver tu consulta y luego <span class="pending">[PENDIENTE: plazo]</span>.</td></tr>
 <tr><td>Contenido enviado a Groq</td><td>No se conserva después de responder, con la retención cero activada.</td></tr>
 <tr><td>Registros de compras de Google Play y datos de anuncios</td><td>Los conserva Google según sus propias políticas, también después de que elimines tu cuenta de PlanifIA.</td></tr>
 </table></div>
-<p>Cuando eliminas tu cuenta, sus datos pueden seguir unos días en los registros técnicos y en las copias de seguridad hasta que se sobrescriban; no los usamos para nada más.</p>
+<p>Cuando eliminas tu cuenta, algunos de sus datos pueden seguir hasta 1 día en los registros técnicos del proveedor; no los usamos para nada más.</p>
 
 <h2 id="almacenamiento">7. Cookies y almacenamiento local</h2>
 <p>La web y la app <strong>no usan cookies</strong> ni herramientas de analítica o publicidad en la web. Guardan en tu navegador o teléfono sólo lo necesario para funcionar y tus preferencias, sin enviarlo a terceros. Por eso no te pedimos aceptar cookies.</p>
