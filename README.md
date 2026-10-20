@@ -1,5 +1,7 @@
 # PlanifIA Seller
 
+Versión **2.3.6** · Android `versionCode=20306`.
+
 **Tus metas, un plan claro y un paso a la vez.** Aplicación de metas, acciones, hábitos y progreso con Lumi. Comparte la misma interfaz entre web, escritorio y Android. Supabase guarda cuentas y datos; Ollama procesa la IA local y Groq es el respaldo opcional en la nube.
 
 ## Empezar en cinco minutos
@@ -152,4 +154,4 @@ Recorrido sugerido: iniciar sesión → crear una meta manual → añadir/comple
 
 Escritorio: `npm run desktop:dev` / `npm run desktop:build` (requiere Rust y herramientas de compilación). Android: instrucciones en `docs/android.md`.
 
-GitHub Pages publica sólo `dist/` mediante `.github/workflows/pages.yml`. Configura las variables públicas `VITE_SUPABASE_URL` y `VITE_SUPABASE_PUBLISHABLE_KEY` en Actions. El dominio de esta instalación es [planifia.cl](https://planifia.cl/); en un fork ajusta `public/CNAME`, las URL legales, Auth y `ALLOWED_ORIGINS`. Publicar el frontend requiere integrar los cambios en `main`; esta revisión no hace commit ni push. Sí se desplegó la corrección autorizada del chat en Supabase.
+GitHub Pages publica sólo `dist/` mediante `.github/workflows/pages.yml`. Configura las variables públicas `VITE_SUPABASE_URL` y `VITE_SUPABASE_PUBLISHABLE_KEY` en Actions. El dominio de esta instalación es [planifia.cl](https://planifia.cl/); en un fork ajusta `public/CNAME`, las URL legales, Auth y `ALLOWED_ORIGINS`. Publicar el frontend requiere integrar los cambios en `main` y esperar el resultado del workflow. La corrección autorizada del chat ya se desplegó en Supabase.
