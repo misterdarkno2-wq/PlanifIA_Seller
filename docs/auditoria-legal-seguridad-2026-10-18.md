@@ -180,7 +180,10 @@ Las líneas indican dónde quedó cada corrección en la rama.
 - **Archivos**: `src-tauri/plugins/planifia-ads/android/src/main/java/AdsPlugin.kt:160`.
 - **Riesgo**: la Ley 19.628 y la Ley 21.719 exigen una base legal para tratar el ID de publicidad.
 - **Hecho**: la política lo declara con `[PENDIENTE]`.
-- **Falta**: decisión del abogado (pregunta 2). Las opciones son pedir consentimiento con un mensaje propio de UMP («otras regulaciones») o solicitar anuncios no personalizados.
+- **Hecho (19 de octubre, R6)**: sin consentimiento válido de UMP, la app pide anuncios no personalizados (`npa=1`). La política lo dice en la tabla de la sección 2 y en la sección 4.
+- **Falta**:
+  - Decisión del abogado (pregunta 2): si basta el interés legítimo para los anuncios no personalizados o hay que pedir consentimiento con un mensaje propio de UMP («otras regulaciones»).
+  - Confirmarlo en un teléfono real (ya se probó en emuladores).
 
 **A7. La política y `eliminar-cuenta.html` decían «No conservamos ningún dato tras la eliminación».**
 - **Hecho**: la base sí se borra en cascada, pero quedan los registros de Auth y de las funciones, las copias de seguridad, los registros de Google y los correos. Los textos ahora lo dicen, con una tabla de plazos.
@@ -340,7 +343,7 @@ Todas pasaron el 19 de octubre de 2026, en Windows con Edge:
 | Cierre por incumplimiento grave | Se devuelve la parte no usada del período pagado y de los créditos comprados, salvo una compra fraudulenta (términos §11) |
 | Plazos de derechos | Respuesta en 15 días corridos y bloqueo en 2 días hábiles: más corto que los 30 días prorrogables que citan las fuentes de la Ley 21.719 (política §9) |
 | Reclamos de datos | Ante la Agencia, por los canales que publique, o ante los tribunales (política §9) |
-| Anuncios en Chile | Interés legítimo con derecho de oposición (borrar el ID de publicidad, plan pagado o Quitar anuncios); consentimiento donde la ley lo exige. **Es la decisión más expuesta**: la alternativa más segura son anuncios no personalizados para quien no dio consentimiento (recomendación R6) |
+| Anuncios en Chile | Sólo anuncios no personalizados (`npa=1`, recomendación R6 hecha el 19 de octubre), con base en el interés legítimo y derecho de oposición (borrar el ID de publicidad, plan pagado o Quitar anuncios). Los personalizados sólo se piden con consentimiento, donde la ley lo exige. **Sigue siendo la decisión más expuesta**, aunque con menos riesgo: Google igual usa el ID de publicidad para limitar la frecuencia y medir los anuncios |
 | Revisión de crisis | Base legal: protección de la vida e integridad (interés vital) |
 | Datos sensibles | Se tratan sólo para prestar el servicio; se recomienda no escribirlos y se pueden borrar |
 | Transferencias | Necesarias para el contrato, con los DPA de cada proveedor (cláusulas contractuales tipo en Supabase y Cloudflare) |
@@ -360,7 +363,7 @@ Revisa también qué datos tuyos muestra hoy Google Play en la ficha y en la pá
 ## 6. Preguntas para el abogado
 
 1. **Incidente NVIDIA (C1)**: entre el 14 y el 19 de octubre se enviaron a NVIDIA, bajo términos de prueba, mensajes del chat con el nombre del perfil y textos de planes, mientras la política publicada decía que no se usaban servicios de terceros. ¿Hay que avisar a las personas afectadas o a alguna autoridad, según la Ley 19.628 vigente? ¿Conviene pedir a NVIDIA que borre esos datos? ¿Cómo documentarlo?
-2. **Anuncios en Chile (A6)**: ¿basta el interés legítimo para que el SDK de AdMob trate el ID de publicidad y muestre anuncios personalizados a usuarios en Chile, o hay que pedir consentimiento previo antes y después del 1 de diciembre de 2026? ¿O conviene mostrar sólo anuncios no personalizados?
+2. **Anuncios en Chile (A6)**: desde el 19 de octubre la app sólo pide anuncios no personalizados a quien no dio consentimiento (R6), pero el SDK de AdMob igual trata el ID de publicidad para limitar la frecuencia y medir los anuncios. ¿Basta el interés legítimo para eso, o hay que pedir consentimiento previo, antes y después del 1 de diciembre de 2026?
 3. **Retracto (art. 3 bis, Ley 19.496)**: ¿aplica a suscripciones y a paquetes de créditos que se entregan y se pueden usar de inmediato? ¿Se puede excluir para el contenido digital ya entregado, informándolo antes de la compra, y cómo debe destacarse? ¿El plazo de 10 días se cuenta desde la compra? ¿Es válido descontar los créditos ya usados?
 4. **Cierre de cuentas por incumplimiento grave**: ¿qué pasa con el período de suscripción ya pagado y los créditos comprados? ¿La cláusula de la sección 11 de los términos puede considerarse abusiva (art. 16)?
 5. **Datos sensibles**: las personas pueden escribir datos de salud en sus metas o en el chat, y la app revisa automáticamente los mensajes de crisis. ¿Qué base legal corresponde según la Ley 21.719 (consentimiento expreso, interés vital u otra)? ¿Hay que pedir un consentimiento específico?
@@ -434,7 +437,12 @@ Ninguno se hizo. Cada uno necesita tu aprobación.
 - **R4. Exigir la aceptación vigente en el servidor** (`goal-plan`, `lumi-chat`, `play-billing`), además de en la app.
   - Se dejó sólo en la app para no bloquear las versiones antiguas de Android mientras se actualizan.
   - Conviene activarlo cuando la versión mínima soportada incluya la pantalla de nueva aceptación.
-- **R6. Anuncios no personalizados** para quien no dio consentimiento, en `AdsPlugin.kt`. Reduce el riesgo de la base legal de los anuncios en Chile. Hay que probarlo en un teléfono.
+- **R6. ~~Anuncios no personalizados para quien no dio consentimiento~~. Hecha (19 de octubre)** en la rama `claude/anuncios-no-personalizados`:
+  - `AdsPlugin.kt` pide anuncios personalizados sólo con consentimiento válido de UMP: estado `OBTAINED` y cadena TCF con los propósitos 1, 3 y 4 y el proveedor Google (755).
+  - En los demás casos, incluido Chile, cada solicitud lleva `npa=1`.
+  - Detalle en `monetizacion.md`, sección 3.
+  - Probado en emuladores (depuración y release con R8; Chile y EEE simulado, con consentimiento y al retirarlo).
+  - Falta confirmarlo en un teléfono real (lista de verificación de `monetizacion.md`).
 - **R7. ~~Retirar el cobro web con Transbank.~~ Hecho en el repositorio (19 de octubre de 2026, rama `claude/retirar-transbank`).** Nunca se usó en producción y no se usará.
   - Se borraron las funciones `billing`, `billing-return` y `billing-renew`, `_shared/transbank.ts` y `_shared/billing.ts`, el cron (`billing-scheduler.sql`), `scripts/transbank-smoke.ts` y las variables `TRANSBANK_*` y `BILLING_*`.
   - La web lee `plan_catalog` y `billing_state()` directamente y ya no muestra pagos ni cancela renovaciones de Oneclick.
