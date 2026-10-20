@@ -376,7 +376,7 @@ Revisa también qué datos tuyos muestra hoy Google Play en la ficha y en la pá
 
 ## 7. Pasos manuales, en orden
 
-Ninguno se hizo. Cada uno necesita tu aprobación.
+Cada uno necesita tu aprobación. **Hecho el 19 de octubre de 2026** (comprobado en producción): paso 3 (migración `202610180001`), paso 4 en su parte de Audit Logs (tabla vaciada; la configuración de Auth la hizo el responsable en el panel y no se comprobó desde aquí), paso 5 (`RATE_LIMIT_SALT`), paso 7 (funciones desplegadas desde `release/2.3.5`) y paso 8 (web 2.3.5 publicada desde `main`). El PR de `feature/respaldo-groq` quedó reemplazado: su arreglo del gateway (`f032c24`) se incorporó a `main`.
 
 1. **Revisar los textos con el abogado** (las decisiones de la sección 5 se pueden cambiar). Completar P14 (verificación en dos pasos). Después, actualizar `LEGAL_VERSION` en `src/legal.js` y la fecha de las páginas si los textos cambian antes de publicarse.
 2. **NVIDIA y Groq** (ver `docs/respaldo-nube.md`):
@@ -448,5 +448,6 @@ Ninguno se hizo. Cada uno necesita tu aprobación.
   - La web lee `plan_catalog` y `billing_state()` directamente y ya no muestra pagos ni cancela renovaciones de Oneclick.
   - La migración `202610190001_retire_transbank.sql` quita el permiso de ejecución a `billing_admin`, `manage_subscription` y `billing_promotion`. Las tablas y sus datos de integración se conservan hasta que el responsable decida.
   - **En producción (19 de octubre)**: ya se detuvo el cron y se borraron sus entradas de Vault, los secretos de Transbank y las funciones `billing-return` y `billing-renew`.
-  - **Falta en producción**: publicar la web y la app, aplicar la migración y borrar la función `billing`, en el orden de `docs/billing.md` (sección «Pasos manuales en producción»). La función `billing` se borra al final, porque las versiones instaladas de la app la usan para cargar los planes.
+  - **También en producción (19 de octubre)**: web 2.3.5 publicada y migración `202610190001` aplicada.
+  - **Falta en producción**: subir la app 2.3.5 a Google Play y, unos 14 días después, borrar la función `billing`, en el orden de `docs/billing.md` (sección «Pasos manuales en producción»). La función `billing` se borra al final, porque las versiones instaladas de la app la usan para cargar los planes.
 - **R5. Revisar anualmente** los números de `CRISIS_LINES` y la lista de expresiones de crisis, con los reportes como fuente.

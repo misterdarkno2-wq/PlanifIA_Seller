@@ -40,7 +40,7 @@ Quedan sin uso, con los datos de las pruebas en integración: `public.subscripti
 
 ## Pasos manuales en producción
 
-**Estado al 19 de octubre de 2026:** los pasos 1 a 4 están hechos y comprobados. No quedan el cron `planifia-billing-renew` ni sus dos entradas de Vault, ni los secretos `TRANSBANK_*` y `BILLING_*`, ni las funciones `billing-return` y `billing-renew`. La función `billing` responde Planes en modo `disabled` (sin Webpay ni Oneclick). Faltan el 5 (publicar la web y la app), el 6 (la migración), el 7 (borrar `billing`) y el 8 (opcional).
+**Estado al 19 de octubre de 2026:** los pasos 1 a 6 están hechos y comprobados, salvo la parte de la app del paso 5. No quedan el cron `planifia-billing-renew` ni sus entradas de Vault, ni los secretos `TRANSBANK_*` y `BILLING_*`, ni las funciones `billing-return` y `billing-renew`. La web 2.3.5 está publicada en planifia.cl y lee `plan_catalog` y `billing_state()` directamente. La migración `202610190001` está aplicada: nadie ejecuta las tres funciones retiradas. La función `billing` sigue desplegada y responde `state` a las versiones instaladas de la app; su `catalog` ya no responde (503). La app 2.3.5 está compilada (`release/2.3.5`), pero falta subirla a Google Play. Faltan el 7 (borrar `billing` unos 14 días después de que la 2.3.5 llegue a los usuarios) y el 8 (opcional).
 
 El orden importa porque **las versiones de la app ya instaladas cargan Planes y Mi plan (incluida la compra con Google Play) a través de la Edge Function `billing`**, con sus acciones `catalog` y `state`. Si se borra antes de tiempo, esas versiones muestran «No pudimos consultar los planes» y no pueden comprar hasta actualizarse.
 

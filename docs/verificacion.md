@@ -6,7 +6,8 @@
 - AAB firmado con Tauri 2 (`npm run android:aab`, el mismo comando de `scripts/android-aab.ps1`) para arm64, armv7 y x86_64. Certificado de carga idéntico al del AAB anterior (SHA-256 `DD:7A:02:73:…:0E:35`).
 - Comparada con `release/2.3.4`, no se pierde ninguna función: `AdsPlugin.kt` conserva todos sus comandos y la interfaz conserva sus controles, salvo los pagos de Transbank (historial, «Consultar resultado» y cancelación de Oneclick), retirados a propósito.
 - Pruebas correctas: `npm test` (169), `test:edge` (54), `check:edge`, `test:ui` (falló una vez por tiempo de espera y pasó al repetirla), `test:billing-ui`, `test:csp-ui`, `test:legal-ui`, `test:companion-ui`, `test:chat-ui`, `test:update-ui`, `test:mobile-regressions` (27) y `build`.
-- Antes de entregarla a usuarios: aplicar la migración `202610180001_legal_reports.sql` (sin ella, «Reportar» muestra un error) y seguir el orden de la sección 7 del informe legal (pasos 3 a 8, luego 10 y 11). Falta probarla en un teléfono real.
+- Producción, el mismo día y en este orden: migración `202610180001` (el responsable), Audit Logs vaciados y `RATE_LIMIT_SALT` creado, funciones `goal-plan`, `lumi-chat`, `ai-fallback`, `play-billing` y `play-rtdn` desplegadas (las cinco responden 401 sin sesión), web publicada desde `main` (GitHub Pages; el primer intento falló porque faltaba el arreglo del gateway `f032c24` del PR de Groq, incorporado después) y migración `202610190001` aplicada (0 permisos sobre las funciones retiradas; `billing_state`, `monetization_state` y `plan_catalog` siguen disponibles).
+- Falta: subir el AAB a Google Play (pasos 10 y 11 del informe legal) y probarlo en un teléfono real.
 
 ## Retiro del cobro web con Transbank — 19 de octubre de 2026
 
