@@ -1,5 +1,13 @@
 # Verificación y activación
 
+## Versión 2.3.5 de Android — 19 de octubre de 2026
+
+- Rama `release/2.3.5` (local, sin push): `feature/legal-seguridad` + retiro de Transbank (R7) + anuncios no personalizados (R6). `version` 2.3.5 y `versionCode` 20305.
+- AAB firmado con Tauri 2 (`npm run android:aab`, el mismo comando de `scripts/android-aab.ps1`) para arm64, armv7 y x86_64. Certificado de carga idéntico al del AAB anterior (SHA-256 `DD:7A:02:73:…:0E:35`).
+- Comparada con `release/2.3.4`, no se pierde ninguna función: `AdsPlugin.kt` conserva todos sus comandos y la interfaz conserva sus controles, salvo los pagos de Transbank (historial, «Consultar resultado» y cancelación de Oneclick), retirados a propósito.
+- Pruebas correctas: `npm test` (169), `test:edge` (54), `check:edge`, `test:ui` (falló una vez por tiempo de espera y pasó al repetirla), `test:billing-ui`, `test:csp-ui`, `test:legal-ui`, `test:companion-ui`, `test:chat-ui`, `test:update-ui`, `test:mobile-regressions` (27) y `build`.
+- Antes de entregarla a usuarios: aplicar la migración `202610180001_legal_reports.sql` (sin ella, «Reportar» muestra un error) y seguir el orden de la sección 7 del informe legal (pasos 3 a 8, luego 10 y 11). Falta probarla en un teléfono real.
+
 ## Retiro del cobro web con Transbank — 19 de octubre de 2026
 
 - Recomendación R7 de la revisión legal y de seguridad. Rama `claude/retirar-transbank`, sin push, sin migraciones aplicadas y sin despliegues.
