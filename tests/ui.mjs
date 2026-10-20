@@ -5,6 +5,7 @@ import { mkdir } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import assert from "node:assert/strict";
 import { today, progression } from "../src/domain.js";
+import { LEGAL_VERSION } from "../src/legal.js";
 
 const server = spawn(
   process.execPath,
@@ -74,7 +75,12 @@ try {
     habits: [],
     habit_completions: [],
     imports: [],
+    // Cuenta que ya aceptó los términos vigentes (la nueva aceptación se prueba en legal-ui.mjs).
+    legal_acceptances: [
+      { terms_version: LEGAL_VERSION.terms, privacy_version: LEGAL_VERSION.privacy, platform: "web", accepted_at: new Date().toISOString() },
+    ],
   };
+  let signupBody = null;
   let total = 0,
     aiCalls = 0,
     failSave = false,
@@ -152,7 +158,10 @@ try {
     if (url.pathname.endsWith("/rest/v1/lumi_chat_messages"))
       return route.fulfill({ status: 200, json: [...chatMessages].reverse() });
     if (url.pathname.startsWith("/auth/v1/")) {
-      if (url.pathname.endsWith("/signup")) result = { user, session: null };
+      if (url.pathname.endsWith("/signup")) {
+        signupBody = body;
+        result = { user, session: null };
+      }
       else if (url.pathname.endsWith("/logout"))
         return route.fulfill({ status: 204, body: "" });
       else result = url.pathname.endsWith("/user") ? user : session;
@@ -363,12 +372,20 @@ try {
   await page.getByRole("link", { name: "Empezar", exact: true }).click();
   await page.getByLabel("Tu nombre", { exact: true }).fill("Ana");
   await page.getByLabel("Correo electrónico").fill("ana@example.test");
-  await page.getByLabel("Contraseña", { exact: true }).fill("fixture-password");
-  await page.getByRole("button", { name: "Crear cuenta", exact: true }).click();
+  await page.getByLabel("Contraseña", { exact: true }).fill("fixture-password-2026");
+  const createAccount = page.getByRole("button", { name: "Crear cuenta", exact: true });
+  assert.equal(await createAccount.isDisabled(), true, "Crear cuenta espera la casilla de edad y términos");
+  await page.getByRole("checkbox", { name: /18 años o más/ }).check();
+  await createAccount.click();
   await page
     .getByRole("status")
     .filter({ hasText: "Revisa tu correo" })
     .waitFor();
+  assert.deepEqual(
+    signupBody.data.legal,
+    { terms_version: LEGAL_VERSION.terms, privacy_version: LEGAL_VERSION.privacy, platform: "web", age_confirmed: true },
+    "El registro envía la versión aceptada para que el servidor la guarde",
+  );
   async function login(p) {
     await p.goto("http://127.0.0.1:5183/#login");
     await p.getByLabel("Correo electrónico").fill("ana@example.test");

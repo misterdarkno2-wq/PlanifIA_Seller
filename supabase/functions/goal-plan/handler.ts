@@ -1,6 +1,9 @@
 import { createClient } from "npm:@supabase/supabase-js@2.58.0";
 import { completedAction, planningGoal, readContextRows } from "../_shared/plan-context.ts";
 import { BodyTooLarge, readRequestText } from "../_shared/request-body.ts";
+import { CRISIS_MESSAGE, detectCrisis } from "../_shared/crisis.js";
+import { PublicError } from "../_shared/public-error.ts";
+import { allowIp, IP_LIMITED } from "../_shared/rate-limit.ts";
 
 const json = (data: unknown, status: number, headers: HeadersInit) =>
   Response.json(data, { status, headers });
@@ -71,7 +74,15 @@ export async function handleGoalPlan(req: Request) {
         headers,
       );
     }
-    const input = JSON.parse(raw);
+    let input;
+    try {
+      input = JSON.parse(raw);
+    } catch {
+      input = null;
+    }
+    if (!input || typeof input !== "object" || Array.isArray(input)) {
+      return json({ error: "Envía una solicitud válida." }, 400, headers);
+    }
     if (
       !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
         input.request_id || "",
@@ -97,12 +108,16 @@ export async function handleGoalPlan(req: Request) {
         headers,
       );
     }
+    // Una meta que describe una crisis no se envía a la IA ni se cobra: se muestran líneas de ayuda.
+    if (detectCrisis(input.idea, input.current_situation, input.outcome, input.reason)) {
+      return json({ error: CRISIS_MESSAGE, crisis: true }, 422, headers);
+    }
     const { data: profile, error: profileError } = await client
       .from("profiles")
       .select("*")
       .single();
     if (profileError || !profile) {
-      throw new Error(
+      throw new PublicError(
         "No pudimos cargar tu disponibilidad. Guarda tus ajustes primero.",
       );
     }
@@ -206,6 +221,9 @@ export async function handleGoalPlan(req: Request) {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
       { auth: { persistSession: false } },
     );
+    if (!(await allowIp(admin, req))) {
+      return json({ error: IP_LIMITED }, 429, headers);
+    }
     const limits = {
       weeklyMinutes,
       remainingDaily,
@@ -245,10 +263,11 @@ export async function handleGoalPlan(req: Request) {
       },
     });
     if (queued.error) {
+      if (queued.error.code !== "P0001") console.error("goal-plan enqueue", queued.error.code);
       const message =
         queued.error.code === "P0001"
           ? queued.error.message
-          : "No pudimos guardar la solicitud. Revisa la migración de la cola.";
+          : "No pudimos guardar la solicitud. Inténtalo de nuevo en un momento.";
       return json(
         { error: message },
         queued.error.code === "P0001" ? 429 : 503,
@@ -259,8 +278,6 @@ export async function handleGoalPlan(req: Request) {
   } catch (error) {
     if (error instanceof BodyTooLarge)
       return json({ error: "La descripción es demasiado larga." }, 413, headers);
-    const message =
-      error instanceof Error ? error.message : "No pudimos crear la propuesta.";
     if (
       error instanceof Error &&
       ["TimeoutError", "AbortError"].includes(error.name)
@@ -274,10 +291,17 @@ export async function handleGoalPlan(req: Request) {
         headers,
       );
     }
+    if (error instanceof PublicError) {
+      return json({ error: error.message }, 422, headers);
+    }
     console.error(
       "goal-plan failed",
       error instanceof Error ? error.name : "unknown",
     );
-    return json({ error: message }, 422, headers);
+    return json(
+      { error: "No pudimos crear la propuesta. Inténtalo de nuevo en un momento." },
+      503,
+      headers,
+    );
   }
 }

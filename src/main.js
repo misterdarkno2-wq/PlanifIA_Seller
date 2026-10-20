@@ -1,6 +1,6 @@
 import "./compat.js";
 import "./style.css";
-import { authRedirect, downloadJson, hasStoredSession, installNativeBack, watchSafeArea } from "./platform.js";
+import { authRedirect, downloadJson, hasStoredSession, installNativeBack, isNative, watchSafeArea } from "./platform.js";
 import "./pet.css";
 import "./lumi-conversation.css";
 import "./lumi-chat.css";
@@ -30,7 +30,22 @@ import {
   cancelAiJob,
   releaseAiRequest,
   requestCloudFallback,
+  loadLegalStatus,
+  acceptLegal,
+  reportAiPlan,
+  loadExportExtras,
 } from "./cloud.js";
+import {
+  LEGAL_URLS,
+  LEGAL_VERSION,
+  legalDateLabel,
+  legalConsentMarkup,
+  legalCurrent,
+  legalUpdateCard,
+  signupLegal,
+} from "./legal.js";
+import { crisisHelp, detectCrisis } from "./crisis-help.js";
+import { reportControl } from "./ai-report.js";
 import { createCloudFallback } from "./ai-source.js";
 import {
   CATEGORIES,
@@ -53,7 +68,7 @@ import {
   consumeBillingIntent,
 } from "./billing.js";
 import {
-  invokeBilling,
+  loadBillingState,
   loadBillingCatalog,
   loadMonetization,
   redeemReferral,
@@ -106,7 +121,6 @@ const petControllers = new Map();
 let petPose = null;
 let disposePetMotionControls = null;
 let disposeBilling = null;
-let paymentReturn = null;
 const companion = createLumiCompanion({
   storage: localStorage,
   session: sessionStorage,
@@ -134,6 +148,82 @@ const cloudFallback = createCloudFallback({
 aiJobs.subscribe((jobs) => cloudFallback.consider(jobs));
 
 let lumiChat = null;
+// Última aceptación de los términos de la cuenta abierta: { owner, available, latest }.
+let legal = null,
+  legalPrompted = false;
+const platformName = () => (isAndroidApp() ? "android" : isNative() ? "desktop" : "web");
+const needsLegal = () =>
+  Boolean(user && legal?.owner === user.id && legal.available && !legalCurrent(legal.latest));
+async function checkLegal() {
+  if (!user || legal?.owner === user.id) return;
+  const owner = user.id;
+  const status = await loadLegalStatus().catch(() => ({ available: false }));
+  if (user?.id !== owner) return;
+  legal = { owner, ...status };
+  // Una vez por sesión se avisa al entrar; la IA y las compras lo vuelven a pedir hasta aceptar.
+  if (needsLegal() && !legalPrompted && !dialog) {
+    legalPrompted = true;
+    legalModal();
+  }
+}
+async function acceptCurrentLegal() {
+  const owner = user.id;
+  const latest = await acceptLegal(LEGAL_VERSION, platformName());
+  if (user?.id === owner) legal = { owner, available: true, latest };
+  toast("Gracias. Guardamos tu aceptación de los términos vigentes.");
+  return latest;
+}
+/**
+ * Antes de usar la IA o comprar con una versión anterior aceptada, muestra la tarjeta para aceptar
+ * la vigente donde la persona estaba (place la inserta) para no perder lo escrito.
+ * true = puede seguir; false = eligió "Ahora no".
+ */
+function legalGate(place) {
+  if (!needsLegal()) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    document.querySelector("[data-legal-update]")?.remove();
+    const card = legalUpdateCard({
+      accept: acceptCurrentLegal,
+      onAccepted: () => resolve(true),
+      onLater: () => resolve(false),
+      onExport: () => exportData().catch((error) => toast(errorMessage(error))),
+      onDelete: deleteAccountForm,
+    });
+    place(card);
+    card.scrollIntoView?.({ block: "nearest" });
+    card.querySelector("h2").focus({ preventScroll: true });
+  });
+}
+function legalModal() {
+  const host = modal("Un aviso antes de seguir", "<div data-legal-slot></div>");
+  const card = legalUpdateCard({
+    accept: acceptCurrentLegal,
+    onAccepted: closeModal,
+    onLater: closeModal,
+    onExport: () => exportData().catch((error) => toast(errorMessage(error))),
+    onDelete: deleteAccountForm,
+  });
+  $("[data-legal-slot]", host).replaceChildren(card);
+}
+// Respaldo completo de la cuenta (derecho de acceso y portabilidad), también antes de eliminarla.
+async function exportData() {
+  const extras = await loadExportExtras();
+  return downloadJson("planifia-seller-respaldo.json", {
+    version: 3,
+    exported_at: new Date().toISOString(),
+    sourceId: "seller:" + user.id,
+    account: { id: user.id, email: user.email, created_at: user.created_at || null },
+    ...state,
+    ...extras,
+  });
+}
+// Enlaces legales: en la web se abren en otra pestaña; en Android, en el navegador del teléfono.
+document.addEventListener("click", (event) => {
+  const link = event.target.closest?.("a[data-external-link]");
+  if (!link || !playStore) return;
+  event.preventDefault();
+  playStore.openExternal(link.href).catch(() => toast("No pudimos abrir el enlace. Visita planifia.cl."));
+});
 // Créditos y plan vigente. En Android, además, anuncios (sólo plan Gratis) y Google Play.
 let monetization = null,
   monetizationUser = null,
@@ -372,7 +462,7 @@ function mountBillingView() {
   if (!root || disposeBilling) return;
   disposeBilling = mountBilling(root, {
     user,
-    billing: invokeBilling,
+    loadState: loadBillingState,
     loadCatalog: loadBillingCatalog,
     onLogin: (planId) => {
       rememberBillingIntent(planId);
@@ -386,17 +476,13 @@ function mountBillingView() {
           store: playStore,
           ads: isAndroidApp() ? ads : null,
           userId: user.id,
+          beforePurchase: () => legalGate((card) => $("[data-billing-review]")?.replaceChildren(card)),
         }
       : null,
   });
 }
 function billingDestination() {
   const planId = consumeBillingIntent();
-  if (paymentReturn) {
-    const route = paymentReturn;
-    paymentReturn = null;
-    return route;
-  }
   return planId ? `subscription?plan=${planId}` : "today";
 }
 function disposePets() {
@@ -514,6 +600,7 @@ async function refresh() {
     state = next;
     loading = false;
     render();
+    void checkLegal();
     return true;
   } catch (error) {
     if (version !== loadVersion) return;
@@ -675,7 +762,7 @@ function daysInputs(selected, prefix = "days") {
 }
 function settingsPage() {
   const p = state.profile;
-  return `<div class="page-heading"><div><h1>Tu ritmo y tus datos</h1><p class="muted">Los cambios se guardan en tu cuenta y se recuperan en otros dispositivos.</p></div></div><div class="settings-grid"><section class="panel pet-motion-panel"><h2>Lumi a tu ritmo</h2><p>Elige cómo te acompaña mientras organizas tus metas.</p>${petMotionControls()}${lumiConversationSettings(companion)}</section><section class="panel"><h2>Disponibilidad</h2><form id="profile-form"><label>Tu nombre<input name="name" value="${e(p.name)}" maxlength="80" required></label><label>Zona horaria<input name="timezone" value="${e(p.timezone)}" required placeholder="America/Santiago"></label><label>Minutos totales por semana<input name="minutes" type="number" min="30" max="3360" value="${p.weekly_minutes}" required></label>${daysInputs(p.available_days)}<p class="muted">La IA reparte este tiempo entre tus días disponibles, contando acciones y hábitos existentes.</p>${alert()}<button>Guardar disponibilidad</button></form></section><section class="panel"><h2>Conservar lo que ya hiciste</h2><p>Importa un archivo JSON de PlanifIA anterior. Verás el destino y el contenido antes de confirmar.</p><label class="file-label">Seleccionar exportación<input type="file" id="import-file" accept="application/json,.json"></label><button class="secondary" id="import-local">Buscar tareas guardadas en este navegador</button><p class="muted">Los archivos originales se conservan. Repetir la importación no crea actividades duplicadas. La XP histórica se conserva en el respaldo original, sin asignar recompensas nuevas.</p><h3>Importaciones guardadas</h3>${state.imports.map((i) => `<p>${e(i.source)} <button class="text-button" data-export-import="${i.id}">Descargar original</button></p>`).join("") || '<p class="muted">Todavía no hay importaciones.</p>'}<button class="secondary" id="export-data">Exportar mis datos</button></section>${isAndroidApp() ? `<section class="panel"><h2>Anuncios y privacidad</h2><p>En el plan Gratis se muestra un video de Google AdMob al usar la IA (máximo uno cada 5 minutos). Plus, Pro y la compra "Quitar anuncios" no muestran videos.</p>${ads.privacyRequired ? '<button class="secondary" id="ad-privacy">Opciones de privacidad de anuncios</button>' : '<p class="muted">Puedes revisar tu consentimiento de anuncios aquí cuando tu región lo requiera.</p>'}</section>` : ""}<section class="panel danger-zone"><h2>Eliminar cuenta</h2><p>Borra de forma permanente tu cuenta y todos sus datos: metas, acciones, hábitos, Lumi, solicitudes de IA e importaciones. No se puede deshacer.</p><p class="muted">Te recomendamos exportar tus datos antes. Consulta la <a href="https://planifia.cl/privacidad.html" target="_blank" rel="noopener">política de privacidad</a>.</p><button class="danger" id="delete-account">Eliminar mi cuenta</button></section></div>`;
+  return `<div class="page-heading"><div><h1>Tu ritmo y tus datos</h1><p class="muted">Los cambios se guardan en tu cuenta y se recuperan en otros dispositivos.</p></div></div><div class="settings-grid"><section class="panel pet-motion-panel"><h2>Lumi a tu ritmo</h2><p>Elige cómo te acompaña mientras organizas tus metas.</p>${petMotionControls()}${lumiConversationSettings(companion)}</section><section class="panel"><h2>Disponibilidad</h2><form id="profile-form"><label>Tu nombre<input name="name" value="${e(p.name)}" maxlength="80" required></label><label>Zona horaria<input name="timezone" value="${e(p.timezone)}" required placeholder="America/Santiago"></label><label>Minutos totales por semana<input name="minutes" type="number" min="30" max="3360" value="${p.weekly_minutes}" required></label>${daysInputs(p.available_days)}<p class="muted">La IA reparte este tiempo entre tus días disponibles, contando acciones y hábitos existentes.</p>${alert()}<button>Guardar disponibilidad</button></form></section><section class="panel"><h2>Conservar lo que ya hiciste</h2><p>Importa un archivo JSON de PlanifIA anterior. Verás el destino y el contenido antes de confirmar.</p><label class="file-label">Seleccionar exportación<input type="file" id="import-file" accept="application/json,.json"></label><button class="secondary" id="import-local">Buscar tareas guardadas en este navegador</button><p class="muted">Los archivos originales se conservan. Repetir la importación no crea actividades duplicadas. La XP histórica se conserva en el respaldo original, sin asignar recompensas nuevas.</p><h3>Importaciones guardadas</h3>${state.imports.map((i) => `<p>${e(i.source)} <button class="text-button" data-export-import="${i.id}">Descargar original</button></p>`).join("") || '<p class="muted">Todavía no hay importaciones.</p>'}<button class="secondary" id="export-data">Exportar mis datos</button></section>${isAndroidApp() ? `<section class="panel"><h2>Anuncios y privacidad</h2><p>En el plan Gratis se muestra un video de Google AdMob al usar la IA (máximo uno cada 5 minutos). Plus, Pro y la compra "Quitar anuncios" no muestran videos.</p>${ads.privacyRequired ? '<button class="secondary" id="ad-privacy">Opciones de privacidad de anuncios</button>' : '<p class="muted">Puedes revisar tu consentimiento de anuncios aquí cuando tu región lo requiera.</p>'}</section>` : ""}<section class="panel" data-rights><h2>Tus derechos sobre tus datos</h2><p>Puedes pedir acceso, rectificación, supresión, oposición, portabilidad o bloqueo de tus datos, y oponerte a decisiones tomadas sólo de forma automatizada. Aquí mismo puedes corregir tu perfil, exportar tus datos o eliminar tu cuenta; para lo demás escribe a <a href="mailto:planifiaprivacity@gmail.com">planifiaprivacity@gmail.com</a>.</p>${legal?.owner === user.id && legal.latest ? `<p class="muted">Aceptaste la versión del ${e(legalDateLabel(legal.latest.terms_version))} de los Términos de uso y la Política de privacidad.</p>` : ""}<p><a href="${LEGAL_URLS.terms}" target="_blank" rel="noopener noreferrer" data-external-link>Términos de uso</a> · <a href="${LEGAL_URLS.privacy}" target="_blank" rel="noopener noreferrer" data-external-link>Política de privacidad</a></p></section><section class="panel danger-zone"><h2>Eliminar cuenta</h2><p>Borra de forma permanente tu cuenta y todos sus datos: metas, acciones, hábitos, Lumi, solicitudes de IA e importaciones. No se puede deshacer. Los registros técnicos que aún los contengan se borran solos en los plazos de la política de privacidad.</p><p class="muted">Te recomendamos exportar tus datos antes. Consulta la <a href="${LEGAL_URLS.privacy}" target="_blank" rel="noopener noreferrer" data-external-link>política de privacidad</a>.</p><button class="danger" id="delete-account">Eliminar mi cuenta</button></section></div>`;
 }
 function shell(content) {
   const tab = location.hash.slice(1).split("?")[0] || "today";
@@ -770,6 +857,7 @@ function mountLumiChatView() {
       if (monetization) monetization = { ...monetization, credits: { ...monetization.credits, balance } };
       void refreshMonetization().catch(() => {});
     },
+    beforeSend: () => legalGate((card) => $("[data-lumi-chat-form]")?.before(card)),
   });
 }
 function bindAdPrivacy() {
@@ -783,17 +871,6 @@ function bindAdPrivacy() {
 function landing() {
   const billingRoute = location.hash.slice(1).split("?")[0];
   if (["plans", "subscription"].includes(billingRoute)) {
-    const paymentParams = new URLSearchParams(location.hash.split("?")[1]);
-    for (const key of ["order", "enrollment"]) {
-      const reference = paymentParams.get(key);
-      if (
-        billingRoute === "subscription" &&
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-          reference || "",
-        )
-      )
-        paymentReturn = `subscription?${key}=${reference}`;
-    }
     app.innerHTML = `<header class="landing-header"><a href="#home">${logo()}</a><div><a href="#home">Inicio</a><a class="button" href="#login">Iniciar sesión</a></div></header><main id="main">${renderBilling({ view: "plans", user, escape: e })}</main>`;
     mountBillingView();
     return;
@@ -817,11 +894,19 @@ function authModal(mode) {
       : register
         ? "Empieza tu camino"
         : "Qué bueno verte",
-    `<p class="muted">${reset ? "Escribe tu nueva contraseña." : register ? "Tus metas y Lumi te esperan en cualquier dispositivo." : "Vuelve a tu siguiente paso."}</p><form id="auth-form">${register ? '<label>Tu nombre<input name="name" autocomplete="name" maxlength="80" required></label>' : ""}${!reset ? '<label>Correo electrónico<input name="email" type="email" autocomplete="email" required></label>' : ""}<label>Contraseña<input name="password" type="password" autocomplete="${register || reset ? "new-password" : "current-password"}" minlength="8" required></label>${alert()}<button>${reset ? "Guardar contraseña" : register ? "Crear cuenta" : "Iniciar sesión"}</button></form>${!register && !reset ? '<button class="text-button" id="forgot">Olvidé mi contraseña</button>' : ""}<p>${register ? '<a href="#login">Ya tengo una cuenta</a>' : '<a href="#register">Crear una cuenta</a>'}</p>`,
+    `<p class="muted">${reset ? "Escribe tu nueva contraseña." : register ? "Tus metas y Lumi te esperan en cualquier dispositivo." : "Vuelve a tu siguiente paso."}</p><form id="auth-form">${register ? '<label>Tu nombre<input name="name" autocomplete="name" maxlength="80" required></label>' : ""}${!reset ? '<label>Correo electrónico<input name="email" type="email" autocomplete="email" required></label>' : ""}<label>Contraseña<input name="password" type="password" autocomplete="${register || reset ? "new-password" : "current-password"}" ${register || reset ? `minlength="10" pattern="(?=.*[A-Za-zÁÉÍÓÚÜÑáéíóúüñ])(?=.*[0-9]).{10,}" title="Al menos 10 caracteres, con letras y números." aria-describedby="password-hint"` : `minlength="8"`} required></label>${register || reset ? '<p class="fine" id="password-hint">Al menos 10 caracteres, con letras y números.</p>' : ""}${register ? legalConsentMarkup() : ""}${alert()}<button>${reset ? "Guardar contraseña" : register ? "Crear cuenta" : "Iniciar sesión"}</button></form>${!register && !reset ? '<button class="text-button" id="forgot">Olvidé mi contraseña</button>' : ""}<p>${register ? '<a href="#login">Ya tengo una cuenta</a>' : '<a href="#register">Crear una cuenta</a>'}</p>`,
   );
+  // Crear cuenta queda deshabilitado hasta marcar la casilla de edad y aceptación (sin marcar al abrir).
+  const consent = $("[data-legal-consent]", host);
+  if (consent) {
+    const submit = $("#auth-form button", host);
+    submit.disabled = true;
+    consent.addEventListener("change", () => (submit.disabled = !consent.checked));
+  }
   $("#auth-form", host).onsubmit = (event) => {
     event.preventDefault();
     const form = event.currentTarget;
+    if (consent && !consent.checked) return;
     busy($("button", form), async () => {
       if (!cloud)
         throw new Error(`Falta conectar Supabase: ${missing.join(", ")}.`);
@@ -837,7 +922,8 @@ function authModal(mode) {
             email: fields.email,
             password: fields.password,
             options: {
-              data: { name: fields.name },
+              // El servidor registra la aceptación con su propia fecha y hora (trigger de signup).
+              data: { name: fields.name, legal: signupLegal(platformName()) },
               emailRedirectTo: authRedirect(),
             },
           }),
@@ -887,7 +973,7 @@ function deleteAccountForm() {
     "form",
     modal(
       "Eliminar tu cuenta",
-      `<form><p>Se borrarán permanentemente tu cuenta (${e(user.email)}) y todos tus datos de PlanifIA. Esta acción no se puede deshacer.</p><label>Escribe ELIMINAR para confirmar<input name="confirm" autocomplete="off" required pattern="ELIMINAR"></label><p class="error" role="alert" hidden></p><div class="actions"><button type="button" class="secondary" data-cancel>Cancelar</button><button class="danger">Eliminar definitivamente</button></div></form>`,
+      `<form><p>Se borrarán permanentemente tu cuenta (${e(user.email)}) y todos tus datos de PlanifIA. Esta acción no se puede deshacer.</p><p class="muted">Perderás tus créditos. Si tienes una suscripción de Google Play, cancélala también en Google Play para que no se renueve. Puedes exportar tus datos antes desde Ajustes.</p><label>Escribe ELIMINAR para confirmar<input name="confirm" autocomplete="off" required pattern="ELIMINAR"></label><p class="error" role="alert" hidden></p><div class="actions"><button type="button" class="secondary" data-cancel>Cancelar</button><button class="danger">Eliminar definitivamente</button></div></form>`,
     ),
   );
   $("[data-cancel]", form).onclick = closeModal;
@@ -1054,13 +1140,7 @@ function bindActions() {
     }
   });
   $("#delete-account")?.addEventListener("click", deleteAccountForm);
-  $("#export-data")?.addEventListener("click", (event) =>
-    busy(event.currentTarget, async () => downloadJson("planifia-seller-respaldo.json", {
-      version: 2,
-      sourceId: "seller:" + user.id,
-      ...state,
-    })),
-  );
+  $("#export-data")?.addEventListener("click", (event) => busy(event.currentTarget, exportData));
   document.querySelectorAll("[data-export-import]").forEach(
     (b) =>
       (b.onclick = () =>
@@ -1088,7 +1168,7 @@ function goalForm(goal = null) {
   };
   const host = modal(
     goal ? "Editar mi meta" : "¿Qué quieres lograr?",
-    `<form id="goal-form"><label>Mi idea o meta<textarea name="title" rows="2" maxlength="160" required placeholder="Quiero hablar inglés con más confianza">${e(g.title)}</textarea></label><label>Mi punto de partida<textarea name="current_situation" maxlength="2000" placeholder="Qué haces ahora y qué te cuesta">${e(g.current_situation)}</textarea></label><label>El resultado que quiero ver<textarea name="outcome" maxlength="1000" placeholder="Por ejemplo, mantener una conversación de 10 minutos">${e(g.outcome)}</textarea></label><label>Área<select name="category">${options(CATEGORIES, g.category)}</select></label><div class="form-grid"><label>Minutos por semana para esta meta<input name="weekly_minutes" type="number" min="30" max="${state.profile.weekly_minutes}" value="${g.weekly_minutes}" required></label><label>Fecha objetivo · opcional<input name="target_date" type="date" value="${g.target_date || ""}"></label></div>${goal ? `<label>Descripción de la meta<textarea name="description" maxlength="3000">${e(g.description)}</textarea></label>` : ""}${goal ? '<label>¿Qué cambió para ajustar el plan?<textarea name="reason" maxlength="1000" placeholder="Tengo menos tiempo o quiero cambiar el enfoque"></textarea></label>' : ""}<p class="muted">La IA tendrá en cuenta tus ${state.profile.weekly_minutes} minutos semanales y las acciones que ya tienes. Revisarás la propuesta antes de guardarla.</p>${alert()}<div class="actions"><button type="button" id="ai-plan">✦ Proponer un plan con IA</button><button class="secondary">${goal ? "Guardar meta" : "Crear sin IA"}</button></div><p class="fine credit-hint" data-credit-hint>${e(creditHint())}</p></form>`,
+    `<form id="goal-form"><label>Mi idea o meta<textarea name="title" rows="2" maxlength="160" required placeholder="Quiero hablar inglés con más confianza">${e(g.title)}</textarea></label><label>Mi punto de partida<textarea name="current_situation" maxlength="2000" placeholder="Qué haces ahora y qué te cuesta">${e(g.current_situation)}</textarea></label><label>El resultado que quiero ver<textarea name="outcome" maxlength="1000" placeholder="Por ejemplo, mantener una conversación de 10 minutos">${e(g.outcome)}</textarea></label><label>Área<select name="category">${options(CATEGORIES, g.category)}</select></label><div class="form-grid"><label>Minutos por semana para esta meta<input name="weekly_minutes" type="number" min="30" max="${state.profile.weekly_minutes}" value="${g.weekly_minutes}" required></label><label>Fecha objetivo · opcional<input name="target_date" type="date" value="${g.target_date || ""}"></label></div>${goal ? `<label>Descripción de la meta<textarea name="description" maxlength="3000">${e(g.description)}</textarea></label>` : ""}${goal ? '<label>¿Qué cambió para ajustar el plan?<textarea name="reason" maxlength="1000" placeholder="Tengo menos tiempo o quiero cambiar el enfoque"></textarea></label>' : ""}<p class="muted">La IA tendrá en cuenta tus ${state.profile.weekly_minutes} minutos semanales y las acciones que ya tienes. Revisarás la propuesta antes de guardarla. Es una sugerencia automática: puede equivocarse y no reemplaza consejo médico, psicológico, legal ni financiero.</p>${alert()}<div class="actions"><button type="button" id="ai-plan">✦ Proponer un plan con IA</button><button class="secondary">${goal ? "Guardar meta" : "Crear sin IA"}</button></div><p class="fine credit-hint" data-credit-hint>${e(creditHint())}</p></form>`,
   );
   const form = $("#goal-form", host);
   form.onsubmit = (event) => {
@@ -1110,11 +1190,27 @@ function goalForm(goal = null) {
       );
     });
   };
+  const showCrisis = () => {
+    form.querySelector("[data-crisis-help]")?.remove();
+    const help = crisisHelp();
+    $(".actions", form).before(help);
+    help.scrollIntoView?.({ block: "nearest" });
+  };
   $("#ai-plan", host).onclick = () => {
     if (host.classList.contains("is-generating")) return;
     if (!form.reportValidity()) return;
     const fields = Object.fromEntries(new FormData(form));
     const button = $("#ai-plan", host);
+    form.querySelector("[data-crisis-help]")?.remove();
+    // Una meta que describe una crisis no se envía a la IA: se muestran líneas de ayuda.
+    if (detectCrisis(fields.title, fields.current_situation, fields.outcome, fields.description, fields.reason)) {
+      showCrisis();
+      return;
+    }
+    if (needsLegal()) {
+      void legalGate((card) => form.before(card)).then((ok) => ok && host.isConnected && button.click());
+      return;
+    }
     const accountId = user.id;
     busy(button, async () => {
       const previousError = $("[role=alert]", form);
@@ -1175,6 +1271,10 @@ function goalForm(goal = null) {
         unsubscribe?.();
       } catch (error) {
         waiting.dispose();
+        if (error.crisis && host.isConnected) {
+          showCrisis();
+          return;
+        }
         if (host.isConnected && host.open && user?.id === accountId)
           throw error;
       }
@@ -1365,7 +1465,7 @@ function proposalEditor(response) {
     requestId = response.job_id || uuid();
   const host = modal(
     response.goal_id ? "Revisar el ajuste" : "Tu propuesta, antes de guardar",
-    `<p class="notice">${response.goal_id ? "Este ajuste reemplazará únicamente las acciones pendientes. Las completadas y sus recompensas se conservan." : "Esta propuesta todavía no está guardada. Puedes editar sus acciones y fechas antes de confirmar."}</p><p>${e(plan.summary)}</p><p><strong>Primera acción:</strong> ${e(plan.first_action)}</p><form id="proposal-form"><label>Meta<input name="title" value="${e(plan.title)}" maxlength="160" required></label><label>Descripción<textarea name="description" maxlength="3000">${e(plan.description)}</textarea></label><label>Resultado esperado<textarea name="outcome" maxlength="1000" required>${e(plan.outcome)}</textarea></label><label>Área<select name="category">${options(CATEGORIES, plan.category)}</select></label>${plan.milestones
+    `<p class="notice">${response.goal_id ? "Este ajuste reemplazará únicamente las acciones pendientes. Las completadas y sus recompensas se conservan." : "Esta propuesta todavía no está guardada. Puedes editar sus acciones y fechas antes de confirmar."}</p><p class="fine">La preparó una IA: revísala antes de guardarla. Puede equivocarse y no reemplaza consejo médico, psicológico, legal ni financiero.</p><p data-proposal-summary>${e(plan.summary)}</p><p><strong>Primera acción:</strong> ${e(plan.first_action)}</p><form id="proposal-form"><label>Meta<input name="title" value="${e(plan.title)}" maxlength="160" required></label><label>Descripción<textarea name="description" maxlength="3000">${e(plan.description)}</textarea></label><label>Resultado esperado<textarea name="outcome" maxlength="1000" required>${e(plan.outcome)}</textarea></label><label>Área<select name="category">${options(CATEGORIES, plan.category)}</select></label>${plan.milestones
       .map(
         (m, i) =>
           `<fieldset class="proposal-milestone"><legend>Hito ${i + 1}</legend><input aria-label="Título del hito ${i + 1}" data-milestone="${i}" value="${e(m.title)}" maxlength="160" required>${m.tasks
@@ -1378,6 +1478,14 @@ function proposalEditor(response) {
       )
       .join("")}${alert()}<button>Confirmar y guardar el plan</button></form>`,
   );
+  // Reportar la propuesta sin salir de la app (contenido generado por IA, Google Play).
+  if (response.job_id)
+    $("[data-proposal-summary]", host).after(
+      reportControl({
+        label: "Reportar esta propuesta",
+        submit: (input) => reportAiPlan(response.job_id, input),
+      }),
+    );
   host
     .querySelectorAll("[data-remove-proposal]")
     .forEach(
@@ -1527,12 +1635,16 @@ if (cloud) {
         aiJobs.stop();
         cloudFallback.reset();
         stopMonetization();
+        legal = null;
+        legalPrompted = false;
         user = null;
         state = null;
         loadVersion++;
         render();
       } else if (session.user.id !== user?.id) {
         if (user) closeModal();
+        legal = null;
+        legalPrompted = false;
         user = session.user;
         state = null;
         refresh();

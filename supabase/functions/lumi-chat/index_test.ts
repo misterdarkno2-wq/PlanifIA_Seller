@@ -1,5 +1,6 @@
 // Contratos del chat de Lumi: Auth, base de datos y gateway son respuestas sintéticas, sin claves reales.
 import { cleanReply, handleLumiChat, lumiMessages, RESTING, BUSY, CLEARED, CLOUD_LIMITED } from "./handler.ts";
+import { CRISIS_MESSAGE } from "../_shared/crisis.js";
 import { GROQ_DEFAULT_MODEL } from "../_shared/ai-fallback.ts";
 
 function assert(condition: unknown, message = "Assertion failed") {
@@ -8,8 +9,8 @@ function assert(condition: unknown, message = "Assertion failed") {
 const REQUEST = "44444444-4444-4444-8444-444444444444";
 
 // cloud: "none" = sin GROQ_API_KEY (sin respaldo), "ok" o "down". online: señal del trabajador del PC.
-function setup({ ai = "ok", begin = "ok", refund = "ok", finish = "ok", cloud = "none", online = true, take = true }: {
-  ai?: string; begin?: string; refund?: string; finish?: string; cloud?: string; online?: boolean; take?: boolean;
+function setup({ ai = "ok", begin = "ok", refund = "ok", finish = "ok", cloud = "none", online = true, take = true, ip = true }: {
+  ai?: string; begin?: string; refund?: string; finish?: string; cloud?: string; online?: boolean; take?: boolean; ip?: boolean;
 } = {}) {
   const savedFetch = globalThis.fetch;
   const rpcs: { name: string; body: Record<string, unknown> }[] = [];
@@ -64,6 +65,7 @@ function setup({ ai = "ok", begin = "ok", refund = "ok", finish = "ok", cloud = 
         : Response.json({ code: "fixture", message: "offline" }, { status: 503 });
       if (rpc === "ai_local_online") return Response.json(online);
       if (rpc === "ai_fallback_take") return Response.json(take);
+      if (rpc === "rate_limit_take") return Response.json(ip);
     }
     if (url === "https://api.groq.com/openai/v1/chat/completions") {
       cloudBody = JSON.parse(String(options?.body));
@@ -79,6 +81,7 @@ function setup({ ai = "ok", begin = "ok", refund = "ok", finish = "ok", cloud = 
       if (ai === "busy") return Response.json({ error: "Lumi está terminando un plan." }, { status: 429 });
       if (/^\d{3}$/.test(ai)) return new Response("<html>origin error</html>", { status: Number(ai) });
       if (ai === "empty") return Response.json({ reply: "   " });
+      if (ai === "crisis") return Response.json({ reply: "Entiendo. Si piensas en quitarte la vida, busca ayuda ahora." });
       return Response.json({ reply: "¡Vamos, Ana! Trota 10 minutos hoy.\u0007", model: "fixture" });
     }
     throw new Error("Unexpected fixture URL " + url);
@@ -288,4 +291,63 @@ Deno.test("Respaldo: el modelo de chat se configura con GROQ_CHAT_MODEL", async 
     assert((await handleLumiChat(request())).status === 200);
     assert(f.cloudBody()?.model === "groq/chat-model");
   } finally { f.close(); }
+});
+
+Deno.test("Crisis en el mensaje: responde las líneas de ayuda sin cobrar, sin guardar y sin llamar a la IA", async () => {
+  const f = setup({ cloud: "ok" });
+  try {
+    const response = await handleLumiChat(request({ request_id: REQUEST, text: "Ya no quiero vivir, me quiero matar" }));
+    assert(response.status === 200, `status ${response.status}`);
+    const body = await response.json();
+    assert(body.crisis === true && body.source === "safety");
+    assert(body.reply === CRISIS_MESSAGE && body.reply.includes("*4141") && body.reply.includes("600 360 7777"));
+    assert(body.credits === null);
+    assert(f.rpcs().length === 0, "Sin cobro ni registro: " + f.rpcs().map((r) => r.name).join());
+    assert(f.aiBody() === null && f.cloudBody() === null, "El texto no llega a ningún modelo");
+  } finally {
+    f.close();
+  }
+});
+
+Deno.test("Crisis en la respuesta del modelo: no se muestra ni se guarda y se devuelven los créditos", async () => {
+  const f = setup({ ai: "crisis" });
+  try {
+    const response = await handleLumiChat(request());
+    const body = await response.json();
+    assert(response.status === 200 && body.crisis === true, JSON.stringify(body));
+    assert(body.reply === CRISIS_MESSAGE && body.refunded === true);
+    assert(!body.reply.includes("quitarte la vida"), "El texto del modelo no se muestra");
+    const names = f.rpcs().map((r) => r.name);
+    assert(names.includes("lumi_chat_refund") && !names.includes("lumi_chat_finish"), names.join());
+  } finally {
+    f.close();
+  }
+});
+
+Deno.test("Crisis en la respuesta sin devolución confirmada: el aviso no afirma que no se cobró", async () => {
+  const f = setup({ ai: "crisis", refund: "down" });
+  try {
+    const body = await (await handleLumiChat(request())).json();
+    assert(body.crisis === true && body.refunded === false);
+    assert(!body.reply.includes("No se descontaron créditos") && body.reply.includes("Revisa tu saldo"), body.reply);
+    assert(body.reply.includes("*4141"));
+  } finally {
+    f.close();
+  }
+});
+
+Deno.test("Límite por IP: con demasiadas solicitudes desde una conexión responde 429 sin cobrar", async () => {
+  const f = setup({ ip: false });
+  try {
+    const limited = request();
+    limited.headers.set("x-forwarded-for", "203.0.113.7");
+    const response = await handleLumiChat(limited);
+    assert(response.status === 429, `status ${response.status}`);
+    assert(/demasiadas solicitudes/.test((await response.json()).error));
+    const names = f.rpcs().map((r) => r.name);
+    assert(JSON.stringify(names) === JSON.stringify(["rate_limit_take"]), names.join());
+    assert(!JSON.stringify(f.rpcs()[0].body).includes("203.0.113.7"), "La IP no llega a la base");
+  } finally {
+    f.close();
+  }
 });

@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import { chromium } from "@playwright/test";
+import { LEGAL_VERSION } from "../src/legal.js";
 
 const origin = "http://127.0.0.1:5193";
 const serviceOrigin = "https://mobile-session.example.test";
@@ -126,6 +127,8 @@ async function setup(t, { completedHabit = false } = {}) {
     if (table === "habits") return json(completedHabit && owner === A ? [{ id: habitId, title: "Leer diez minutos", minutes: 10, days: [0, 1, 2, 3, 4, 5, 6], active: true }] : []);
     if (table === "habit_completions") return json(completions);
     if (["milestones", "tasks", "imports"].includes(table)) return json([]);
+    if (table === "legal_acceptances")
+      return json([{ terms_version: LEGAL_VERSION.terms, privacy_version: LEGAL_VERSION.privacy, platform: "android" }]);
     throw new Error(`Unexpected fixture URL: ${url.pathname}`);
   });
   const page = await context.newPage();

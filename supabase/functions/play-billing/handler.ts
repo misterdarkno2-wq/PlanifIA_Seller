@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.58.0";
 import { PlayError } from "../_shared/google-play.ts";
+import { BodyTooLarge, readRequestText } from "../_shared/request-body.ts";
 import {
   PRODUCT_ID,
   PURCHASE_TOKEN,
@@ -39,8 +40,12 @@ export async function handlePlayBilling(req: Request) {
     });
     const { data: { user }, error: authError } = await client.auth.getUser(token);
     if (authError || !user) return fail("Tu sesión terminó. Vuelve a iniciar sesión.", 401);
-    const raw = await req.text();
-    if (raw.length > 60000) return fail("La solicitud es demasiado larga.", 413);
+    let raw: string;
+    try {
+      raw = await readRequestText(req, 60000);
+    } catch (error) {
+      return fail(error instanceof BodyTooLarge ? "La solicitud es demasiado larga." : "La solicitud no es válida.", error instanceof BodyTooLarge ? 413 : 400);
+    }
     let input: any;
     try {
       input = JSON.parse(raw);
@@ -72,7 +77,7 @@ export async function handlePlayBilling(req: Request) {
           error: error instanceof PlayError ? error.message : "No pudimos verificar la compra.",
           retry: error instanceof PlayError ? error.retry : true,
         });
-        if (!(error instanceof PlayError)) console.error("play verify", error);
+        if (!(error instanceof PlayError)) console.error("play verify", error instanceof Error ? error.name : "unknown");
       }
     }
     const state = await client.rpc("monetization_state");

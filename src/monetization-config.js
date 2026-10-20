@@ -11,7 +11,5 @@ export const PLAY = {
   packageName: "cl.planifia.app",
 };
 
-export const LEGAL = {
-  terms: "https://planifia.cl/terminos.html",
-  privacy: "https://planifia.cl/privacidad.html",
-};
+// Las direcciones de los textos legales se definen junto a su versión vigente, en src/legal.js.
+export { LEGAL_URLS as LEGAL } from "./legal.js";

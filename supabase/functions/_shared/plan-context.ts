@@ -1,3 +1,5 @@
+import { PublicError } from "./public-error.ts";
+
 type Page<T> = { data: T[] | null; error: unknown; count: number | null };
 
 /** Read every page, including projects whose REST row limit is below 1,000.
@@ -8,12 +10,12 @@ export async function readContextRows<T>(page: (from: number, to: number) => Pro
   while (rows.length < 50000) {
     const result = await page(rows.length, rows.length + 999);
     if (result.error || !result.data || result.count === null)
-      throw new Error("No pudimos consultar tu calendario completo. Inténtalo de nuevo.");
+      throw new PublicError("No pudimos consultar tu calendario completo. Inténtalo de nuevo.");
     rows.push(...result.data);
     if (rows.length >= result.count) return rows;
     if (!result.data.length) break;
   }
-  throw new Error("Tu calendario supera el tamaño que podemos planificar de forma segura.");
+  throw new PublicError("Tu calendario supera el tamaño que podemos planificar de forma segura.");
 }
 
 /** Keep planning meaning; exclude ownership IDs, audit timestamps and versions. */
