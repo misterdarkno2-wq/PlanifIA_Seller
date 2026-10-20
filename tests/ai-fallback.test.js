@@ -164,6 +164,12 @@ test("Groq: clave sólo del entorno del servidor, modelo configurable y respuest
   await assert.rejects(cloudChat({ settings, messages, fetchImpl: async () => { throw new TypeError("fetch failed"); } }), CloudUnavailable);
 });
 
+test("Groq no acepta como respuesta un chat truncado por el límite de tokens", async () => {
+  await assert.rejects(cloudChat({ settings, messages, fetchImpl: async () => Response.json({
+    choices: [{ finish_reason: "length", message: { content: "Para empezar debes" } }],
+  }) }), /Respuesta incompleta/);
+});
+
 test("Las propuestas JSON envueltas en un bloque de código se aceptan; el texto libre no", () => {
   assert.deepEqual(parseJsonContent('{"a":1}'), { a: 1 });
   assert.deepEqual(parseJsonContent('```json\n{"a":1}\n```'), { a: 1 });

@@ -1,187 +1,137 @@
 # PlanifIA Seller
 
-**Tus metas, un plan claro y un paso a la vez.** Planificador para metas personales, profesionales, aprendizaje, bienestar, creatividad y proyectos. La interfaz es estática y se publica en GitHub Pages; Supabase almacena las cuentas y datos, y una Edge Function valida y guarda solicitudes en una cola persistente que procesa el servicio de Ollama en el PC.
+**Tus metas, un plan claro y un paso a la vez.** Aplicación de metas, acciones, hábitos y progreso con Lumi. Comparte la misma interfaz entre web, escritorio y Android. Supabase guarda cuentas y datos; Ollama procesa la IA local y Groq es el respaldo opcional en la nube.
 
-Para entender el proyecto y continuar el trabajo, empieza por la [guía de continuidad](docs/guia-continuidad-2026-10-09.md). La revisión del 9 de octubre incluye [hallazgos y correcciones](docs/auditoria-2026-10-09.md), [comparación real de modelos](docs/modelos-2026-10-09.md) y [verificación del despliegue](docs/despliegue-2026-10-09.md). Los resultados distinguen calidad, memoria y velocidad; no afirman un ahorro monetario sin medición.
+## Empezar en cinco minutos
 
-## Repositorio y estado
-
-Este proyecto corresponde exclusivamente a `misterdarkno2-wq/PlanifIA_Seller`. La transformación inicial se desarrolló en `codex/metas-supabase`; las suscripciones se implementan en `codex/suscripciones-transbank`; la conversación de Lumi y la cola de IA en `codex/lumi-cola-ia`. La web se publica en [planifia.cl](https://planifia.cl/) mediante GitHub Pages. La dirección anterior era [GitHub Pages Seller](https://misterdarkno2-wq.github.io/PlanifIA_Seller/); Pages la redirige al dominio personalizado. Se reutilizan el logo, el símbolo y la ilustración original de Lumi de PlanifIA.
-
-En esta instalación, Supabase está conectado al proyecto `hlnzxgpdxgadbdcqavcd`. La configuración privada está en archivos excluidos de Git. El estado de despliegue y las comprobaciones contra servicios reales se documentan en [verificación](docs/verificacion.md). El envío de correo para personas fuera del equipo requiere configurar SMTP; la confirmación de correo permanece habilitada. En otras instalaciones, la aplicación indica si falta configuración.
-
-## Ejecutar en Windows
-
-**App Android:** la integración Tauri 2 se desarrolla en `codex/tauri-android`. Consulta [compilar, instalar y firmar Android](docs/android.md) y [publicar en Google Play](docs/google-play.md). Reutiliza este frontend y estas cuentas; no necesita ejecutar Python ni MySQL en el teléfono.
-
-Necesitas Node.js 22.18 o posterior (24 recomendado para el trabajador de IA).
-
-En este PC, la configuración ya está guardada. Para iniciar los servicios y abrir la interfaz local:
+Requisitos: **Node.js 22.18 o posterior** (24 recomendado) y npm. Ejecuta los comandos desde esta carpeta. En Windows puedes usar `npm.cmd` si PowerShell bloquea `npm.ps1`.
 
 ```powershell
-cd C:\Users\Admin\Downloads\PlanifIA_Seller
-powershell -ExecutionPolicy RemoteSigned -File .\scripts\start-services.ps1 -LocalWeb
-```
-
-Abre `http://127.0.0.1:5173/`. No necesitas `supabase init`, `supabase start` ni Docker para usar el proyecto en la nube.
-
-### Instalar en otro PC
-
-```powershell
-cd C:\Users\Admin\Downloads\PlanifIA_Seller
 npm.cmd ci
 if (-not (Test-Path .env.local)) { Copy-Item .env.example .env.local }
 notepad .env.local
 npm.cmd run dev
 ```
 
-Abre la dirección que indica Vite, normalmente `http://127.0.0.1:5173`. Completa únicamente estas variables públicas en `.env.local`:
+Completa `.env.local` con la URL de tu proyecto Supabase y su clave **publishable** o legacy **anon**. Abre la dirección de Vite, normalmente [http://127.0.0.1:5173/](http://127.0.0.1:5173/). Reinicia Vite después de cambiar variables.
 
 ```dotenv
 VITE_SUPABASE_URL=https://TU_PROYECTO.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=TU_CLAVE_PUBLICA
+VITE_BASE_PATH=./
 ```
 
-Usa la clave **publishable** (`sb_publishable_…`) o la clave legacy **anon**. Una clave administrativa, `service_role`, `sb_secret_…` o una clave del proveedor de IA nunca debe llevar el prefijo `VITE_`. Reinicia Vite si cambias `.env.local`.
+Sin Supabase configurado la app indica lo que falta; no simula cuentas, datos ni IA. Para usar un proyecto remoto existente no necesitas Docker ni iniciar Supabase localmente.
 
-## Preparar Supabase
-
-1. Crea un proyecto en Supabase y copia su URL y clave pública a `.env.local`.
-2. En **Authentication → URL Configuration**, configura Site URL como `https://planifia.cl/`. Autoriza los retornos exactos `https://planifia.cl/`, `https://planifia.cl/#reset`, `https://www.planifia.cl/`, `https://www.planifia.cl/#reset` y las direcciones locales de `supabase/config.toml`. Se conservan también los retornos de la URL anterior de GitHub Pages para enlaces existentes. El archivo documenta la configuración; comprueba que coincida con los ajustes del proyecto en la nube.
-3. Mantén la confirmación de correo habilitada y configura el envío de correo de producción según las indicaciones de Supabase. La interfaz indica cuándo falta confirmar una cuenta.
-4. Ejecuta las migraciones y despliega la función:
-
-```powershell
-npx.cmd supabase login
-npx.cmd supabase link --project-ref TU_PROJECT_REF
-npx.cmd supabase db push
-Copy-Item supabase\functions\.env.example supabase\functions\.env.local
-notepad supabase\functions\.env.local
-npx.cmd supabase secrets set --env-file supabase/functions/.env.local
-npx.cmd supabase functions deploy goal-plan
-```
-
-Revisa `db push` antes de confirmar si utilizas un proyecto con tablas previas. Las migraciones crean tablas nuevas de esta aplicación y no importan ni borran la base MySQL del PlanifIA anterior. Se recomienda un proyecto de Supabase dedicado.
-
-## IA y cola persistente
-
-La función `goal-plan` valida la cuenta y la disponibilidad y devuelve HTTP 202 con una solicitud guardada. PostgreSQL reserva la cuota, aplica el plan vigente y ordena Pro, Plus y Gratis con antigüedad para evitar esperas indefinidas. Un trabajador integrado en `scripts/ollama-gateway.js` procesa la cola desde el PC, aunque se cierre el navegador. Las propuestas se guardan en Supabase y sólo cambian la meta al confirmarlas.
-
-En `supabase/functions/.env.local` configura `ALLOWED_ORIGINS` para los orígenes completos permitidos. Supabase proporciona las credenciales internas de la función. Los antiguos secretos `AI_*` ya no controlan el encolado. En el archivo privado `.env.gateway.local`, configura el modelo instalado, el secreto del adaptador, `QUEUE_SUPABASE_URL` y `QUEUE_SERVICE_ROLE_KEY`. Nunca usar un prefijo `VITE_` para secretos.
-
-El adaptador exige Bearer y escucha sólo en `127.0.0.1:8012`; Ollama conserva `127.0.0.1:11434`. La configuración actual limita a una generación simultánea, contexto de 8192 y hasta 6000 tokens de salida. El modelo instalado se conserva: `hf.co/unsloth/Qwen3.8-27B-GGUF:UD-IQ3_S`. Cada generación y su posible corrección comparten 125 segundos; los reintentos del trabajador tienen límite y no descuentan cuota de nuevo. El modelo queda residente en VRAM (`OLLAMA_KEEP_ALIVE=-1`) y el adaptador lo precarga al arrancar, para no recargar ~12 GB desde disco en cada solicitud. Las fechas y minutos de cada acción los ajusta `fitSchedule` (en `supabase/functions/_shared/plan.js`) a tus días y tiempo disponibles; la IA sólo se vuelve a llamar si la propuesta está incompleta.
-
-**Respaldo en la nube:** si el PC, el túnel u Ollama no responden, el chat de Lumi y los planes en cola pasan solos a Groq (funciones `lumi-chat` y `ai-fallback`) y vuelven a la IA local cuando el PC regresa. La clave `GROQ_API_KEY` vive sólo como secreto de Supabase. Consulta [respaldo en la nube](docs/respaldo-nube.md) para desplegarlo y probarlo.
-
-**[Configuración, seguridad, cancelación y preferencias de Lumi](docs/lumi-cola-ia.md)** incluye los valores SQL y el arranque. La nueva conversación usa mensajes locales y sílabas sintetizadas originales; saludos, ánimo, progreso y animaciones no generan solicitudes a la GPU.
-
-Después de encender este PC:
-
-```powershell
-cd C:\Users\Admin\Downloads\PlanifIA_Seller
-powershell -ExecutionPolicy RemoteSigned -File .\scripts\start-services.ps1
-```
-
-El script inicia Ollama, adaptador y túnel en segundo plano y reutiliza los procesos correctos si ya están abiertos. Para abrir también la interfaz local, añade `-LocalWeb`; la web queda en `http://127.0.0.1:5173/`. Los registros se guardan en archivos `.log` de la carpeta.
-
-GitHub Pages y los datos de Supabase permanecen disponibles con el PC apagado. La generación con este Ollama requiere que el PC esté encendido y esos servicios estén activos. En otro PC debes configurar `.env.gateway.local` y sus credenciales de túnel; el script indica los archivos faltantes y no los descarga del repositorio.
-
-Puedes sustituir el adaptador por un proveedor de IA compatible con HTTPS, `/chat/completions` y JSON Schema, configurando únicamente los secretos de la función. Por ejemplo, `AI_BASE_URL=https://openrouter.ai/api/v1` con su clave y un modelo compatible.
-
-### Correo de registro y recuperación
-
-El SMTP predeterminado de Supabase sólo envía a las direcciones del equipo. Para aceptar registros de otras personas necesitas SMTP propio; consulta [Supabase SMTP](https://supabase.com/docs/guides/auth/auth-smtp). Para Resend, verifica un dominio de envío y configura el proyecto según [la guía de Resend](https://resend.com/docs/send-with-supabase-smtp). Conserva la clave SMTP fuera de Git y mantén la confirmación de correo habilitada.
-
-## Publicar en GitHub Pages
-
-1. En este repositorio, crea las variables de Actions `VITE_SUPABASE_URL` y `VITE_SUPABASE_PUBLISHABLE_KEY`, ambas públicas.
-2. En **Settings → Pages → Source**, selecciona **GitHub Actions**. Configura **Custom domain** como `planifia.cl` y habilita **Enforce HTTPS** cuando esté listo el certificado.
-3. Integra la rama de implementación en `main` cuando hayas revisado los cambios y configurado Supabase. El workflow publica únicamente `dist`.
-4. Abre `https://planifia.cl/`.
-
-La navegación utiliza fragmentos (`#today`, `#goals`, etc.), por lo que recargar una vista funciona en alojamiento estático. El workflow compila con `VITE_BASE_PATH=/` y Vite copia `public/CNAME` al artefacto. El dominio principal sirve esta aplicación Seller; `api.planifia.cl` conserva el backend anterior para exportar datos, y `ia-seller.planifia.cl` sirve el adaptador de IA. Los retornos de Auth y `ALLOWED_ORIGINS` deben incluir el dominio principal en Supabase.
+Para compilar y revisar el resultado publicable:
 
 ```powershell
 npm.cmd run build
 npm.cmd run preview
 ```
 
-## Suscripciones
+`preview` abre normalmente el puerto 4173. Para probar IA con ese origen, añádelo a `ALLOWED_ORIGINS` en Supabase; para la demostración usa `dev` en 5173, que ya figura en el ejemplo.
 
-Desde **Planes** puedes comparar beneficios y precios de referencia. **Mi plan** permite consultar tu período vigente, uso e historial. La web informa que **las suscripciones se contratan desde la app de Google Play** y no inicia compras, renovaciones ni inscripciones de tarjetas con Transbank.
+## Configuración: qué va en cada lugar
 
-La app Android vende Plus y Pro con Google Play Billing (Plus $900 y Pro $1.900 el primer mes) y paquetes de créditos; el servidor valida cada compra con la Google Play Developer API. El uso de IA se paga con **créditos**: 20 por uso, 60 de bienvenida, 1.000 (Plus) o 2.500 (Pro) por mes pagado, y créditos extra por anuncios recompensados e invitaciones. En Android, el plan Gratis muestra un video de AdMob al usar la IA (máximo uno cada 5 minutos) y anuncios recompensados voluntarios para ganar créditos; no hay banner. La compra única **Quitar anuncios** ($2.900) elimina los videos para siempre. Consulta [monetización](docs/monetizacion.md).
+| Archivo o servicio | Variables | Uso |
+| --- | --- | --- |
+| `.env.local` desde `.env.example` | `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`; opcional `VITE_BASE_PATH` | Únicos valores que llegan al navegador. |
+| `.env.gateway.local` desde `.env.gateway.example` | `GATEWAY_SECRET`, `OLLAMA_MODEL`, `OLLAMA_CHAT_MODEL`, `QUEUE_SUPABASE_URL`, `QUEUE_SERVICE_ROLE_KEY` | Trabajador privado de planes y chat local. |
+| Secretos de Supabase; plantilla `supabase/functions/.env.example` | `ALLOWED_ORIGINS`, `AI_BASE_URL`, `AI_API_KEY` | Orígenes permitidos y conexión HTTPS al gateway. `AI_API_KEY` debe coincidir con `GATEWAY_SECRET`. |
+| Secretos de Supabase | `GROQ_API_KEY`; opcionales `GROQ_MODEL`, `GROQ_CHAT_MODEL`, `GROQ_PLAN_FORMAT` | Respaldo Groq. Modelo predeterminado `openai/gpt-oss-20b`, formato `json_schema`. |
 
-| Plan   | Precio mensual CLP (Google Play) | Metas activas | Créditos de IA | Anuncios |
-| ------ | -------------------------------: | ------------: | -------------: | -------- |
-| Gratis |                               $0 |             3 | 60 de bienvenida + ganados | Video al usar la IA (Android) |
-| Plus   |   $900 el primer mes, luego $2.700 |            15 | 1.000 por mes pagado | No |
-| Pro    | $1.900 el primer mes, luego $4.900 |            50 | 2.500 por mes pagado | No |
+Nunca uses `VITE_` para claves de Groq, `service_role`, `sb_secret_…`, pagos ni contraseñas. Los archivos `.env*.local`, certificados, registros y exportaciones están excluidos de Git. El control de compilación rechaza secretos reconocibles en variables públicas. Las credenciales internas `SUPABASE_*` de las Edge Functions las proporciona Supabase.
 
-Los beneficios y límites se editan en `public.plan_catalog`; costos y recompensas de créditos en `private.credit_settings`. Los tres planes conservan calendario, hábitos, Lumi y el historial de metas. Al superar el límite tras bajar de plan puedes consultar y editar tus datos; debes pausar alguna meta antes de activar otra. Los créditos del plan se renuevan con cada mes pagado y no se reinician al cambiar entre Plus y Pro. Sigue existiendo el límite diario de protección de IA.
+`AI_MODEL` y `AI_DAILY_LIMIT` ya no se leen en las funciones: el modelo local lo decide el gateway y los límites se guardan en la base de datos. Las variables de pagos y anuncios sólo se necesitan para esas funciones; consulta [monetización](docs/monetizacion.md) y [pagos](docs/billing.md).
 
-Se conserva la consulta de órdenes anteriores y la cancelación de futuros cobros de renovaciones ya autorizadas, manteniendo el acceso pagado. El backend de Transbank permanece en integración para los registros y pruebas existentes. Retirar los controles de la web no cancela automáticamente las autorizaciones ni deshabilita sus endpoints. Consulta [el estado de los pagos y el backend anterior](docs/billing.md).
+## Preparar un proyecto Supabase nuevo
 
-## Metas, planes y progreso
-
-- Estructura: **meta → hitos → acciones**. Las acciones pueden ser independientes. Las metas se editan, pausan, retoman, alcanzan y archivan. Puedes crear hitos manuales y vincularles acciones.
-- La barra cuenta acciones completadas sobre las acciones vigentes de la meta. Las retiradas no forman parte del porcentaje. Alcanzar el resultado requiere una confirmación del usuario.
-- La IA entrega propuestas de hasta cuatro semanas, ocho hitos y cuarenta acciones, con una primera acción y límites de tiempo. Puedes editar títulos, fechas, prioridades y duraciones o retirar acciones antes de confirmar.
-- Un ajuste aprobado conserva el historial y las acciones completadas; reemplaza las pendientes marcándolas como retiradas. La versión de la meta impide sobrescribir cambios realizados desde otro dispositivo mientras se revisaba la propuesta.
-- Los hábitos registran un cumplimiento por fecha y hábito. Sus registros se pueden reabrir sin perder el historial.
-
-## Lumi y seguridad de XP
-
-Lumi aparece destacada al inicio de **Hoy**, antes de las metas y acciones. Respira y parpadea mientras intercala por iniciativa propia miradas, pasos, pequeños saltos, estiramientos, giros y alguna voltereta. Los clics, el tacto y el cursor no activan animaciones. Cada acción termina antes de empezar otra; completar acciones, subir de nivel o evolucionar da prioridad a una celebración.
-
-Los intervalos (8–20 segundos), pesos, duraciones, desplazamiento máximo y descanso entre volteretas se configuran en `src/pet-behavior.js`, en `LUMI_BEHAVIOR`. La posición se conserva entre movimientos y al actualizar el panel. El personaje permanece dentro de su retrato en móvil y escritorio. Al ocultar la pestaña se pausa; al salir de la vista se limpian sus temporizadores y animaciones.
-
-**Hablar con Lumi** (`#lumi`) es un chat con la mascota: cada mensaje cuesta 5 créditos y se devuelven si Lumi no responde. La respuesta llega del modo rápido del gateway (`POST /v1/lumi/chat`, función `lumi-chat`), con salida corta y su propia plaza, sin pasar por la cola de planes; aparece de a poco con la voz de sílabas y el movimiento de boca, respetando sonido, volumen, "texto inmediato" y reducir movimiento. Se guardan los últimos 100 mensajes (con **Borrar conversación**) y se envía a la IA sólo el nombre, la etapa de Lumi, hasta 3 metas activas con su próxima acción y los últimos 6 mensajes. Los saludos y animaciones locales de Lumi siguen siendo gratis. El modelo del chat se elige con `OLLAMA_CHAT_MODEL` (ver `.env.gateway.example`).
-
-Lumi está **animada por defecto**, también durante la espera de IA, sin pedir confirmación ni mostrar un selector en Hoy. En **Ajustes → Animaciones de Lumi** puedes elegir opcionalmente **Tranquilas** para detener sus animaciones o **Según dispositivo** para respetar reducir movimiento; **Animadas** recupera el comportamiento habitual. La elección se guarda en este navegador para la dirección que estés usando: localhost y `planifia.cl` tienen preferencias independientes. El resto de la interfaz sigue respetando la configuración del dispositivo. Cambiar la opción no reinicia formularios ni solicitudes de IA.
-
-Al pedir un plan de IA aparece una pantalla de espera con Lumi, un indicador sin porcentaje y el tiempo transcurrido. Si falla, se recuperan los datos del formulario para reintentar. Cerrar la ventana permite seguir usando el planificador: la solicitud queda en la cola de tu cuenta, sobrevive a una recarga y su resultado aparece para revisarlo antes de guardar. Cancelar solicita su retirada sin aplicar cambios a tus metas.
-
-Las reglas están centralizadas en `private.game_rules`: 10/20/35 XP por prioridad, 5 extra solo antes de una fecha límite real. Sin fecha o en el vencimiento/después: XP base. La curva empieza con 100 XP y suma 35 al coste de cada nivel siguiente. Hay 20 niveles y evoluciones en 1, 5, 10, 15 y 20.
-
-`set_task_status` y `set_habit_completion` bloquean primero la mascota de la cuenta, cambian el estado y actualizan recompensas y eventos dentro de una transacción. Una recompensa conserva su primer importe aunque se cambien prioridad o fecha después. Reabrir resta ese importe exacto; completar nuevamente restaura la misma recompensa. El identificador de solicitud evita que un reintento antiguo vuelva a aplicar un cambio ya deshecho.
-
-Todas las tablas públicas tienen RLS de lectura por `auth.uid()`. Las escrituras se realizan por funciones limitadas y no hay permisos de escritura directa para el navegador, incluida la XP. Las relaciones compuestas verifican que meta, hito, tarea y recompensa pertenezcan al mismo usuario. Consulta [seguridad y datos](docs/arquitectura.md).
-
-## Importar datos anteriores
-
-El PlanifIA anterior usa MySQL remoto a través de FastAPI; el navegador conserva la sesión, no una copia completa de tareas. No se modifica esa base ni se migran sus contraseñas. Crea y confirma primero tu cuenta nueva.
-
-Con el servidor anterior encendido puedes exportar **tu cuenta**:
+1. Crea el proyecto, copia su URL/clave pública y configura los retornos exactos de Auth para tu web y `http://127.0.0.1:5173/` (incluido `#reset`). `supabase/config.toml` documenta los retornos de esta instalación.
+2. Mantén la confirmación de correo. El SMTP predeterminado limita destinatarios; configura SMTP propio para registros y recuperación fuera del equipo.
+3. Revisa las migraciones antes de aplicarlas, especialmente si el proyecto contiene datos ajenos. El proyecto original usa tablas nuevas y no modifica el MySQL anterior.
+4. Configura los secretos desde la plantilla privada y despliega las tres funciones de IA:
 
 ```powershell
-py scripts/export_legacy.py --url https://api.planifia.cl --output exports/planifia-anterior.json
+npx.cmd supabase login
+npx.cmd supabase link --project-ref TU_PROJECT_REF
+npx.cmd supabase db push
+if (-not (Test-Path supabase/functions/.env.local)) {
+  Copy-Item supabase/functions/.env.example supabase/functions/.env.local
+}
+notepad supabase/functions/.env.local
+npx.cmd supabase secrets set --env-file supabase/functions/.env.local
+npx.cmd supabase functions deploy goal-plan
+npx.cmd supabase functions deploy lumi-chat
+npx.cmd supabase functions deploy ai-fallback
 ```
 
-El script pide correo y contraseña sin escribirla en el archivo, conserva tareas, evaluaciones, disponibilidad, planes guardados y mascota. Usa solo la biblioteca estándar de Python. Verifica el archivo antes de continuar.
+Los comandos anteriores cambian el proyecto remoto indicado. No son necesarios para instalar el frontend de un proyecto ya desplegado. Las funciones de compras/anuncios se documentan por separado en [Google Play](docs/google-play.md).
 
-En la app nueva, abre **Ajustes → Seleccionar exportación**, revisa las actividades y confirma el correo de destino. La importación mantiene las actividades académicas como área de aprendizaje y conserva las fechas, estados y tiempos; también guarda el JSON original completo en una tabla privada por usuario. Una importación repetida identifica los registros por origen e ID y no los duplica. Las versiones distintas del original se conservan. Los datos históricos de planes y Lumi quedan en ese respaldo descargable; no se reinterpretan automáticamente ni se otorga XP retrospectiva desde datos manipulables del navegador.
+## IA local y Groq
 
-La búsqueda de datos locales revisa únicamente `planifia-tareas`, `planifia-tasks` y `planifia-evaluaciones` del dominio actual. El navegador no permite leer el almacenamiento del dominio anterior; utiliza la exportación si está allí. Se conserva el archivo o almacenamiento de origen después de importar.
+Los planes pasan por `goal-plan` → cola persistente en PostgreSQL → trabajador del PC → Ollama. Las propuestas deben revisarse y aprobarse antes de modificar metas. El chat usa `lumi-chat` y la ruta rápida del gateway. La señal del trabajador permite decidir si recurrir a Groq.
+
+En este PC los modelos instalados son `qwen3.5:9b` (planes) y `qwen3:4b-instruct` (chat). En otra instalación elige modelos disponibles en tu Ollama y adapta `.env.gateway.local`. Para arrancar los servicios configurados y la web en Windows:
+
+```powershell
+powershell -ExecutionPolicy RemoteSigned -File .\scripts\start-services.ps1 -LocalWeb
+```
+
+El script necesita Ollama, cloudflared y las credenciales locales del túnel; consulta [cola y gateway](docs/lumi-cola-ia.md). El gateway escucha en `127.0.0.1:8012`; Ollama en `127.0.0.1:11434`. Las metas y hábitos manuales no requieren ninguno de esos procesos.
+
+**Estado comprobado el 20 de octubre de 2026:** faltaban `GROQ_API_KEY` y la activación del respaldo. Se guardó la clave en Supabase, se desplegó la corrección de `lumi-chat` y se activó el respaldo del **chat** con autorización del responsable. La API real de Groq y el manejador de Lumi con caída local simulada respondieron correctamente; se verificó cobro único, historial y rechazo de duplicados. El endpoint de producción también respondió con IA local.
+
+Se mantienen 10 mensajes por persona/hora y 100 diarios para toda la app. **Los planes de Groq siguen desactivados (límites cero) y no se validaron con la API real**; los planes locales sí se generaron y aprobaron en la prueba. Para otra instalación, configura el secreto, el despliegue y `private.ai_fallback_settings`; agregar una clave al frontend o al gateway no lo habilita. Instrucciones: [respaldo en la nube](docs/respaldo-nube.md).
+
+Prueba directa con datos sintéticos, sin imprimir claves ni respuestas:
+
+```powershell
+# Requiere GROQ_API_KEY en el entorno o en supabase/functions/.env.local (ignorado).
+npm.cmd run check:groq
+# Sólo si la cuenta permite el consumo de un plan:
+npm.cmd run check:groq -- --plan
+```
+
+La prueba directa comprueba la API; no sustituye comprobar el cambio local/nube dentro de la app. Sin clave termina con error explícito.
+
+## Mapa del proyecto
+
+| Ruta | Qué contiene |
+| --- | --- |
+| `index.html`, `src/main.js` | Entrada y navegación de la interfaz. |
+| `src/cloud.js`, `src/domain.js` | Acceso a Supabase y reglas del dominio. |
+| `src/lumi-*`, `src/pet-*` | Chat, conversación, juegos y animación de Lumi. |
+| `src/billing*`, `src/native-*` | Planes comerciales e integración móvil. |
+| `public/` | Imágenes, páginas legales y archivos públicos del dominio. |
+| `supabase/migrations/` | Esquema, permisos, funciones SQL y evolución de datos. |
+| `supabase/functions/` | API del servidor; `_shared/` contiene validación y proveedores de IA. |
+| `scripts/` | Gateway, trabajador, arranque, compilación y diagnósticos. |
+| `tests/` | Pruebas de dominio, base de datos, funciones e interfaz. |
+| `src-tauri/` | Aplicación nativa y plugins Android. `gen/android` contiene personalizaciones necesarias y se conserva en Git. |
+| `docs/` | Arquitectura, operación y revisiones técnicas. |
+| `artifacts/`, `dist/` | Evidencias locales y compilación, respectivamente; no se versionan. |
+
+Se versionan código, migraciones, pruebas, documentación técnica, ejemplos sin secretos y archivos de bloqueo (`package-lock.json`, `Cargo.lock`). Se excluyen presentaciones, documentos personales, registros, cachés y permisos generados por los `build.rs` de los plugins. Los archivos retirados del seguimiento se conservan localmente. Los `permissions/default.toml` siguen versionados.
 
 ## Verificación
 
 ```powershell
 npm.cmd test
-npm.cmd run test:ui
-npm.cmd run test:billing-ui
 npm.cmd run test:edge
 npm.cmd run check:edge
+npm.cmd run test:ui
+npm.cmd run test:chat-ui
+npm.cmd run test:companion-ui
+npm.cmd run test:billing-ui
+npm.cmd run test:legal-ui
+npm.cmd run test:csp-ui
 npm.cmd run build
 ```
 
-Los tests de SQL ejecutan las migraciones en PostgreSQL embebido mediante PGlite: RLS entre dos usuarios, rechazo de escritura de XP, recompensas base/anticipadas/tardías, revocación, idempotencia, hábitos, conflictos de versión, rollback de planes e importación. Las pruebas de Edge Functions comprueban JWT ausente/vencido, origen, secretos, cuota y corrección de propuestas sin ampliar el tiempo máximo, con Auth/proveedor sintéticos. Las del adaptador comprueban autenticación, límites, concurrencia, modelo fijo y timeout. Los tests de dominio cubren los veinte niveles y los límites del plan. Los tests de interfaz usan fixtures de Auth/IA y generan capturas de escritorio y móvil en `dist/qa`; requieren Microsoft Edge instalado.
+Las pruebas SQL usan PostgreSQL embebido (PGlite); las de interfaz y proveedor usan respuestas simuladas. En Windows se usa Microsoft Edge; en Linux instala Chromium con `npx playwright install --with-deps chromium`. Deno se obtiene mediante los comandos de npm. Las capturas quedan en `artifacts/qa`, fuera de la carpeta publicada.
 
-Después de conectar un proyecto real, completa las comprobaciones en [la lista de aceptación](docs/verificacion.md). La conexión real a Supabase, correos, IA externa y dominio publicado requiere tus cuentas y no queda validada solo con los tests locales.
-
-## Prueba real bajo autorización explícita
-
-`tests/live.mjs` no usa fixtures: crea dos cuentas temporales en el proyecto configurado, comprueba RLS, XP, hábitos, generación/aprobación real con Ollama e inicio/cierre de sesión en escritorio y móvil; elimina exclusivamente esas cuentas al terminar. Necesita la CLI autorizada y Microsoft Edge. Las claves administrativas se leen en memoria y no se guardan en el archivo ni en las capturas.
+Para la prueba real, inicia primero `npm run dev`. Requiere `.env.local` y `.env.gateway.local` apuntando al mismo proyecto y una clave administrativa privada. Crea dos cuentas sintéticas, comprueba aislamiento, metas, XP, hábitos, generación/aprobación local y login/logout en escritorio y móvil; elimina sus propias cuentas al terminar:
 
 ```powershell
 $env:PLANIFIA_RUN_LIVE="1"
@@ -189,4 +139,17 @@ npm.cmd run test:live
 Remove-Item Env:PLANIFIA_RUN_LIVE
 ```
 
-Para comprobar el sitio publicado, establece antes `PLANIFIA_LIVE_WEB_URL=https://planifia.cl/`. Este test no verifica entrega de emails: sus cuentas de validación se confirman por la API administrativa.
+No comprueba entrega de correos ni compras reales. Consulta [resultado de esta revisión](docs/revision-2026-10-20.md) para distinguir lo probado de lo pendiente.
+
+## Presentación y documentación
+
+Recorrido sugerido: iniciar sesión → crear una meta manual → añadir/completar una acción → mostrar hábitos y progreso de Lumi → generar y revisar una propuesta con IA local → chat. Si los servicios de IA no están disponibles, muestra las funciones manuales y explica el estado del respaldo.
+
+- [Arquitectura](docs/arquitectura.md), [verificación operativa](docs/verificacion.md), [continuidad e historia](docs/guia-continuidad-2026-10-09.md).
+- [Android](docs/android.md), [Google Play](docs/google-play.md), [monetización](docs/monetizacion.md), [pagos anteriores](docs/billing.md).
+- [Evaluación de IA](docs/evaluacion-ia.md), [incidentes](docs/plan-incidentes.md), [registro de tratamientos](docs/registro-tratamientos.md).
+- Importación del PlanifIA anterior: `py scripts/export_legacy.py --url https://api.planifia.cl --output exports/planifia-anterior.json`; revisar el archivo y usar **Ajustes → Importar datos**. No importa contraseñas ni borra el origen.
+
+Escritorio: `npm run desktop:dev` / `npm run desktop:build` (requiere Rust y herramientas de compilación). Android: instrucciones en `docs/android.md`.
+
+GitHub Pages publica sólo `dist/` mediante `.github/workflows/pages.yml`. Configura las variables públicas `VITE_SUPABASE_URL` y `VITE_SUPABASE_PUBLISHABLE_KEY` en Actions. El dominio de esta instalación es [planifia.cl](https://planifia.cl/); en un fork ajusta `public/CNAME`, las URL legales, Auth y `ALLOWED_ORIGINS`. Publicar el frontend requiere integrar los cambios en `main`; esta revisión no hace commit ni push. Sí se desplegó la corrección autorizada del chat en Supabase.

@@ -1,7 +1,6 @@
 // Opt-in verification against the configured Supabase project. No fixtures.
 import assert from "node:assert/strict";
-import { readFile, mkdir } from "node:fs/promises";
-import { execFileSync } from "node:child_process";
+import { mkdir } from "node:fs/promises";
 import { randomBytes, randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { chromium } from "@playwright/test";
@@ -13,35 +12,13 @@ if (process.env.PLANIFIA_RUN_LIVE !== "1")
   );
 const web = process.env.PLANIFIA_LIVE_WEB_URL || "http://127.0.0.1:5173/";
 assert.ok((await fetch(web, { signal: AbortSignal.timeout(15000) })).ok, "Inicia la web antes de ejecutar la prueba real.");
-const settings = Object.fromEntries(
-  (await readFile(".env.local", "utf8"))
-    .split("\n")
-    .filter((line) => line.includes("="))
-    .map((line) => {
-      const i = line.indexOf("=");
-      return [line.slice(0, i), line.slice(i + 1).trim()];
-    }),
-);
-const url = settings.VITE_SUPABASE_URL,
-  publicKey = settings.VITE_SUPABASE_PUBLISHABLE_KEY;
-const ref = new URL(url).hostname.split(".")[0];
-assert.match(ref, /^[a-z]{20}$/);
-const raw = execFileSync(
-  process.env.ComSpec || "C:/Windows/System32/cmd.exe",
-  [
-    "/d",
-    "/s",
-    "/c",
-    `npx.cmd supabase projects api-keys --project-ref ${ref} --reveal --output json`,
-  ],
-  { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
-);
-const keys = JSON.parse(raw);
-const key = keys.find((k) => k.name === "service_role")?.api_key;
-assert.ok(
-  key,
-  "La CLI necesita acceso administrativo al proyecto de validación.",
-);
+process.loadEnvFile('.env.local');
+process.loadEnvFile('.env.gateway.local');
+const url = process.env.VITE_SUPABASE_URL;
+const publicKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+assert.equal(url, process.env.QUEUE_SUPABASE_URL, 'La configuración pública y administrativa debe apuntar al mismo proyecto.');
+const key = process.env.QUEUE_SERVICE_ROLE_KEY;
+assert.ok(key, 'Configura QUEUE_SERVICE_ROLE_KEY en .env.gateway.local para la prueba real.');
 const options = { auth: { persistSession: false, autoRefreshToken: false } };
 const admin = createClient(url, key, options),
   clientA = createClient(url, publicKey, options),
@@ -273,8 +250,8 @@ try {
       " s.",
   );
 
-  await mkdir("dist/qa-live", { recursive: true });
-  browser = await chromium.launch({ channel: "msedge", headless: true });
+  await mkdir("artifacts/qa-live", { recursive: true });
+  browser = await chromium.launch({ channel: process.platform === "win32" ? "msedge" : undefined, headless: true });
   const web = process.env.PLANIFIA_LIVE_WEB_URL || "http://127.0.0.1:5173/";
   for (const [label, viewport] of [
     ["desktop", { width: 1440, height: 1050 }],
@@ -303,7 +280,7 @@ try {
       true,
     );
     await page.screenshot({
-      path: `dist/qa-live/${label}.png`,
+      path: `artifacts/qa-live/${label}.png`,
       fullPage: true,
     });
     await page

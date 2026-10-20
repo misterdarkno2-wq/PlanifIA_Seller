@@ -2261,8 +2261,6 @@ name = "planifia-seller"
 version = "2.1.0"
 dependencies = [
  "log",
- "serde",
- "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",

@@ -14,7 +14,7 @@ try {
     try { if ((await fetch("http://127.0.0.1:5189")).ok) break; } catch {}
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
-  await mkdir("dist/qa", { recursive: true });
+  await mkdir("artifacts/qa", { recursive: true });
   browser = await chromium.launch({ channel: process.platform === "win32" ? "msedge" : undefined, headless: true });
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
@@ -55,7 +55,7 @@ try {
 
   await open(available);
   assert.match(await dialog.innerText(), /Hay una versión nueva de PlanifIA/);
-  await page.screenshot({ path: "dist/qa/update-offer-mobile.png" });
+  await page.screenshot({ path: "artifacts/qa/update-offer-mobile.png" });
   await dialog.getByRole("button", { name: "Actualizar ahora" }).click();
   await page.waitForFunction(() => window.updateCalls.includes("plugin:planifia-billing|start_update"));
   await page.waitForFunction(() => !document.querySelector("dialog[open]"));
@@ -69,7 +69,7 @@ try {
   await page.evaluate(() => localStorage.removeItem("planifia-update-later"));
   await open({ ...available, priority: 5 });
   assert.equal(await dialog.getByRole("button", { name: "Más tarde" }).count(), 0, "Obligatoria: sin 'Más tarde'");
-  await page.screenshot({ path: "dist/qa/update-required-mobile.png" });
+  await page.screenshot({ path: "artifacts/qa/update-required-mobile.png" });
 
   await open({ ...available, status: "in_progress" });
   assert.equal(await dialog.count(), 0, "Una actualización a medias se retoma sin preguntar");

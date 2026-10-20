@@ -35,8 +35,8 @@ try {
     } catch {}
     await new Promise((r) => setTimeout(r, 150));
   }
-  await mkdir("dist/qa", { recursive: true });
-  browser = await chromium.launch({ channel: "msedge", headless: true });
+  await mkdir("artifacts/qa", { recursive: true });
+  browser = await chromium.launch({ channel: process.platform === "win32" ? "msedge" : undefined, headless: true });
   const date = today(),
     uid = randomUUID(),
     user = {
@@ -366,7 +366,7 @@ try {
   assert.equal(await page.getByRole("navigation", { name: "Información legal" }).getByRole("link").count(), 3);
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({
-    path: "dist/qa/landing-desktop.png",
+    path: "artifacts/qa/landing-desktop.png",
     fullPage: true,
   });
   await page.getByRole("link", { name: "Empezar", exact: true }).click();
@@ -769,7 +769,7 @@ try {
   await loader.getByRole("button", { name: "← Juegos" }).click();
   await loader.getByRole("button", { name: /Carrera de Lumi/ }).waitFor();
   assert.equal(await loader.locator(".ai-loading-scene").isVisible(), true);
-  await loader.locator(".lumi-games").screenshot({ path: "dist/qa/games-menu.png" });
+  await loader.locator(".lumi-games").screenshot({ path: "artifacts/qa/games-menu.png" });
   for (const [name, key] of [
     ["Lluvia de estrellas", "ArrowLeft"],
     ["¿Dónde está Lumi?", "1"],
@@ -782,7 +782,7 @@ try {
     await page.waitForTimeout(250);
     await page.keyboard.up(key);
     assert.equal(await loader.locator(".lumi-game-bar strong").textContent(), name);
-    await gameCanvas.screenshot({ path: `dist/qa/game-${name.replace(/[^a-z]/gi, "")}.png` });
+    await gameCanvas.screenshot({ path: `artifacts/qa/game-${name.replace(/[^a-z]/gi, "")}.png` });
     await loader.getByRole("button", { name: "← Juegos" }).click();
   }
   assert.equal(
@@ -791,7 +791,7 @@ try {
     "El formulario no se guarda mientras genera",
   );
   await page.screenshot({
-    path: "dist/qa/loading-desktop.png",
+    path: "artifacts/qa/loading-desktop.png",
     fullPage: false,
   });
   firstPlan.release();
@@ -814,7 +814,7 @@ try {
   assert.equal(data.goals.length, 1);
   assert.equal(aiCalls, 1);
   await page.screenshot({
-    path: "dist/qa/dashboard-desktop.png",
+    path: "artifacts/qa/dashboard-desktop.png",
     fullPage: true,
   });
   await page
@@ -1095,10 +1095,10 @@ try {
   await login(phone);
   await featuredLumi(phone);
   await phone.screenshot({
-    path: "dist/qa/dashboard-mobile.png",
+    path: "artifacts/qa/dashboard-mobile.png",
     fullPage: true,
   });
-  await phone.screenshot({ path: "dist/qa/dashboard-mobile-viewport.png" });
+  await phone.screenshot({ path: "artifacts/qa/dashboard-mobile-viewport.png" });
   const touch = await phone.evaluate(() => {
     const box = (el) => el.getBoundingClientRect();
     return {
@@ -1139,7 +1139,7 @@ try {
   });
   assert.ok(chatLayout.formBottom <= chatLayout.navTop, "El campo de texto queda sobre la barra inferior");
   assert.equal(chatLayout.overflow, false);
-  await phone.screenshot({ path: "dist/qa/lumi-chat-mobile.png" });
+  await phone.screenshot({ path: "artifacts/qa/lumi-chat-mobile.png" });
   // Sin créditos: el error lleva a Mi plan.
   chatFail = { status: 402, error: "No tienes créditos suficientes. Cada mensaje a Lumi cuesta 5 créditos; consigue más en Mi plan." };
   await chatInput.fill("¿Me ayudas?");
@@ -1294,7 +1294,7 @@ try {
     "Animar Lumi no anula la reducción de movimiento de los otros adornos",
   );
   await phone.screenshot({
-    path: "dist/qa/loading-mobile.png",
+    path: "artifacts/qa/loading-mobile.png",
     fullPage: false,
   });
   await pauseClock(phone);
@@ -1315,7 +1315,7 @@ try {
     true,
     "El juego cabe en el ancho del teléfono",
   );
-  await phone.screenshot({ path: "dist/qa/game-mobile.png", fullPage: false });
+  await phone.screenshot({ path: "artifacts/qa/game-mobile.png", fullPage: false });
   mobilePlan.release();
   await mobilePlan.done;
   await phone
@@ -1384,7 +1384,7 @@ try {
   );
   await lumiGeometry(phone);
   await phone.screenshot({
-    path: "dist/qa/lumi-autonomous-mobile.png",
+    path: "artifacts/qa/lumi-autonomous-mobile.png",
     fullPage: true,
   });
   await pauseClock(phone);

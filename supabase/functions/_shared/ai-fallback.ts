@@ -4,7 +4,8 @@
 
 export const GROQ_BASE_URL = "https://api.groq.com/openai/v1";
 /**
- * gpt-oss-20b: el mismo modelo probado el 2026-10-14 con chat en español y JSON Schema. Se cambia con
+ * gpt-oss-20b admite chat y JSON Schema en Groq. La prueba histórica en otro proveedor no
+ * valida estas credenciales: ejecutar npm run check:groq. Se cambia con
  * GROQ_MODEL, que acepta una lista separada por comas: ante 404/410 (modelo inexistente o retirado)
  * se usa el siguiente.
  */
@@ -231,12 +232,15 @@ async function cloudChatOnce({
     await response.body?.cancel();
     throw new CloudUnavailable(`HTTP ${response.status} (${model})`, response.status);
   }
-  let content: unknown;
+  let choice: { finish_reason?: string; message?: { content?: unknown } } | undefined;
   try {
-    content = (await response.json())?.choices?.[0]?.message?.content;
+    choice = (await response.json())?.choices?.[0];
   } catch {
     throw new CloudUnavailable("Respuesta ilegible");
   }
+  if (choice?.finish_reason && choice.finish_reason !== "stop")
+    throw new CloudUnavailable("Respuesta incompleta");
+  const content = choice?.message?.content;
   const text = typeof content === "string" ? stripThinking(content) : "";
   if (!text) throw new CloudUnavailable("Respuesta vacía");
   return text;

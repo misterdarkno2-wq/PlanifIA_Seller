@@ -61,7 +61,7 @@ before(async () => {
     });
   });
   assert.equal((await fetch(origin)).ok, true);
-  await mkdir("dist/qa", { recursive: true });
+  await mkdir("artifacts/qa", { recursive: true });
   browser = await chromium.launch({ channel: process.platform === "win32" ? "msedge" : undefined, headless: true });
 });
 
@@ -222,7 +222,7 @@ test("A maximum-length goal title fits a 320px screen without horizontal overflo
   await page.getByRole("button", { name: title, exact: true }).waitFor();
   const bounds = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, layoutViewport: innerWidth }));
   bounds.screen = page.viewportSize().width;
-  await page.screenshot({ path: "dist/qa/mobile-session-long-title-320.png", fullPage: true });
+  await page.screenshot({ path: "artifacts/qa/mobile-session-long-title-320.png", fullPage: true });
   assert.deepEqual(errors, []);
   assert.ok(bounds.scroll <= bounds.screen,
     `A title allowed by the form must wrap rather than expanding the mobile page: ${JSON.stringify(bounds)}`);

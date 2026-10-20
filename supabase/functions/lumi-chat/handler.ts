@@ -8,6 +8,7 @@ import { allowIp, IP_LIMITED } from "../_shared/rate-limit.ts";
 import {
   CLOUD_CHAT_ADDENDUM,
   CloudLimited,
+  CloudUnavailable,
   cloudChat,
   cloudSettings,
   LocalBusy,
@@ -182,6 +183,8 @@ export async function handleLumiChat(req: Request) {
           messages: [{ role: "system", content: LUMI_SYSTEM + CLOUD_CHAT_ADDENDUM }, ...messages.slice(1)],
         }),
       allowCloud: async () => {
+        // Una configuración ausente no es cuota agotada y no debe consumir el límite diario.
+        if (!cloudSettings()) throw new CloudUnavailable("Falta GROQ_API_KEY");
         const taken = await admin.rpc("ai_fallback_take", { p_user: user.id, p_kind: "chat" });
         return !taken.error && taken.data === true;
       },

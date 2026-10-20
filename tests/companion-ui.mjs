@@ -35,7 +35,7 @@ try {
     } catch {}
     await new Promise((r) => setTimeout(r, 100));
   }
-  await mkdir("dist/qa", { recursive: true });
+  await mkdir("artifacts/qa", { recursive: true });
   await mkdir("supabase/.temp/lumi-audio-qa", { recursive: true });
   browser = await chromium.launch({
     ...(process.platform === "win32" ? { channel: "msedge" } : {}),
@@ -322,7 +322,7 @@ try {
     );
     assert.equal(enqueues, 0, "Real progress uses local messages");
     await page.screenshot({
-      path: `dist/qa/companion-${viewport.width}.png`,
+      path: `artifacts/qa/companion-${viewport.width}.png`,
       fullPage: true,
     });
     await page.getByRole("link", { name: "Ajustes", exact: true }).click();
@@ -355,7 +355,7 @@ try {
       /Posición 2.*Tiempo variable/,
     );
     await page.screenshot({
-      path: `dist/qa/queue-${viewport.width}.png`,
+      path: `artifacts/qa/queue-${viewport.width}.png`,
       fullPage: false,
     });
     await page.getByRole("button", { name: "Cerrar", exact: true }).click();

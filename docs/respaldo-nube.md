@@ -4,6 +4,25 @@ Con el PC encendido, la app usa la IA local (Ollama) a través del gateway y del
 
 > **Por qué Groq y no NVIDIA.** Del 14 al 19 de octubre de 2026 el respaldo usó la API de prueba de NVIDIA (build.nvidia.com). Sus términos (*NVIDIA API Trial Terms of Service*) sólo permiten pruebas: prohíben el uso en producción y el envío de datos personales, y permiten a NVIDIA usar el contenido para mejorar sus modelos. El 19 de octubre se apagó el respaldo (`enabled = false`) y se cambió a Groq. El secreto `NVIDIA_API_KEY` ya no se usa: bórralo (paso 2 de [Desplegar](#desplegar)).
 
+## Diagnóstico y verificación del 20 de octubre de 2026
+
+La causa comprobada fue de configuración: faltaba **GROQ_API_KEY** en Supabase y el respaldo tenía **enabled=false**. Las funciones ya contenían la integración de Groq; el secreto antiguo de NVIDIA no sustituía la clave nueva.
+
+Durante esta revisión se guardó la clave desde el panel de Supabase y, con autorización del responsable, se activó **sólo el respaldo del chat**: 10 mensajes por persona/hora y 100 diarios en toda la app. Los límites de planes siguen en cero; los planes continúan con Ollama.
+
+La llamada real desde Supabase a Groq respondió HTTP 200 en 578 ms. También pasó una prueba del manejador real de Lumi con una caída local simulada únicamente dentro de una función temporal: respuesta `source=cloud`, saldo de 60 a 55, dos mensajes guardados y repetición rechazada con 409 sin un segundo cobro. No se apagó el gateway de producción. Los resultados están en `artifacts/groq-real-*.json`, ignorados por Git.
+
+El modelo `openai/gpt-oss-20b` sigue disponible según [los modelos de Groq](https://console.groq.com/docs/models) y admite [JSON Schema estricto](https://console.groq.com/docs/structured-outputs). Las mediciones antiguas de NVIDIA no demostraban que la clave o la integración con Groq funcionaran.
+
+Se corrigió el consumo de cuota cuando falta la clave y el rechazo de respuestas de chat truncadas. La función `lumi-chat` se desplegó con esas correcciones. Para repetir una prueba directa desde otro equipo, configura `GROQ_API_KEY` en el entorno o en `supabase/functions/.env.local` (ignorado) y ejecuta:
+
+```powershell
+npm.cmd run check:groq
+npm.cmd run check:groq -- --plan # opcional; consume una generación y requiere capacidad suficiente
+```
+
+La clave guardada en Supabase no se descarga ni se copia al equipo: esta prueba local necesita su propia configuración privada. El comando no imprime claves ni respuestas. Los planes reales con Groq permanecen sin validar y desactivados.
+
 ## Cómo funciona
 
 La conmutación ocurre **en el servidor**, no en el teléfono. La app nunca habla con el gateway: llama a Supabase. Así la clave de Groq y el secreto del gateway nunca llegan al APK, y los créditos se cobran y devuelven igual que siempre.
@@ -34,13 +53,13 @@ La conmutación ocurre **en el servidor**, no en el teléfono. La app nunca habl
 | `plans_per_day` (por persona) | 6 |
 | `global_chat_per_day` (toda la app) | 2000 |
 | `global_plans_per_day` (toda la app) | 200 |
-| `enabled` | `true` (apagado en producción desde el 2026-10-19) |
+| `enabled` | `true` (chat reactivado el 2026-10-20; planes desactivados por sus límites cero) |
 
 Con el límite alcanzado o `enabled = false`, el chat devuelve los créditos y los planes siguen esperando en la cola a la IA local.
 
 **Modelos.**
 - Local: el que ya tienes configurado (`qwen3.5:9b` para planes y `qwen3:4b-instruct` para el chat).
-- Nube: `GROQ_MODEL`, por defecto `openai/gpt-oss-20b`, el mismo modelo que se probó en NVIDIA el 14 de octubre (chat en español en 1,8 s y JSON Schema válido). Acepta una lista separada por comas: si Groq responde 404 o 410, se usa el siguiente. Con `GROQ_CHAT_MODEL` puedes usar otra lista sólo para el chat.
+- Nube: `GROQ_MODEL`, por defecto `openai/gpt-oss-20b`, probado en Groq para chat el 20 de octubre. Acepta una lista separada por comas: si Groq responde 404 o 410, se usa el siguiente. Con `GROQ_CHAT_MODEL` puedes usar otra lista sólo para el chat.
 - Groq anuncia con anticipación los modelos que va a retirar. Cuando retire el que usas, cambia `GROQ_MODEL`: un modelo retirado puede responder con otro código y no pasar solo al siguiente.
 - Los prompts de la nube agregan instrucciones de formato: texto plano sin razonamiento para Lumi, y sólo el objeto JSON para los planes.
 - Si los planes fallan con "El proveedor de IA rechazó la solicitud" (Groq responde 400 `json_validate_failed` cuando el modelo no logra cumplir el JSON Schema estricto), configura `GROQ_PLAN_FORMAT=json_object`. La validación del servidor se aplica igual.
@@ -87,12 +106,7 @@ Ejecuta estos pasos en PowerShell, desde la carpeta del proyecto. No hay migraci
 
 1. **Política.** Publica antes la política de privacidad, los términos y la ficha de Seguridad de los datos que nombran a Groq. Si el respaldo se activa antes, la app manda datos a un proveedor que la política no nombra.
 
-2. **Secretos.** Guarda la clave de Groq sólo en Supabase y borra la de NVIDIA:
-
-   ```powershell
-   npx.cmd supabase secrets set GROQ_API_KEY=gsk_TU_CLAVE
-   npx.cmd supabase secrets unset NVIDIA_API_KEY
-   ```
+2. **Secretos.** En **Edge Functions → Secrets** de Supabase, guarda **GROQ_API_KEY** con la clave creada en Groq. Evita escribirla en comandos que queden en el historial. El secreto anterior `NVIDIA_API_KEY` ya no es utilizado; puedes retirarlo al completar la transición.
 
    No la pongas en `.env.local`, en variables `VITE_` ni en el repositorio. `npm run build` falla si una variable `VITE_` contiene `GROQ` o un valor `gsk_`.
 
@@ -168,4 +182,4 @@ Las pruebas simulan error de red, timeout, 502/503/530 de Cloudflare, respuestas
 - No hay streaming: la app no lo usaba. Las respuestas llegan completas y la app las "escribe" de a poco, igual con la IA local y con la nube.
 - Si cancelas un plan mientras lo prepara la nube, la propuesta se descarta igual que con la IA local, pero los tokens de Groq ya se gastaron.
 - Si Groq responde 429 (límite de la cuenta), el chat devuelve los créditos y el plan se reintenta dentro del límite configurado. Si pasa seguido, sube el nivel de la cuenta en Groq.
-- Todavía no hay una prueba real con Groq: el cambio de proveedor se probó con respuestas simuladas. Haz la [prueba manual](#prueba-manual) al desplegar.
+- El chat con Groq sí pasó una prueba real el 20 de octubre. Los planes en Groq siguen desactivados y no se han validado contra la API real; no los presentes como operativos. Haz la [prueba manual](#prueba-manual) si los habilitas en el futuro.

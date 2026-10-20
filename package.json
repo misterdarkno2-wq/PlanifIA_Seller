@@ -26,7 +26,8 @@
     "android:apk": "npm run tauri -- android build --debug --apk --target aarch64 x86_64",
     "android:release": "npm run tauri -- android build --apk --target aarch64 armv7 x86_64",
     "android:aab": "npm run tauri -- android build --aab --target aarch64 armv7 x86_64",
-    "android:dev": "npm run tauri -- android dev"
+    "android:dev": "npm run tauri -- android dev",
+    "check:groq": "node --env-file-if-exists=supabase/functions/.env.local scripts/check-groq.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.58.0",
@@ -39,5 +40,8 @@
     "@playwright/test": "^1.55.0",
     "@tauri-apps/cli": "^2.12.1",
     "vite": "^7.1.0"
+  },
+  "engines": {
+    "node": ">=22.18.0"
   }
 }

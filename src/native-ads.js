@@ -9,13 +9,6 @@ export async function adsCommand(command, args = {}) {
   const { invoke } = await import("@tauri-apps/api/core");
   return invoke(`plugin:planifia-ads|${command}`, args);
 }
-export async function onAdsEvent(event, handler) {
-  if (!isAndroidApp()) return () => {};
-  const { addPluginListener } = await import("@tauri-apps/api/core");
-  const listener = await addPluginListener("planifia-ads", event, handler);
-  return () => listener.unregister().catch(() => {});
-}
-
 const LAST_KEY = "planifia-ads-last-video";
 // Video obligatorio al usar la IA en el plan Gratis: como máximo uno cada 5 minutos.
 export const AI_VIDEO_INTERVAL_MS = 5 * 60 * 1000;

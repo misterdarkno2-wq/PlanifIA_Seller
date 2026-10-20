@@ -247,6 +247,17 @@ Deno.test("Respaldo: una caída a mitad de camino (red, timeout, 502, 503, 530, 
   }
 });
 
+Deno.test("Respaldo sin clave: devuelve créditos sin consumir cuota ni afirmar que se agotó", async () => {
+  const f = setup({ online: false, cloud: "none", take: false });
+  try {
+    const response = await handleLumiChat(request());
+    const body = await response.json();
+    assert(response.status === 503 && body.refunded === true && body.error === RESTING);
+    assert(!f.rpcs().some((r) => r.name === "ai_fallback_take"));
+    assert(f.cloudBody() === null);
+  } finally { f.close(); }
+});
+
 Deno.test("Respaldo: con el PC sin señal va directo a la nube, sin esperar a la IA local", async () => {
   const f = setup({ online: false, cloud: "ok" });
   try {

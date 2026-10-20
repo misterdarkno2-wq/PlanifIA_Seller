@@ -31,7 +31,7 @@ try {
     } catch {}
     await new Promise((r) => setTimeout(r, 150));
   }
-  await mkdir("dist/qa", { recursive: true });
+  await mkdir("artifacts/qa", { recursive: true });
   browser = await chromium.launch({ channel: process.platform === "win32" ? "msedge" : undefined, headless: true });
 
   const uid = randomUUID();
@@ -174,7 +174,7 @@ try {
   assert.equal(await page.getByLabel("Contraseña", { exact: true }).evaluate((input) => input.validity.valid), true);
   await page.setViewportSize({ width: 375, height: 812 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "Sin desplazamiento horizontal en el teléfono");
-  await page.screenshot({ path: "dist/qa/legal-register-mobile.png" });
+  await page.screenshot({ path: "artifacts/qa/legal-register-mobile.png" });
   await page.setViewportSize({ width: 1366, height: 1000 });
 
   // 2. Inicio de sesión con una versión anterior aceptada: aviso una vez, sin bloquear el resto.
@@ -188,7 +188,7 @@ try {
   assert.match(await notice.innerText(), /Actualizamos los Términos y la Política de privacidad/);
   assert.match(await notice.innerText(), /exportar tus datos[\s\S]*eliminar tu cuenta/);
   assert.equal(await notice.getByRole("button", { name: "Aceptar y continuar" }).isDisabled(), true);
-  await page.screenshot({ path: "dist/qa/legal-update-desktop.png" });
+  await page.screenshot({ path: "artifacts/qa/legal-update-desktop.png" });
   await notice.getByRole("button", { name: "Ahora no" }).click();
   await notice.waitFor({ state: "detached" });
   assert.equal(calls.accept.length, 0);
@@ -281,7 +281,7 @@ try {
   await page.setViewportSize({ width: 375, height: 812 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await safety.scrollIntoViewIfNeeded();
-  await page.screenshot({ path: "dist/qa/lumi-crisis-mobile.png" });
+  await page.screenshot({ path: "artifacts/qa/lumi-crisis-mobile.png" });
 
   // 6. Ajustes: derechos, versión aceptada y enlaces legales a ancho de teléfono.
   await page.goto(`${ORIGIN}/#settings`);
@@ -291,7 +291,7 @@ try {
   assert.match(await rights.innerText(), /Aceptaste la versión del 18 de octubre de 2026/);
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await rights.scrollIntoViewIfNeeded();
-  await page.screenshot({ path: "dist/qa/settings-rights-mobile.png" });
+  await page.screenshot({ path: "artifacts/qa/settings-rights-mobile.png" });
 
   assert.deepEqual(errors, []);
   console.log("UI legal: casilla de registro, enlaces sin perder lo escrito, nueva aceptación, reportes, crisis y XSS: OK");

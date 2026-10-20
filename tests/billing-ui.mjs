@@ -239,7 +239,7 @@ const noOverflow = async (page) =>
   );
 const capture = async (page, name) => {
   await noOverflow(page);
-  const path = `dist/qa/${name}.png`;
+  const path = `artifacts/qa/${name}.png`;
   await page.screenshot({ path, fullPage: true });
   captures.push(path);
 };
@@ -361,7 +361,7 @@ try {
     } catch {}
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
-  await mkdir("dist/qa", { recursive: true });
+  await mkdir("artifacts/qa", { recursive: true });
   browser = await chromium.launch({
     channel: process.platform === "win32" ? "msedge" : undefined,
     headless: true,

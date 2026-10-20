@@ -10,7 +10,7 @@ import { LEGAL_VERSION } from "../src/legal.js";
 
 const PORT = 5185;
 const ORIGIN = `http://127.0.0.1:${PORT}`;
-const OUT = "dist/csp-check";
+const OUT = "artifacts/csp-check";
 const env = {
   ...process.env,
   VITE_SUPABASE_URL: "https://supabase.example.test",
@@ -38,7 +38,7 @@ try {
     } catch {}
     await new Promise((r) => setTimeout(r, 150));
   }
-  await mkdir("dist/qa", { recursive: true });
+  await mkdir("artifacts/qa", { recursive: true });
   browser = await chromium.launch({ channel: process.platform === "win32" ? "msedge" : undefined, headless: true });
   const uid = randomUUID();
   const user = { id: uid, email: "ana@example.test", aud: "authenticated", role: "authenticated", user_metadata: { name: "Ana" } };
@@ -128,7 +128,7 @@ try {
       await page.locator("h1").waitFor();
       await collect(legal);
       if (viewport.width < 500 && !legal.startsWith("legal/"))
-        await page.screenshot({ path: `dist/qa/legal-${legal.replace(".html", "")}-mobile.png`, fullPage: false });
+        await page.screenshot({ path: `artifacts/qa/legal-${legal.replace(".html", "")}-mobile.png`, fullPage: false });
     }
     assert.deepEqual(errors, [], `Errores de JavaScript a ${viewport.width}px`);
     await context.close();

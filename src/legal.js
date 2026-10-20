@@ -11,8 +11,6 @@ export const LEGAL_URLS = Object.freeze({
   privacy: "https://planifia.cl/privacidad.html",
 });
 
-export const LEGAL_CONSENT_TEXT = "Tengo 18 años o más y acepto los Términos de uso y la Política de privacidad.";
-
 const VERSION = /^\d{4}-\d{2}-\d{2}$/;
 
 /** ¿La última aceptación cubre las versiones vigentes? Las fechas ISO se comparan como texto. */
