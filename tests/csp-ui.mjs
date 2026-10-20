@@ -63,10 +63,8 @@ try {
       if (name === "get_ai_jobs") return json([]);
       if (name === "monetization_state")
         return json({ plan: { id: "free", name: "Gratis" }, plans: [], credits: { balance: 60, cost_per_use: 20, chat_cost: 5 }, products: [], recent: [] });
-      if (name === "billing_promotion") return json({ active: false });
       return json(null);
     }
-    if (url.pathname.endsWith("/functions/v1/billing")) return json({ plans: [] });
     return json(tables[url.pathname.split("/").at(-1)] ?? []);
   };
   const violations = [];

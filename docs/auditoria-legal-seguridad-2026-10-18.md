@@ -81,7 +81,7 @@ Método: se aplicaron todas las migraciones en PostgreSQL (PGlite), emulando los
 - **Esquema `private`**: 28 tablas, sin uso para `anon` ni `authenticated`.
 - **Funciones `SECURITY DEFINER`**: 53 (49 más 4 nuevas), todas con `search_path=''`.
   - Las de servicio (`play_*`, `admob_reward`, `claim_*`, `finish_ai_job`, `rate_limit_take`, etc.) sólo las ejecuta `service_role`.
-  - `anon` sólo ejecuta `billing_promotion()`, que es información pública de la campaña.
+  - `anon` sólo ejecuta `billing_promotion()`, que es información pública de la campaña. Con R7 (`202610190001_retire_transbank.sql`) deja de ejecutarla: `anon` no ejecuta ninguna función.
   - Validan sus parámetros: estados, días, zona horaria, UUID, largos y límites.
 - **Eliminación de cuenta**: `delete_my_account` borra `auth.users` y todo cae en cascada (33 tablas con FK `on delete cascade`).
   - Se verificó el riesgo de fraude al borrar los tokens de compra: cada compra lleva el id de cuenta ofuscado (`obfuscatedExternalAccountId`), y si otra cuenta reutiliza el token recibe un 409 (`play-sync.ts:36`).
@@ -97,7 +97,7 @@ Método: se aplicaron todas las migraciones en PostgreSQL (PGlite), emulando los
 | `play-billing` | Sesión | **Nuevo**: lectura acotada a 60.000 bytes; ≤ 10 compras; regex de producto y token | Lista cerrada | Verificación con la API de Google; cuenta ofuscada |
 | `play-rtdn` | Secreto ≥ 32 en la URL; **nuevo**: JWT OIDC de Pub/Sub opcional | El aviso sólo indica qué token volver a consultar | No aplica | Revalida en Google |
 | `admob-ssv` | Firma ECDSA de Google (`handler.ts:65`) | Sólo campos firmados; unidad esperada | No aplica | Transacción única (`202610070001_play_credits.sql:444`) |
-| `billing`, `billing-return`, `billing-renew` | Sesión; token de Transbank correlacionado; secreto del cron | **Nuevo**: lectura acotada en `billing-return` | Lista cerrada en `billing` | Estado de la orden (Transbank en integración) |
+| `billing`, `billing-return`, `billing-renew` (**retiradas**, R7) | Sesión; token de Transbank correlacionado; secreto del cron | **Nuevo**: lectura acotada en `billing-return` | Lista cerrada en `billing` | Estado de la orden (Transbank en integración) |
 
 Ninguna función responde `Access-Control-Allow-Origin: *` (lo comprueba `tests/legal-security.test.js`).
 
@@ -180,7 +180,10 @@ Las líneas indican dónde quedó cada corrección en la rama.
 - **Archivos**: `src-tauri/plugins/planifia-ads/android/src/main/java/AdsPlugin.kt:160`.
 - **Riesgo**: la Ley 19.628 y la Ley 21.719 exigen una base legal para tratar el ID de publicidad.
 - **Hecho**: la política lo declara con `[PENDIENTE]`.
-- **Falta**: decisión del abogado (pregunta 2). Las opciones son pedir consentimiento con un mensaje propio de UMP («otras regulaciones») o solicitar anuncios no personalizados.
+- **Hecho (19 de octubre, R6)**: sin consentimiento válido de UMP, la app pide anuncios no personalizados (`npa=1`). La política lo dice en la tabla de la sección 2 y en la sección 4.
+- **Falta**:
+  - Decisión del abogado (pregunta 2): si basta el interés legítimo para los anuncios no personalizados o hay que pedir consentimiento con un mensaje propio de UMP («otras regulaciones»).
+  - Confirmarlo en un teléfono real (ya se probó en emuladores).
 
 **A7. La política y `eliminar-cuenta.html` decían «No conservamos ningún dato tras la eliminación».**
 - **Hecho**: la base sí se borra en cascada, pero quedan los registros de Auth y de las funciones, las copias de seguridad, los registros de Google y los correos. Los textos ahora lo dicen, con una tabla de plazos.
@@ -340,7 +343,7 @@ Todas pasaron el 19 de octubre de 2026, en Windows con Edge:
 | Cierre por incumplimiento grave | Se devuelve la parte no usada del período pagado y de los créditos comprados, salvo una compra fraudulenta (términos §11) |
 | Plazos de derechos | Respuesta en 15 días corridos y bloqueo en 2 días hábiles: más corto que los 30 días prorrogables que citan las fuentes de la Ley 21.719 (política §9) |
 | Reclamos de datos | Ante la Agencia, por los canales que publique, o ante los tribunales (política §9) |
-| Anuncios en Chile | Interés legítimo con derecho de oposición (borrar el ID de publicidad, plan pagado o Quitar anuncios); consentimiento donde la ley lo exige. **Es la decisión más expuesta**: la alternativa más segura son anuncios no personalizados para quien no dio consentimiento (recomendación R6) |
+| Anuncios en Chile | Sólo anuncios no personalizados (`npa=1`, recomendación R6 hecha el 19 de octubre), con base en el interés legítimo y derecho de oposición (borrar el ID de publicidad, plan pagado o Quitar anuncios). Los personalizados sólo se piden con consentimiento, donde la ley lo exige. **Sigue siendo la decisión más expuesta**, aunque con menos riesgo: Google igual usa el ID de publicidad para limitar la frecuencia y medir los anuncios |
 | Revisión de crisis | Base legal: protección de la vida e integridad (interés vital) |
 | Datos sensibles | Se tratan sólo para prestar el servicio; se recomienda no escribirlos y se pueden borrar |
 | Transferencias | Necesarias para el contrato, con los DPA de cada proveedor (cláusulas contractuales tipo en Supabase y Cloudflare) |
@@ -360,7 +363,7 @@ Revisa también qué datos tuyos muestra hoy Google Play en la ficha y en la pá
 ## 6. Preguntas para el abogado
 
 1. **Incidente NVIDIA (C1)**: entre el 14 y el 19 de octubre se enviaron a NVIDIA, bajo términos de prueba, mensajes del chat con el nombre del perfil y textos de planes, mientras la política publicada decía que no se usaban servicios de terceros. ¿Hay que avisar a las personas afectadas o a alguna autoridad, según la Ley 19.628 vigente? ¿Conviene pedir a NVIDIA que borre esos datos? ¿Cómo documentarlo?
-2. **Anuncios en Chile (A6)**: ¿basta el interés legítimo para que el SDK de AdMob trate el ID de publicidad y muestre anuncios personalizados a usuarios en Chile, o hay que pedir consentimiento previo antes y después del 1 de diciembre de 2026? ¿O conviene mostrar sólo anuncios no personalizados?
+2. **Anuncios en Chile (A6)**: desde el 19 de octubre la app sólo pide anuncios no personalizados a quien no dio consentimiento (R6), pero el SDK de AdMob igual trata el ID de publicidad para limitar la frecuencia y medir los anuncios. ¿Basta el interés legítimo para eso, o hay que pedir consentimiento previo, antes y después del 1 de diciembre de 2026?
 3. **Retracto (art. 3 bis, Ley 19.496)**: ¿aplica a suscripciones y a paquetes de créditos que se entregan y se pueden usar de inmediato? ¿Se puede excluir para el contenido digital ya entregado, informándolo antes de la compra, y cómo debe destacarse? ¿El plazo de 10 días se cuenta desde la compra? ¿Es válido descontar los créditos ya usados?
 4. **Cierre de cuentas por incumplimiento grave**: ¿qué pasa con el período de suscripción ya pagado y los créditos comprados? ¿La cláusula de la sección 11 de los términos puede considerarse abusiva (art. 16)?
 5. **Datos sensibles**: las personas pueden escribir datos de salud en sus metas o en el chat, y la app revisa automáticamente los mensajes de crisis. ¿Qué base legal corresponde según la Ley 21.719 (consentimiento expreso, interés vital u otra)? ¿Hay que pedir un consentimiento específico?
@@ -373,7 +376,7 @@ Revisa también qué datos tuyos muestra hoy Google Play en la ficha y en la pá
 
 ## 7. Pasos manuales, en orden
 
-Ninguno se hizo. Cada uno necesita tu aprobación.
+Cada uno necesita tu aprobación. **Hecho el 19 de octubre de 2026** (comprobado en producción): paso 3 (migración `202610180001`), paso 4 en su parte de Audit Logs (tabla vaciada; la configuración de Auth la hizo el responsable en el panel y no se comprobó desde aquí), paso 5 (`RATE_LIMIT_SALT`), paso 7 (funciones desplegadas desde `release/2.3.5`) y paso 8 (web 2.3.5 publicada desde `main`). El PR de `feature/respaldo-groq` quedó reemplazado: su arreglo del gateway (`f032c24`) se incorporó a `main`.
 
 1. **Revisar los textos con el abogado** (las decisiones de la sección 5 se pueden cambiar). Completar P14 (verificación en dos pasos). Después, actualizar `LEGAL_VERSION` en `src/legal.js` y la fecha de las páginas si los textos cambian antes de publicarse.
 2. **NVIDIA y Groq** (ver `docs/respaldo-nube.md`):
@@ -398,7 +401,7 @@ Ninguno se hizo. Cada uno necesita tu aprobación.
    - Usa como audiencia la URL de la función.
    - Configura `PLAY_RTDN_AUDIENCE` y `PLAY_RTDN_SERVICE_ACCOUNT` con `secrets set`.
    - Prueba con **Enviar notificación de prueba** en Play Console.
-7. **Desplegar funciones**, después de la migración (dependen de `rate_limit_take`): `npx.cmd supabase functions deploy goal-plan lumi-chat ai-fallback play-billing play-rtdn billing-return`.
+7. **Desplegar funciones**, después de la migración (dependen de `rate_limit_take`): `npx.cmd supabase functions deploy goal-plan lumi-chat ai-fallback play-billing play-rtdn`. `billing-return` ya no se despliega: con R7 se borra (pasos en `docs/billing.md`).
 8. **Publicar la web** con un merge a `main`, después de los pasos 1, 3 y 7. Hay que resolver el conflicto de fechas con el PR de `feature/respaldo-groq`. La CSP se genera con `VITE_SUPABASE_URL` de las variables del repositorio.
 9. **Revisión de seguridad en Supabase**: ejecuta **Advisors → Security Advisor** y **Performance Advisor** y corrige lo que aparezca (por ejemplo, la política de `ai_jobs`, B3).
 10. **Android**:
@@ -434,6 +437,17 @@ Ninguno se hizo. Cada uno necesita tu aprobación.
 - **R4. Exigir la aceptación vigente en el servidor** (`goal-plan`, `lumi-chat`, `play-billing`), además de en la app.
   - Se dejó sólo en la app para no bloquear las versiones antiguas de Android mientras se actualizan.
   - Conviene activarlo cuando la versión mínima soportada incluya la pantalla de nueva aceptación.
-- **R6. Anuncios no personalizados** para quien no dio consentimiento, en `AdsPlugin.kt`. Reduce el riesgo de la base legal de los anuncios en Chile. Hay que probarlo en un teléfono.
-- **R7. Retirar el cobro web con Transbank.** Nunca se usó en producción y no se usará: hoy son tablas y funciones (`billing`, `billing-return`, `billing-renew`) que sólo aumentan la superficie de ataque.
+- **R6. ~~Anuncios no personalizados para quien no dio consentimiento~~. Hecha (19 de octubre)** en la rama `claude/anuncios-no-personalizados`:
+  - `AdsPlugin.kt` pide anuncios personalizados sólo con consentimiento válido de UMP: estado `OBTAINED` y cadena TCF con los propósitos 1, 3 y 4 y el proveedor Google (755).
+  - En los demás casos, incluido Chile, cada solicitud lleva `npa=1`.
+  - Detalle en `monetizacion.md`, sección 3.
+  - Probado en emuladores (depuración y release con R8; Chile y EEE simulado, con consentimiento y al retirarlo).
+  - Falta confirmarlo en un teléfono real (lista de verificación de `monetizacion.md`).
+- **R7. ~~Retirar el cobro web con Transbank.~~ Hecho en el repositorio (19 de octubre de 2026, rama `claude/retirar-transbank`).** Nunca se usó en producción y no se usará.
+  - Se borraron las funciones `billing`, `billing-return` y `billing-renew`, `_shared/transbank.ts` y `_shared/billing.ts`, el cron (`billing-scheduler.sql`), `scripts/transbank-smoke.ts` y las variables `TRANSBANK_*` y `BILLING_*`.
+  - La web lee `plan_catalog` y `billing_state()` directamente y ya no muestra pagos ni cancela renovaciones de Oneclick.
+  - La migración `202610190001_retire_transbank.sql` quita el permiso de ejecución a `billing_admin`, `manage_subscription` y `billing_promotion`. Las tablas y sus datos de integración se conservan hasta que el responsable decida.
+  - **En producción (19 de octubre)**: ya se detuvo el cron y se borraron sus entradas de Vault, los secretos de Transbank y las funciones `billing-return` y `billing-renew`.
+  - **También en producción (19 de octubre)**: web 2.3.5 publicada y migración `202610190001` aplicada.
+  - **Falta en producción**: subir la app 2.3.5 a Google Play y, unos 14 días después, borrar la función `billing`, en el orden de `docs/billing.md` (sección «Pasos manuales en producción»). La función `billing` se borra al final, porque las versiones instaladas de la app la usan para cargar los planes.
 - **R5. Revisar anualmente** los números de `CRISIS_LINES` y la lista de expresiones de crisis, con los reportes como fuente.

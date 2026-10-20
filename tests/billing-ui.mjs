@@ -1,4 +1,5 @@
 // Fixtures explícitas: no usa cuentas, credenciales ni cobros reales.
+// La web no cobra: sólo lee los planes (plan_catalog) y el plan vigente (billing_state).
 import { chromium } from "@playwright/test";
 import { spawn } from "node:child_process";
 import { mkdir } from "node:fs/promises";
@@ -66,29 +67,14 @@ const catalog = [
     position: 2,
   },
 ];
-const capabilities = {
-  environment: "integration",
-  webpay: true,
-  oneclick: true,
-  preferred_channel: "oneclick",
-  simulation: true,
-};
 const periodStart = "2030-01-31T15:00:00Z",
   periodEnd = "2030-02-28T15:00:00Z";
-const campaign = {
-  starts_at: periodStart,
-  ends_at: "2030-02-07T15:00:00Z",
-  server_now: periodStart,
-  active: true,
-};
 const orderId = "12000000-0000-4000-8000-000000000012";
 const enrollmentId = "22000000-0000-4000-8000-000000000022";
 const initial = () => ({
   plans: catalog,
   effective_plan: catalog[0],
   subscription: null,
-  promotion_available: true,
-  promotion: { ...campaign },
   payments: [],
   pending_order: null,
   usage: {
@@ -106,12 +92,11 @@ const initial = () => ({
     currency: "CLP",
     environment: "integration",
   },
-  capabilities,
 });
-const paid = (channel = "oneclick") => ({
+// Restos de las pruebas de Transbank en integración: billing_state aún puede devolverlos.
+const legacy = (channel = "oneclick") => ({
   ...initial(),
   effective_plan: catalog[1],
-  promotion_available: false,
   subscription: {
     plan_id: "plus",
     next_plan_id: null,
@@ -140,6 +125,8 @@ const paid = (channel = "oneclick") => ({
       created_at: periodStart,
     },
   ],
+  pending_order: { id: orderId, status: "pending" },
+  pending_enrollment: { id: enrollmentId, status: "pending" },
   usage: {
     ...initial().usage,
     active_goals: 10,
@@ -152,14 +139,13 @@ const html = ({
   view = "subscription",
 }) => `<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Prueba de suscripciones PlanifIA</title><div id="fixture" style="max-width:1220px;margin:auto;padding:28px 18px"></div><script type="module">
   import '/src/style.css';
-  import {renderBilling,mountBilling,consumeBillingIntent,paymentResult} from '/src/billing.js';
+  import {renderBilling,mountBilling,consumeBillingIntent} from '/src/billing.js';
   const root=document.querySelector('#fixture'),user=${user ? '{id:"fixture-user"}' : "null"};
   root.innerHTML=renderBilling({view:${JSON.stringify(view)},user});
-  const call=async(action,payload={})=>{const response=await fetch('/fixture-billing-api',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action,...payload})});const data=await response.json();if(!response.ok)throw new Error(data.error);return data;};
+  const call=async(action)=>{const response=await fetch('/fixture-billing-api',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action})});const data=await response.json();if(!response.ok)throw new Error(data.error);return data;};
   window.fixtureNotifications=[];
-  window.fixtureDispose=mountBilling(root,{user,billing:call,loadCatalog:()=>call('catalog'),onLogin:()=>{location.hash='login'},notify:(message)=>window.fixtureNotifications.push(message)});
+  window.fixtureDispose=mountBilling(root,{user,loadState:()=>call('state'),loadCatalog:()=>call('catalog'),onLogin:()=>{location.hash='login'},notify:(message)=>window.fixtureNotifications.push(message)});
   window.consumeFixtureIntent=consumeBillingIntent;
-  window.fixturePaymentResult=paymentResult;
 </script></html>`;
 
 let browser;
@@ -170,9 +156,7 @@ async function fixture({
   view = "subscription",
   hash = "",
   state = initial(),
-  verified = { order: { id: orderId, amount: 990, status: "unknown" } },
   failState = false,
-  clock = false,
 } = {}) {
   const page = await browser.newPage({
     viewport: { width: 1366, height: 1024 },
@@ -187,13 +171,8 @@ async function fixture({
     const body = route.request().postDataJSON();
     calls.push(body);
     let result;
-    if (body.action === "catalog")
-      result = {
-        plans: current.plans,
-        capabilities,
-        promotion: current.promotion,
-        promotion_available: current.promotion_available,
-      };
+    // Como plan_catalog en Supabase: una lista de planes, sin capacidades ni campañas de pago.
+    if (body.action === "catalog") result = current.plans;
     else if (body.action === "state") {
       if (failState) {
         await route.fulfill({
@@ -204,11 +183,6 @@ async function fixture({
         });
         return;
       }
-      result = current;
-    } else if (body.action === "verify") result = verified;
-    else if (body.action === "cancel") {
-      current.subscription.auto_renew = false;
-      current.subscription.cancel_at_period_end = true;
       result = current;
     } else
       throw new Error(`La web no debe solicitar esta acción: ${body.action}`);
@@ -293,6 +267,7 @@ async function mainFixture(hash = "") {
       await route.fulfill({ status: 204, headers });
       return;
     }
+    calls.push(url.pathname);
     let result;
     if (url.pathname === "/auth/v1/token") result = session;
     else if (url.pathname === "/auth/v1/user") result = user;
@@ -306,32 +281,12 @@ async function mainFixture(hash = "") {
         level_xp: 0,
         next_xp: 100,
       };
-    else if (url.pathname === "/functions/v1/billing") {
-      const body = request.postDataJSON();
-      calls.push(body);
-      if (body.action === "catalog")
-        result = {
-          plans: catalog,
-          capabilities,
-          promotion: { ...campaign },
-          promotion_available: true,
-        };
-      else if (body.action === "state") result = initial();
-      else if (body.action === "verify") {
-        assert.equal(body.order_id, orderId);
-        assert.equal(request.headers().authorization, `Bearer ${token}`);
-        result = {
-          order: {
-            id: orderId,
-            plan_id: "plus",
-            amount: 990,
-            status: "rejected",
-          },
-        };
-      } else
-        throw new Error(
-          `Acción del montaje principal no prevista: ${body.action}`,
-        );
+    else if (url.pathname === "/rest/v1/plan_catalog") {
+      assert.equal(url.searchParams.get("enabled"), "eq.true");
+      result = catalog;
+    } else if (url.pathname === "/rest/v1/rpc/billing_state") {
+      assert.equal(request.headers().authorization, `Bearer ${token}`);
+      result = initial();
     } else if (url.pathname === "/rest/v1/legal_acceptances")
       result = [{ terms_version: LEGAL_VERSION.terms, privacy_version: LEGAL_VERSION.privacy, platform: "web" }];
     else if (url.pathname.startsWith("/rest/v1/")) result = [];
@@ -366,28 +321,24 @@ try {
     channel: process.platform === "win32" ? "msedge" : undefined,
     headless: true,
   });
-  const noPurchase = (calls) =>
-    assert.equal(
-      calls.some((call) =>
-        ["quote", "checkout", "resume", "update_card", "change_plan"].includes(
-          call.action,
-        ),
-      ),
-      false,
-      "La web no debe iniciar contrataciones ni autorizaciones de cobro",
+  const readOnly = (calls) =>
+    assert.deepEqual(
+      calls.filter((call) => !["catalog", "state"].includes(call.action)),
+      [],
+      "La web sólo consulta planes y el plan vigente: no cobra, verifica ni cancela pagos",
     );
   const noPaymentControls = async (page) => {
     assert.equal(
       await page
         .locator(
-          '[data-billing-checkout], [data-billing-channel], [data-billing-consent-action], [data-confirm-change], [data-billing-action="renew"], [data-billing-action="resume"], [data-billing-action="update-card"]',
+          '[data-billing-checkout], [data-billing-channel], [data-billing-consent-action], [data-confirm-change], [data-verify-order], [data-billing-action="renew"], [data-billing-action="resume"], [data-billing-action="update-card"], [data-billing-action="cancel"], [data-billing-action="verify-return"], .billing-history, .billing-result, .billing-pending',
         )
         .count(),
       0,
     );
     assert.doesNotMatch(
       await page.locator("[data-billing-root]").innerText(),
-      /Webpay|Oneclick|Transbank|pagos de prueba|Inscribir y pagar/i,
+      /Webpay|Oneclick|Transbank|pagos de prueba|Inscribir y pagar|Historial de pagos|Cancelar futuros cobros|pago anterior|Visa|6623/i,
     );
     assert.equal(
       await page.locator('a[href*="play.google.com/store/apps"]').count(),
@@ -397,15 +348,9 @@ try {
     await noOverflow(page);
   };
 
-  // Las capacidades antiguas del servidor nunca vuelven a habilitar pagos en la web.
-  for (const environment of ["integration", "production", "disabled"]) {
-    const state = initial();
-    state.capabilities.environment = environment;
-    const { page, calls } = await fixture({
-      user: false,
-      view: "plans",
-      state,
-    });
+  // Planes públicos: precios de referencia y el aviso de Google Play; contratar lleva al aviso.
+  {
+    const { page, calls } = await fixture({ user: false, view: "plans" });
     await page.locator("[data-google-play-notice]").waitFor();
     assert.match(
       await page.locator("[data-google-play-notice]").innerText(),
@@ -434,7 +379,7 @@ try {
     assert.equal(
       await page.locator("[data-billing-offer]").count(),
       0,
-      "La campaña de Transbank no se anuncia como una oferta activa de Play",
+      "La antigua campaña de Transbank no se anuncia como una oferta",
     );
     for (const id of ["plus", "pro"]) {
       await page.locator(`[data-google-play-plan="${id}"]`).click();
@@ -449,13 +394,11 @@ try {
       );
     }
     await noPaymentControls(page);
-    noPurchase(calls);
-    if (environment === "integration") {
-      await capture(page, "google-play-plans-desktop");
-      await page.setViewportSize({ width: 390, height: 844 });
-      await noPaymentControls(page);
-      await capture(page, "google-play-plans-mobile");
-    }
+    assert.deepEqual(calls, [{ action: "catalog" }]);
+    await capture(page, "google-play-plans-desktop");
+    await page.setViewportSize({ width: 390, height: 844 });
+    await noPaymentControls(page);
+    await capture(page, "google-play-plans-mobile");
     await page.close();
   }
 
@@ -474,7 +417,7 @@ try {
       await page.evaluate(() => window.consumeFixtureIntent()),
       null,
     );
-    noPurchase(calls);
+    readOnly(calls);
     await page.close();
   }
   {
@@ -483,21 +426,31 @@ try {
       .getByRole("button", { name: "Continuar con Gratis", exact: true })
       .click();
     assert.equal(new URL(page.url()).hash, "#today");
-    noPurchase(calls);
+    readOnly(calls);
     await page.close();
   }
 
-  // Enlaces guardados y un botón antiguo inyectado no permiten cotizar ni pagar.
-  for (const id of ["plus", "pro"]) {
-    const { page, calls } = await fixture({ hash: `#subscription?plan=${id}` });
-    await page.locator("#google-play-title:focus").waitFor();
-    await page.evaluate(() => {
+  // Enlaces guardados, retornos antiguos de pago y botones antiguos inyectados no hacen nada.
+  for (const hash of [
+    "#subscription?plan=plus",
+    "#subscription?plan=pro",
+    `#subscription?order=${orderId}&status=approved`,
+    `#subscription?enrollment=${enrollmentId}`,
+  ]) {
+    const { page, calls } = await fixture({ hash, state: legacy() });
+    if (hash.includes("plan="))
+      await page.locator("#google-play-title:focus").waitFor();
+    await page.evaluate((orderId) => {
       const root = document.querySelector("[data-billing-root]");
       for (const data of [
         { billingPlan: "plus" },
         { billingAction: "renew" },
         { billingAction: "resume" },
         { billingAction: "update-card" },
+        { billingAction: "cancel" },
+        { billingAction: "confirm-cancel" },
+        { billingAction: "verify-return" },
+        { verifyOrder: orderId },
         { confirmChange: "pro" },
       ]) {
         const button = document.createElement("button");
@@ -506,146 +459,70 @@ try {
         button.click();
         button.remove();
       }
-    });
+    }, orderId);
+    await page.waitForTimeout(300);
     await noPaymentControls(page);
-    noPurchase(calls);
+    assert.deepEqual(calls, [{ action: "state" }]);
     assert.equal(await page.locator("[data-billing-review]").innerText(), "");
     await page.close();
   }
 
-  // Consultas del plan, consumo e historial, sin renovación Webpay ni alta de tarjetas.
+  // Mi plan con datos de Transbank en integración: muestra el plan y el uso, nunca pagos ni cobros.
   for (const channel of ["webpay", "oneclick"]) {
-    const { page, calls } = await fixture({ state: paid(channel) });
+    const { page, calls } = await fixture({ state: legacy(channel) });
     assert.equal(
       await page.locator(".billing-subscription h2").innerText(),
       "Plus",
     );
-    assert.equal(await page.locator(".billing-history tbody tr").count(), 1);
+    assert.match(
+      await page.locator(".billing-subscription").innerText(),
+      /Activo · sin cobros en la web[\s\S]*Google Play/,
+    );
     assert.match(
       await page.locator(".billing-usage").innerText(),
       /10\s*\/\s*15/,
     );
     await noPaymentControls(page);
-    await capture(page, `google-play-subscription-${channel}-desktop`);
-    await page.setViewportSize({ width: 390, height: 844 });
-    await capture(page, `google-play-subscription-${channel}-mobile`);
+    readOnly(calls);
     if (channel === "oneclick") {
-      // Retirar una autorización anterior sigue siendo posible. No crea nuevos cobros.
-      await page
-        .getByRole("button", { name: "Cancelar futuros cobros", exact: true })
-        .click();
-      await page
-        .getByRole("button", {
-          name: "Confirmar cancelación de futuros cobros",
-          exact: true,
-        })
-        .click();
-      await page
-        .getByText("Activo · sin cobros automáticos", { exact: true })
-        .waitFor();
-      assert.equal(calls.filter((call) => call.action === "cancel").length, 1);
-      assert.equal(await page.locator(".billing-history tbody tr").count(), 1);
-      assert.equal(
-        await page.locator(".billing-subscription h2").innerText(),
-        "Plus",
-      );
-    } else
-      assert.equal(
-        await page.locator('[data-billing-action="cancel"]').count(),
-        0,
-      );
-    noPurchase(calls);
+      await capture(page, "google-play-subscription-legacy-desktop");
+      await page.setViewportSize({ width: 390, height: 844 });
+      await capture(page, "google-play-subscription-legacy-mobile");
+    }
     await page.close();
   }
-
-  // Resultados de pagos anteriores: sólo la respuesta del servidor decide el estado.
-  for (const [status, title] of [
-    ["approved", "Pago aprobado"],
-    ["rejected", "El pago fue rechazado"],
-    ["cancelled", "Pago cancelado"],
-    ["abandoned", "El pago no se completó"],
-    ["unknown", "Estamos verificando el resultado"],
-  ]) {
-    const { page, calls } = await fixture({
-      hash: `#subscription?order=${orderId}&status=approved`,
-      verified: { order: { id: orderId, status, amount: 990 } },
-    });
-    await page.getByRole("heading", { name: title, exact: true }).waitFor();
-    if (status !== "approved")
-      assert.equal(
-        await page
-          .getByRole("heading", { name: "Pago aprobado", exact: true })
-          .count(),
-        0,
-      );
+  {
+    const { page, calls } = await fixture();
     assert.equal(
       await page.locator(".billing-subscription h2").innerText(),
       "Gratis",
     );
+    assert.match(
+      await page.locator(".billing-subscription").innerText(),
+      /Tu cuenta no tiene cobros programados/,
+    );
+    await page.getByRole("link", { name: "Ver Plus y Pro", exact: true }).waitFor();
     await noPaymentControls(page);
-    noPurchase(calls);
-    await page.evaluate(() => window.fixtureDispose());
-    const count = calls.length;
-    await page.waitForTimeout(2700);
-    assert.equal(
-      calls.length,
-      count,
-      "Desmontar la vista cancela la consulta automática",
-    );
-    await page.close();
-  }
-  {
-    const state = initial();
-    state.pending_order = { id: orderId, status: "pending" };
-    const { page, calls } = await fixture({
-      state,
-      verified: { order: { id: orderId, status: "rejected" } },
-    });
-    await page
-      .getByRole("button", { name: "Consultar pago pendiente", exact: true })
-      .click();
-    await page
-      .getByRole("heading", { name: "El pago fue rechazado", exact: true })
-      .waitFor();
-    assert.equal(
-      calls.some((call) => call.action === "verify"),
-      true,
-    );
-    noPurchase(calls);
-    await page.close();
-  }
-  {
-    const state = initial();
-    state.pending_enrollment = { id: enrollmentId, status: "pending" };
-    const { page, calls } = await fixture({
-      state,
-      hash: `#subscription?enrollment=${enrollmentId}`,
-    });
-    assert.equal(
-      calls.some((call) => call.action === "verify"),
-      false,
-      "No completar inscripciones de tarjetas desde la web",
-    );
-    await noPaymentControls(page);
+    readOnly(calls);
+    await capture(page, "google-play-subscription-free-desktop");
     await page.close();
   }
 
   // Vencimiento, protección de datos y errores de red.
   {
-    const state = paid("webpay");
+    const state = legacy("webpay");
     state.effective_plan = catalog[0];
     state.subscription.access_active = false;
     state.subscription.effective_status = "expired";
     const { page } = await fixture({ state });
-    assert.match(
-      await page.locator(".billing-subscription").innerText(),
-      /Período vencido · acceso Gratis/,
+    assert.equal(
+      await page.locator(".billing-subscription h2").innerText(),
+      "Gratis",
     );
     assert.match(
       await page.locator(".billing-usage").innerText(),
       /Tu información sigue disponible/,
     );
-    assert.equal(await page.locator(".billing-history tbody tr").count(), 1);
     await noPaymentControls(page);
     await page.close();
   }
@@ -664,15 +541,23 @@ try {
       true,
     );
     await noPaymentControls(page);
-    noPurchase(calls);
+    readOnly(calls);
     await page.close();
   }
 
   // Montaje real de main.js: planes públicos, inicio de sesión, Mi plan y retorno antiguo.
+  // Supabase se lee directo (plan_catalog y billing_state); la Edge Function billing ya no existe.
+  const noEdgeBilling = (calls) =>
+    assert.equal(
+      calls.some((path) => path.startsWith("/functions/v1/billing")),
+      false,
+      "La web no llama a la Edge Function billing retirada",
+    );
   {
     const { page, calls } = await mainFixture("#plans");
     await page.locator('[data-google-play-plan="plus"]').click();
     assert.equal(new URL(page.url()).hash, "#plans");
+    assert.equal(calls.includes("/rest/v1/plan_catalog"), true);
     await page
       .getByRole("button", { name: "Empezar gratis", exact: true })
       .click();
@@ -681,31 +566,28 @@ try {
     await page.waitForURL(/#today$/);
     await page.getByRole("link", { name: "Mi plan", exact: true }).click();
     await page.locator(".billing-subscription").waitFor();
+    assert.equal(calls.includes("/rest/v1/rpc/billing_state"), true);
     await noPaymentControls(page);
     await capture(page, "google-play-main-subscription-desktop");
     await page.setViewportSize({ width: 390, height: 844 });
     await capture(page, "google-play-main-subscription-mobile");
-    noPurchase(calls);
+    noEdgeBilling(calls);
     await page.close();
   }
   {
+    // Un enlace de retorno de Transbank guardado ya no consulta ni anuncia el resultado de un pago.
     const { page, calls } = await mainFixture(
       `#subscription?order=${orderId}&status=approved`,
     );
+    await page.locator(".billing-plans").waitFor();
     await page
       .getByRole("link", { name: "Iniciar sesión", exact: true })
       .first()
       .click();
     await loginMain(page);
-    await page
-      .getByRole("heading", { name: "El pago fue rechazado", exact: true })
-      .waitFor();
-    assert.equal(
-      calls.find((call) => call.action === "verify").order_id,
-      orderId,
-    );
-    await noPaymentControls(page);
-    noPurchase(calls);
+    await page.waitForURL(/#today$/);
+    assert.equal(await page.getByRole("heading", { name: /Pago|pago/ }).count(), 0);
+    noEdgeBilling(calls);
     await page.close();
   }
   // App Android: precios de Google Play, compra, créditos, anuncio recompensado e invitación.
@@ -768,7 +650,7 @@ try {
     return {results:list.map((p)=>({kind:p.productId.startsWith('creditos')?'credits':p.productId==='sin_anuncios'?'ad_free':'subscription',purchaseToken:p.purchaseToken,active:true,acknowledged:true,granted:true,credits:100,consumed:true})),state:m};}});
   const ads={ready:true,setEligible(){},setAdFree(v){window.adFree=v;},rewarded:async(userId)=>{window.adCalls.push(userId);m={...m,ads:{...m.ads,today:1},credits:{...m.credits,balance:70,bonus:70}};return {shown:true,earned:true};}};
   root.innerHTML=renderBilling({view:${JSON.stringify(view)},user});
-  mountBilling(root,{user,billing:async()=>(${JSON.stringify(initial())}),notify:(n)=>window.notes.push(n),
+  mountBilling(root,{user,loadState:async()=>(${JSON.stringify(initial())}),notify:(n)=>window.notes.push(n),
     monetization:{load:async()=>m,redeem:async(code)=>{window.redeemed=code;return {ok:true,invitee_reward:20};},store,ads,userId:user.id}});
 </script></html>`;
     const playPage = async (view, plan = "free") => {
@@ -878,7 +760,7 @@ try {
     "Sin errores JavaScript en las vistas de planes",
   );
   console.log(
-    `Billing UI: aviso Google Play, sin compras web, Gratis, plan/consumo/historial, cancelación anterior, retornos y errores. ${captures.length} capturas escritorio/móvil; sin desbordamiento ni errores JS.`,
+    `Billing UI: aviso Google Play, la web sólo consulta (sin cobros, verificación ni cancelación de Transbank), Gratis, plan/consumo, retornos antiguos y errores. ${captures.length} capturas escritorio/móvil; sin desbordamiento ni errores JS.`,
   );
 } finally {
   await browser?.close();

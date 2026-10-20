@@ -51,31 +51,14 @@ const finish = (db, j, result = { proposal: { title: "Fixture" } }) =>
     j.lease_token,
     JSON.stringify(result),
   ]);
+// Plan pagado por el mismo camino que play-billing tras validar la compra con Google Play.
 async function paid(db, id, plan) {
   await service(db);
-  const admin = (action, payload) =>
-    call(db, "select public.billing_admin($1,$2::jsonb) result", [
-      action,
-      JSON.stringify(payload),
-    ]);
-  const order = await admin("create_order", {
-    user_id: id,
-    plan_id: plan,
-    channel: "webpay",
-    request_id: randomUUID(),
-  });
-  await admin("claim_order", { order_id: order.id });
-  await admin("charge_started", { order_id: order.id });
-  await admin("confirm_order", {
-    order_id: order.id,
-    provider_result: {
-      approved: true,
-      amount: order.amount,
-      buy_order: order.buy_order,
-      session_id: order.session_id,
-      response_code: 0,
-    },
-  });
+  await call(
+    db,
+    "select public.play_apply_subscription($1,$2,$3,'SUBSCRIPTION_STATE_ACTIVE',now()+interval '30 days',true,'GPA.1',null,false,'{}'::jsonb) result",
+    [id, `token-${plan}-${id}`, `planifia_${plan}`],
+  );
 }
 
 test("Queue quotas are atomic, retries are idempotent, concurrent claims cannot duplicate, ownership is enforced", async (t) => {

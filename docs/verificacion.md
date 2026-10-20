@@ -1,5 +1,23 @@
 # Verificación y activación
 
+## Versión 2.3.5 de Android — 19 de octubre de 2026
+
+- Rama `release/2.3.5` (local, sin push): `feature/legal-seguridad` + retiro de Transbank (R7) + anuncios no personalizados (R6). `version` 2.3.5 y `versionCode` 20305.
+- AAB firmado con Tauri 2 (`npm run android:aab`, el mismo comando de `scripts/android-aab.ps1`) para arm64, armv7 y x86_64. Certificado de carga idéntico al del AAB anterior (SHA-256 `DD:7A:02:73:…:0E:35`).
+- Comparada con `release/2.3.4`, no se pierde ninguna función: `AdsPlugin.kt` conserva todos sus comandos y la interfaz conserva sus controles, salvo los pagos de Transbank (historial, «Consultar resultado» y cancelación de Oneclick), retirados a propósito.
+- Pruebas correctas: `npm test` (169), `test:edge` (54), `check:edge`, `test:ui` (falló una vez por tiempo de espera y pasó al repetirla), `test:billing-ui`, `test:csp-ui`, `test:legal-ui`, `test:companion-ui`, `test:chat-ui`, `test:update-ui`, `test:mobile-regressions` (27) y `build`.
+- Producción, el mismo día y en este orden: migración `202610180001` (el responsable), Audit Logs vaciados y `RATE_LIMIT_SALT` creado, funciones `goal-plan`, `lumi-chat`, `ai-fallback`, `play-billing` y `play-rtdn` desplegadas (las cinco responden 401 sin sesión), web publicada desde `main` (GitHub Pages; el primer intento falló porque faltaba el arreglo del gateway `f032c24` del PR de Groq, incorporado después) y migración `202610190001` aplicada (0 permisos sobre las funciones retiradas; `billing_state`, `monetization_state` y `plan_catalog` siguen disponibles).
+- Falta: subir el AAB a Google Play (pasos 10 y 11 del informe legal) y probarlo en un teléfono real.
+
+## Retiro del cobro web con Transbank — 19 de octubre de 2026
+
+- Recomendación R7 de la revisión legal y de seguridad. Rama `claude/retirar-transbank`, sin push, sin migraciones aplicadas y sin despliegues.
+- Borradas las funciones `billing`, `billing-return` y `billing-renew`, `_shared/transbank.ts` y `_shared/billing.ts`, `billing-scheduler.sql`, `scripts/transbank-smoke.ts` y las variables `TRANSBANK_*` y `BILLING_*`. La web lee `plan_catalog` y `billing_state()` directamente y ya no muestra pagos, no consulta resultados ni cancela renovaciones de Oneclick.
+- Migración `202610190001_retire_transbank.sql`: nadie ejecuta `billing_admin`, `manage_subscription` ni `billing_promotion`; tablas y datos se conservan.
+- `npm.cmd test`: 169 pruebas correctas (se quitaron las de Webpay, Oneclick, renovaciones y campaña; `billing-database.test.js` comprueba el retiro con todas las migraciones). `test:edge`: 54 correctas. `check:edge`, `test:billing-ui` (13 capturas), `test:ui`, `test:csp-ui`, `test:legal-ui`, `test:companion-ui`, `test:chat-ui`, `test:update-ui` y `test:mobile-regressions`: correctos.
+- En producción, el mismo día, el responsable detuvo el cron `planifia-billing-renew`, borró sus entradas de Vault, los secretos `TRANSBANK_*` y `BILLING_*` y las funciones `billing-return` y `billing-renew`. Comprobado con `functions list`, `secrets list` y conteos en `cron.job` y `vault.secrets` (0 y 0). `billing` sigue entregando los planes, en modo `disabled`.
+- Pendiente: publicar la web y la app, aplicar la migración y, al final, borrar `billing`. Lista en [billing.md](billing.md#pasos-manuales-en-producción).
+
 ## Web con contratación desde Google Play — 4 de octubre de 2026
 
 - Aviso permanente en Planes y Mi suscripción. Plus y Pro llevan al aviso, sin crear cotizaciones, pagos ni inscripciones de tarjetas. La interfaz indica que la app está en preparación y no inventa un enlace de tienda.

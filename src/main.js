@@ -68,7 +68,7 @@ import {
   consumeBillingIntent,
 } from "./billing.js";
 import {
-  invokeBilling,
+  loadBillingState,
   loadBillingCatalog,
   loadMonetization,
   redeemReferral,
@@ -121,7 +121,6 @@ const petControllers = new Map();
 let petPose = null;
 let disposePetMotionControls = null;
 let disposeBilling = null;
-let paymentReturn = null;
 const companion = createLumiCompanion({
   storage: localStorage,
   session: sessionStorage,
@@ -463,7 +462,7 @@ function mountBillingView() {
   if (!root || disposeBilling) return;
   disposeBilling = mountBilling(root, {
     user,
-    billing: invokeBilling,
+    loadState: loadBillingState,
     loadCatalog: loadBillingCatalog,
     onLogin: (planId) => {
       rememberBillingIntent(planId);
@@ -484,11 +483,6 @@ function mountBillingView() {
 }
 function billingDestination() {
   const planId = consumeBillingIntent();
-  if (paymentReturn) {
-    const route = paymentReturn;
-    paymentReturn = null;
-    return route;
-  }
   return planId ? `subscription?plan=${planId}` : "today";
 }
 function disposePets() {
@@ -877,17 +871,6 @@ function bindAdPrivacy() {
 function landing() {
   const billingRoute = location.hash.slice(1).split("?")[0];
   if (["plans", "subscription"].includes(billingRoute)) {
-    const paymentParams = new URLSearchParams(location.hash.split("?")[1]);
-    for (const key of ["order", "enrollment"]) {
-      const reference = paymentParams.get(key);
-      if (
-        billingRoute === "subscription" &&
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-          reference || "",
-        )
-      )
-        paymentReturn = `subscription?${key}=${reference}`;
-    }
     app.innerHTML = `<header class="landing-header"><a href="#home">${logo()}</a><div><a href="#home">Inicio</a><a class="button" href="#login">Iniciar sesión</a></div></header><main id="main">${renderBilling({ view: "plans", user, escape: e })}</main>`;
     mountBillingView();
     return;

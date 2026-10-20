@@ -384,9 +384,16 @@ export function createOllamaHealth(
     healthy = false,
     pending = null;
   const probe = async () => {
+    // Temporizador propio en vez de AbortSignal.timeout: el de Node no mantiene vivo el proceso, y con
+    // Ollama colgado la espera terminaba sin respuesta (las pruebas de Node 22 se cancelaban).
+    const controller = new AbortController();
+    const timer = setTimeout(
+      () => controller.abort(new DOMException("Ollama no respondió a tiempo", "TimeoutError")),
+      timeoutMs,
+    );
     try {
       const response = await fetchImpl(OLLAMA_TAGS_URL, {
-        signal: AbortSignal.timeout(timeoutMs),
+        signal: controller.signal,
         redirect: "error",
       });
       if (!response.ok) {
@@ -399,6 +406,8 @@ export function createOllamaHealth(
       return [config.model, config.chatModel].every((model) => installed.has(installedName(model)));
     } catch {
       return false;
+    } finally {
+      clearTimeout(timer);
     }
   };
   return {
