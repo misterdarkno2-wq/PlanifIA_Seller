@@ -6,7 +6,8 @@
 - Borradas las funciones `billing`, `billing-return` y `billing-renew`, `_shared/transbank.ts` y `_shared/billing.ts`, `billing-scheduler.sql`, `scripts/transbank-smoke.ts` y las variables `TRANSBANK_*` y `BILLING_*`. La web lee `plan_catalog` y `billing_state()` directamente y ya no muestra pagos, no consulta resultados ni cancela renovaciones de Oneclick.
 - Migración `202610190001_retire_transbank.sql`: nadie ejecuta `billing_admin`, `manage_subscription` ni `billing_promotion`; tablas y datos se conservan.
 - `npm.cmd test`: 169 pruebas correctas (se quitaron las de Webpay, Oneclick, renovaciones y campaña; `billing-database.test.js` comprueba el retiro con todas las migraciones). `test:edge`: 54 correctas. `check:edge`, `test:billing-ui` (13 capturas), `test:ui`, `test:csp-ui`, `test:legal-ui`, `test:companion-ui`, `test:chat-ui`, `test:update-ui` y `test:mobile-regressions`: correctos.
-- Pendiente en producción, en este orden: detener el cron, borrar secretos y las funciones desplegadas. Lista en [billing.md](billing.md#pasos-manuales-en-producción).
+- En producción, el mismo día, el responsable detuvo el cron `planifia-billing-renew`, borró sus entradas de Vault, los secretos `TRANSBANK_*` y `BILLING_*` y las funciones `billing-return` y `billing-renew`. Comprobado con `functions list`, `secrets list` y conteos en `cron.job` y `vault.secrets` (0 y 0). `billing` sigue entregando los planes, en modo `disabled`.
+- Pendiente: publicar la web y la app, aplicar la migración y, al final, borrar `billing`. Lista en [billing.md](billing.md#pasos-manuales-en-producción).
 
 ## Web con contratación desde Google Play — 4 de octubre de 2026
 

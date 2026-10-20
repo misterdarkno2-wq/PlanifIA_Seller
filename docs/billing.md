@@ -40,7 +40,9 @@ Quedan sin uso, con los datos de las pruebas en integración: `public.subscripti
 
 ## Pasos manuales en producción
 
-Ninguno se hizo desde el repositorio: no se desplegó nada ni se aplicó la migración. El orden importa porque **las versiones de la app ya instaladas cargan Planes y Mi plan (incluida la compra con Google Play) a través de la Edge Function `billing`**, con sus acciones `catalog` y `state`. Si se borra antes de tiempo, esas versiones muestran «No pudimos consultar los planes» y no pueden comprar hasta actualizarse.
+**Estado al 19 de octubre de 2026:** los pasos 1 a 4 están hechos y comprobados. No quedan el cron `planifia-billing-renew` ni sus dos entradas de Vault, ni los secretos `TRANSBANK_*` y `BILLING_*`, ni las funciones `billing-return` y `billing-renew`. La función `billing` responde Planes en modo `disabled` (sin Webpay ni Oneclick). Faltan el 5 (publicar la web y la app), el 6 (la migración), el 7 (borrar `billing`) y el 8 (opcional).
+
+El orden importa porque **las versiones de la app ya instaladas cargan Planes y Mi plan (incluida la compra con Google Play) a través de la Edge Function `billing`**, con sus acciones `catalog` y `state`. Si se borra antes de tiempo, esas versiones muestran «No pudimos consultar los planes» y no pueden comprar hasta actualizarse.
 
 Los comandos se ejecutan desde la carpeta del repositorio, con la sesión de Supabase CLI iniciada; las consultas SQL, en el editor SQL de Supabase.
 

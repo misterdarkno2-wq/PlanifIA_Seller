@@ -439,5 +439,6 @@ Ninguno se hizo. Cada uno necesita tu aprobación.
   - Se borraron las funciones `billing`, `billing-return` y `billing-renew`, `_shared/transbank.ts` y `_shared/billing.ts`, el cron (`billing-scheduler.sql`), `scripts/transbank-smoke.ts` y las variables `TRANSBANK_*` y `BILLING_*`.
   - La web lee `plan_catalog` y `billing_state()` directamente y ya no muestra pagos ni cancela renovaciones de Oneclick.
   - La migración `202610190001_retire_transbank.sql` quita el permiso de ejecución a `billing_admin`, `manage_subscription` y `billing_promotion`. Las tablas y sus datos de integración se conservan hasta que el responsable decida.
-  - **Falta en producción** (no aplicado): detener el cron, borrar los secretos y las funciones desplegadas, en el orden de `docs/billing.md` (sección «Pasos manuales en producción»). La función `billing` se borra al final, porque las versiones instaladas de la app la usan para cargar los planes.
+  - **En producción (19 de octubre)**: ya se detuvo el cron y se borraron sus entradas de Vault, los secretos de Transbank y las funciones `billing-return` y `billing-renew`.
+  - **Falta en producción**: publicar la web y la app, aplicar la migración y borrar la función `billing`, en el orden de `docs/billing.md` (sección «Pasos manuales en producción»). La función `billing` se borra al final, porque las versiones instaladas de la app la usan para cargar los planes.
 - **R5. Revisar anualmente** los números de `CRISIS_LINES` y la lista de expresiones de crisis, con los reportes como fuente.
