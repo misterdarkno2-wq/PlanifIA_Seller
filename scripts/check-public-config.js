@@ -9,7 +9,9 @@ for (const [key, value] of Object.entries(env))
       value.startsWith("sb_secret_") ||
       value.startsWith("sk-") ||
       value.startsWith("nvapi-") ||
-      value.startsWith("gsk_")
+      value.startsWith("gsk_") ||
+      // Secreto de un cliente OAuth de Google: sólo va en el panel de Supabase.
+      value.startsWith("GOCSPX-")
     )
       throw new Error(
         "Una variable VITE_ contiene una clave privada. Retírala antes de compilar.",

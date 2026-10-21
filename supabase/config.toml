@@ -19,7 +19,9 @@ refresh_token_reuse_interval = 10
 
 # Límites por IP de Supabase Auth. Frenan la creación masiva de cuentas que acumulan créditos.
 [auth.rate_limit]
-# Correos por hora (confirmación y recuperación) con el SMTP de Supabase.
+# Correos por hora (confirmación y recuperación) con el SMTP de Supabase, que no permite más. Con el
+# SMTP propio de [auth.email.smtp] ya configurado, súbelo (por ejemplo a 60) en el panel:
+# Authentication → Rate Limits. Pasos en docs/login-google.md, sección «Correo propio».
 email_sent = 2
 # Inicios de sesión y registros cada 5 minutos por IP.
 sign_in_sign_ups = 30
@@ -43,6 +45,33 @@ double_confirm_changes = true
 secure_password_change = true
 # Tiempo mínimo entre dos correos a la misma dirección.
 max_frequency = "1m0s"
+
+# SMTP propio (Resend, Brevo u otro) para que la confirmación y la recuperación no dependan del cupo
+# de 2 correos por hora de Supabase. Requiere un dominio de remitente verificado en el proveedor.
+# Se configura en el panel (Authentication → Emails → SMTP Settings). Si usas "supabase config push",
+# descomenta esto y define antes SUPABASE_AUTH_SMTP_PASS en la sesión: con la clave sin definir se
+# enviaría el texto "env(...)" como contraseña y dejarían de llegar todos los correos. La clave nunca
+# va en este archivo. Pasos en docs/login-google.md, sección «Correo propio».
+# [auth.email.smtp]
+# enabled = true
+# host = "smtp.resend.com"   # Brevo: "smtp-relay.brevo.com"
+# port = 465                 # Brevo: 587
+# user = "resend"            # Brevo: el usuario SMTP que muestra Brevo
+# pass = "env(SUPABASE_AUTH_SMTP_PASS)"
+# admin_email = "no-responder@planifia.cl"
+# sender_name = "PlanifIA"
+
+# «Continuar con Google» (docs/login-google.md). Los valores reales se pegan en el panel
+# (Authentication → Sign In / Providers → Google); aquí sólo hay referencias a variables, nunca el
+# secreto. client_id lleva primero el ID de cliente Web (el del flujo OAuth de la web) y después,
+# separados por comas, los de Android. Antes de "supabase config push" define las dos variables en la
+# sesión y revisa la diferencia que muestra el comando: sin ellas reemplazaría la configuración real.
+[auth.external.google]
+enabled = true
+client_id = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET)"
+# El nonce protege el inicio de sesión de Android (signInWithIdToken). No lo desactives.
+skip_nonce_check = false
 
 [functions.goal-plan]
 verify_jwt = false
