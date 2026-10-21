@@ -50,7 +50,7 @@ Nunca uses `VITE_` para claves de Groq, `service_role`, `sb_secret_…`, pagos n
 ## Preparar un proyecto Supabase nuevo
 
 1. Crea el proyecto, copia su URL/clave pública y configura los retornos exactos de Auth para tu web y `http://127.0.0.1:5173/` (incluido `#reset`). `supabase/config.toml` documenta los retornos de esta instalación.
-2. Mantén la confirmación de correo. El SMTP predeterminado limita destinatarios; configura SMTP propio para registros y recuperación fuera del equipo.
+2. Mantén la confirmación de correo. El SMTP predeterminado envía sólo 2 correos por hora; configura SMTP propio para registros y recuperación. «Continuar con Google» (web y Android) evita el correo de confirmación: pasos en [login con Google](docs/login-google.md).
 3. Revisa las migraciones antes de aplicarlas, especialmente si el proyecto contiene datos ajenos. El proyecto original usa tablas nuevas y no modifica el MySQL anterior.
 4. Configura los secretos desde la plantilla privada y despliega las tres funciones de IA:
 
@@ -148,7 +148,7 @@ No comprueba entrega de correos ni compras reales. Consulta [resultado de esta r
 Recorrido sugerido: iniciar sesión → crear una meta manual → añadir/completar una acción → mostrar hábitos y progreso de Lumi → generar y revisar una propuesta con IA local → chat. Si los servicios de IA no están disponibles, muestra las funciones manuales y explica el estado del respaldo.
 
 - [Arquitectura](docs/arquitectura.md), [verificación operativa](docs/verificacion.md), [continuidad e historia](docs/guia-continuidad-2026-10-09.md).
-- [Android](docs/android.md), [Google Play](docs/google-play.md), [monetización](docs/monetizacion.md), [pagos anteriores](docs/billing.md).
+- [Android](docs/android.md), [login con Google](docs/login-google.md), [Google Play](docs/google-play.md), [monetización](docs/monetizacion.md), [pagos anteriores](docs/billing.md).
 - [Evaluación de IA](docs/evaluacion-ia.md), [incidentes](docs/plan-incidentes.md), [registro de tratamientos](docs/registro-tratamientos.md).
 - Importación del PlanifIA anterior: `py scripts/export_legacy.py --url https://api.planifia.cl --output exports/planifia-anterior.json`; revisar el archivo y usar **Ajustes → Importar datos**. No importa contraseñas ni borra el origen.
 
