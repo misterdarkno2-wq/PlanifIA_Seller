@@ -95,6 +95,10 @@ test("La política dice qué datos llegan al entrar con Google, y la app no pide
   assert.doesNotMatch(await read("src/google-auth.js"), /scopes\s*:/);
   const plugin = await read("src-tauri/plugins/planifia-auth/android/src/main/java/AuthPlugin.kt");
   assert.doesNotMatch(plugin, /requestScopes|Scope\(/);
+  // Credential Manager trae permisos biométricos que «Continuar con Google» no usa.
+  const manifest = await read("src-tauri/plugins/planifia-auth/android/src/main/AndroidManifest.xml");
+  for (const permission of ["USE_BIOMETRIC", "USE_FINGERPRINT"])
+    assert.match(manifest, new RegExp(`android\\.permission\\.${permission}" tools:node="remove"`), permission);
 });
 
 test("Cada dato que la app guarda en el navegador o el teléfono aparece en la política", async () => {

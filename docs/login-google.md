@@ -13,6 +13,7 @@
 - **Nonce**: la app genera 32 bytes aleatorios. Google recibe su SHA-256 en hexadecimal y Supabase el original, y Supabase comprueba que coincidan. **No actives «Skip nonce check»**.
 - **El botón sólo aparece si Google está activo en Supabase** (la app lo consulta en `/auth/v1/settings`). Mientras no completes los pasos de abajo, nadie lo ve. Desactivar Google en el panel también lo quita.
 - **En Android** además hace falta `VITE_GOOGLE_WEB_CLIENT_ID` al compilar (ver el paso 6). Sin esa variable el botón no aparece en la app.
+- **Permisos de Android**: ninguno que se pida en pantalla. `ACCESS_NETWORK_STATE` (normal) ya estaba por el SDK de anuncios. El plugin quita `USE_BIOMETRIC` y `USE_FINGERPRINT`, que Credential Manager 1.6 trae para una confirmación biométrica que no se usa. Versión release: la regla de R8 de Credential Manager está en `consumer-rules.pro` del plugin.
 - **Errores en Android**, todos en español y sin cerrar la app: canceló (vuelve al formulario sin mensaje), teléfono sin cuenta de Google, sin Google Play Services o desactualizado, sin red, interrumpido y error genérico. El detalle técnico queda en logcat con la etiqueta `PlanifiaAuth`.
 - **Errores al volver a la web** (por ejemplo «Database error saving new user» o un enlace de correo vencido): se explican en el formulario de inicio de sesión y se limpian de la dirección.
 
