@@ -86,6 +86,17 @@ test("La política de privacidad nombra a cada proveedor de IA que usa el servid
     assert.ok(policy.includes(provider), provider);
 });
 
+test("La política dice qué datos llegan al entrar con Google, y la app no pide más permisos", async () => {
+  const policy = text(await read("public/privacidad.html"));
+  assert.match(policy, /Continuar con Google/);
+  for (const data of ["nombre", "correo", "foto de perfil", "identificador de tu cuenta de Google", "openid", "email", "profile"])
+    assert.ok(policy.includes(data), data);
+  // Sin alcances adicionales: Supabase pide a Google sólo openid, email y profile.
+  assert.doesNotMatch(await read("src/google-auth.js"), /scopes\s*:/);
+  const plugin = await read("src-tauri/plugins/planifia-auth/android/src/main/java/AuthPlugin.kt");
+  assert.doesNotMatch(plugin, /requestScopes|Scope\(/);
+});
+
 test("Cada dato que la app guarda en el navegador o el teléfono aparece en la política", async () => {
   const policy = await read("public/privacidad.html");
   const keys = new Set();

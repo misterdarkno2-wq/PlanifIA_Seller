@@ -1,10 +1,10 @@
 // Versión vigente de los Términos de uso y de la Política de privacidad. Es el único lugar del código
 // donde se cambia. Al publicar una versión nueva:
-//   1. Copia la página anterior a public/legal/ (por ejemplo, public/legal/terminos-2026-10-18.html).
+//   1. Copia la página anterior a public/legal/ (por ejemplo, public/legal/terminos-2026-10-21.html).
 //   2. Cambia aquí la fecha y actualiza data-legal-version y el historial de la página.
 //   3. Las cuentas que aceptaron una versión anterior verán la pantalla para aceptar de nuevo antes de
-//      usar la IA o comprar (tests/legal.test.js comprueba que todo coincida).
-export const LEGAL_VERSION = Object.freeze({ terms: "2026-10-18", privacy: "2026-10-18" });
+//      usar la IA o comprar (tests/legal-security.test.js comprueba que todo coincida).
+export const LEGAL_VERSION = Object.freeze({ terms: "2026-10-21", privacy: "2026-10-21" });
 
 export const LEGAL_URLS = Object.freeze({
   terms: "https://planifia.cl/terminos.html",
@@ -60,6 +60,7 @@ export function legalUpdateCard({ doc = document, accept, onAccepted = () => {},
   card.innerHTML = `<h2 id="legal-update-title" tabindex="-1">Actualizamos los Términos y la Política de privacidad</h2>
     <p>${reason ? `${reason} ` : ""}Revisa y acepta la versión del ${legalDateLabel(LEGAL_VERSION.terms)} para seguir usando la IA y comprar en PlanifIA. Tus metas y tu progreso siguen disponibles aunque no aceptes.</p>
     <ul class="legal-update-changes">
+      <li>Ahora puedes entrar con tu cuenta de Google: explicamos qué datos nos entrega Google y cómo quitarle el acceso.</li>
       <li>Identificamos a quien responde por tus datos y explicamos todos tus derechos y cómo ejercerlos.</li>
       <li>Detallamos qué datos recibe cada proveedor (Supabase, Groq, Google, Cloudflare y GitHub) y en qué país.</li>
       <li>Explicamos los límites de la IA, las líneas de ayuda y cómo reportar una respuesta.</li>
