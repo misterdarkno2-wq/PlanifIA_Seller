@@ -1472,6 +1472,74 @@ code {
   gap: 10px;
 }
 
+/* «Continuar con Google»: colores neutros de las pautas de marca de Google y su logotipo «G». */
+.google-auth {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.google-auth[hidden] {
+  display: none;
+}
+.google-auth .fine,
+.google-auth .error {
+  margin: 0;
+}
+.google-button {
+  width: 100%;
+  min-height: 44px;
+  background: #fff;
+  color: #1f1f1f;
+  border-color: #747775;
+  font-weight: 600;
+}
+.google-button svg {
+  flex: none;
+}
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.auth-divider::before,
+.auth-divider::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid var(--line);
+}
+/* Primera entrada con Google: casilla obligatoria antes de ver la app. */
+.signup-consent {
+  display: grid;
+  gap: 14px;
+  max-width: 620px;
+  margin: 24px auto 64px;
+  font-size: 15px;
+  line-height: 1.5;
+}
+.signup-consent h1 {
+  margin: 0;
+  font-size: 1.6rem;
+}
+/* El título recibe el foco al abrir la pantalla (lectores de pantalla); no es un control. */
+.signup-consent h1:focus {
+  outline: none;
+}
+.signup-consent p {
+  margin: 0;
+}
+.signup-consent form {
+  gap: 14px;
+}
+@media (max-width: 760px) {
+  .signup-consent {
+    margin: 8px 16px 40px;
+    padding: 20px;
+  }
+}
+
 /* Aviso fijo de crisis con líneas de ayuda (lo escribe la app, no la IA). */
 .crisis-help {
   display: grid;

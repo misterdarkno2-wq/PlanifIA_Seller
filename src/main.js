@@ -20,9 +20,11 @@ import {
 } from "./ai-jobs.js";
 import {
   AUTH_STORAGE_KEY,
+  GOOGLE_WEB_CLIENT_ID,
   cloud,
   missing,
   checked,
+  loadAuthSettings,
   loadState,
   rpc,
   generatePlan,
@@ -44,6 +46,14 @@ import {
   legalUpdateCard,
   signupLegal,
 } from "./legal.js";
+import {
+  authReturnError,
+  authReturnMessage,
+  googleSignInMode,
+  signInWithGoogleNative,
+  signInWithGoogleWeb,
+  usesGoogle,
+} from "./google-auth.js";
 import { crisisHelp, detectCrisis } from "./crisis-help.js";
 import { reportControl } from "./ai-report.js";
 import { createCloudFallback } from "./ai-source.js";
@@ -114,7 +124,12 @@ let user = null,
   toastTimer,
   dialog;
 // Con una sesión guardada no se muestra la portada mientras Supabase la recupera: sigue el esqueleto.
-let restoring = Boolean(cloud) && hasStoredSession(AUTH_STORAGE_KEY);
+// Lo mismo al volver de Google con la sesión en el enlace (#access_token=…).
+let restoring = Boolean(cloud) && (hasStoredSession(AUTH_STORAGE_KEY) || /[#&]access_token=/.test(location.hash));
+// Al volver de Google con un error (o de un enlace de correo vencido) Supabase lo deja en el enlace.
+// authNotice lo muestra el formulario de inicio de sesión hasta que la persona navega o lo usa.
+let authReturn = authReturnError(location.hash),
+  authNotice = "";
 // Día para el que se dibujó la vista de la cuenta (para redibujar al volver después de medianoche).
 let renderedDay = null;
 const petControllers = new Map();
@@ -150,18 +165,28 @@ aiJobs.subscribe((jobs) => cloudFallback.consider(jobs));
 let lumiChat = null;
 // Última aceptación de los términos de la cuenta abierta: { owner, available, latest }.
 let legal = null,
-  legalPrompted = false;
+  legalPrompted = false,
+  legalLoading = null;
 const platformName = () => (isAndroidApp() ? "android" : isNative() ? "desktop" : "web");
 const needsLegal = () =>
   Boolean(user && legal?.owner === user.id && legal.available && !legalCurrent(legal.latest));
+// Quien entra con Google no pasó por la casilla del registro (Google no envía la aceptación). Hasta
+// que acepte, o mientras no se pueda comprobar, no ve nada de la app: ni metas, ni IA, ni compras.
+const needsSignupConsent = () =>
+  Boolean(user && usesGoogle(user) && !(legal?.owner === user.id && legal.available && legal.latest));
 async function checkLegal() {
   if (!user || legal?.owner === user.id) return;
   const owner = user.id;
-  const status = await loadLegalStatus().catch(() => ({ available: false }));
+  // La pantalla de Google y la carga de datos lo piden a la vez: una sola consulta.
+  if (legalLoading?.owner === owner) return legalLoading.promise;
+  const promise = loadLegalStatus().catch(() => ({ available: false }));
+  legalLoading = { owner, promise };
+  const status = await promise;
+  if (legalLoading?.promise === promise) legalLoading = null;
   if (user?.id !== owner) return;
   legal = { owner, ...status };
   // Una vez por sesión se avisa al entrar; la IA y las compras lo vuelven a pedir hasta aceptar.
-  if (needsLegal() && !legalPrompted && !dialog) {
+  if (needsLegal() && !needsSignupConsent() && !legalPrompted && !dialog) {
     legalPrompted = true;
     legalModal();
   }
@@ -204,6 +229,60 @@ function legalModal() {
     onDelete: deleteAccountForm,
   });
   $("[data-legal-slot]", host).replaceChildren(card);
+}
+/** Pantalla completa en lugar de la app hasta aceptar (cuentas que entraron con Google). */
+function signupConsentPage() {
+  const owner = user.id;
+  const phase = legal?.owner !== owner ? "checking" : legal.available ? "consent" : "failed";
+  // Redibujar la vista (por ejemplo, al terminar de cargar las metas) no debe desmarcar la casilla.
+  const current = $("[data-signup-consent]", app);
+  if (current?.dataset.owner === owner && current.dataset.phase === phase) return;
+  app.innerHTML = `<header class="landing-header"><span>${logo()}</span></header><main id="main"><section class="panel signup-consent" data-signup-consent data-owner="${e(owner)}" data-phase="${phase}" aria-labelledby="signup-consent-title"><h1 id="signup-consent-title" tabindex="-1">Antes de empezar</h1>${
+    phase === "checking"
+      ? '<p role="status">Comprobando tu cuenta…</p>'
+      : phase === "failed"
+        ? '<p class="error" role="alert">No pudimos comprobar tu cuenta. Revisa tu conexión y vuelve a intentarlo.</p><div class="actions"><button data-consent-retry>Reintentar</button><button type="button" class="secondary" data-consent-decline>Cerrar sesión</button></div>'
+        : `<p>Entraste con Google como <strong>${e(user.email)}</strong>. Para usar PlanifIA confirma tu edad y acepta los términos. Te lo pedimos sólo esta vez.</p><form data-consent-form>${legalConsentMarkup("google_consent")}${alert()}<div class="actions"><button data-consent-accept disabled>Aceptar y continuar</button><button type="button" class="secondary" data-consent-decline>No acepto, cerrar sesión</button></div></form><p class="fine">Si no aceptas, cerramos la sesión y no usamos tu cuenta. Si prefieres que no quede registrada, puedes <button type="button" class="text-button" data-consent-delete>eliminarla</button>.</p>`
+  }</section></main>`;
+  $("#signup-consent-title", app).focus({ preventScroll: true });
+  if (phase === "checking") void checkLegal().then(() => user?.id === owner && render());
+  $("[data-consent-retry]", app)?.addEventListener("click", () => {
+    legal = null;
+    render();
+  });
+  $("[data-consent-decline]", app)?.addEventListener("click", (event) => declineSignupConsent(event.currentTarget));
+  $("[data-consent-delete]", app)?.addEventListener("click", deleteAccountForm);
+  const form = $("[data-consent-form]", app);
+  if (!form) return;
+  const box = $("[data-legal-consent]", form),
+    accept = $("[data-consent-accept]", form);
+  box.addEventListener("change", () => (accept.disabled = !box.checked));
+  form.onsubmit = (event) => {
+    event.preventDefault();
+    if (!box.checked) return;
+    busy(accept, async () => {
+      await acceptCurrentLegal();
+      render();
+    });
+  };
+}
+// Sin aceptar no se usa la cuenta: se cierra la sesión (también en el servidor si hay conexión).
+async function declineSignupConsent(button) {
+  button.disabled = true;
+  try {
+    const { error } = await cloud.auth.signOut();
+    if (error) await cloud.auth.signOut({ scope: "local" });
+  } catch {
+    await cloud.auth.signOut({ scope: "local" }).catch(() => {});
+  }
+  user = null;
+  state = null;
+  legal = null;
+  legalPrompted = false;
+  loadVersion++;
+  location.hash = "home";
+  render();
+  toast("Cerramos la sesión. Para usar PlanifIA tienes que aceptar los Términos y la Política de privacidad.");
 }
 // Respaldo completo de la cuenta (derecho de acceso y portabilidad), también antes de eliminarla.
 async function exportData() {
@@ -807,6 +886,10 @@ function render() {
     mountPets();
     return;
   }
+  if (needsSignupConsent()) {
+    signupConsentPage();
+    return;
+  }
   if (!state) {
     app.innerHTML = shell(
       loading
@@ -882,8 +965,23 @@ function landing() {
         location.hash = "register";
       }),
   );
+  // Se consulta antes de abrir el formulario para que el botón de Google no aparezca con un salto.
+  if (cloud && googleSignInMode(GOOGLE_WEB_CLIENT_ID)) void loadAuthSettings();
   if (["login", "register", "reset"].includes(location.hash.slice(1)))
     authModal(location.hash.slice(1));
+}
+/** Muestra el error que Supabase dejó en el enlace al volver, y lo quita de la dirección. */
+function showAuthReturn(signedIn) {
+  if (!authReturn) return;
+  const message = authReturnMessage(authReturn);
+  authReturn = null;
+  history.replaceState(history.state, "", `${location.pathname}${location.search}${signedIn ? "" : "#login"}`);
+  if (signedIn) {
+    toast(message);
+    return;
+  }
+  authNotice = message;
+  render();
 }
 function authModal(mode) {
   const register = mode === "register",
@@ -894,8 +992,14 @@ function authModal(mode) {
       : register
         ? "Empieza tu camino"
         : "Qué bueno verte",
-    `<p class="muted">${reset ? "Escribe tu nueva contraseña." : register ? "Tus metas y Lumi te esperan en cualquier dispositivo." : "Vuelve a tu siguiente paso."}</p><form id="auth-form">${register ? '<label>Tu nombre<input name="name" autocomplete="name" maxlength="80" required></label>' : ""}${!reset ? '<label>Correo electrónico<input name="email" type="email" autocomplete="email" required></label>' : ""}<label>Contraseña<input name="password" type="password" autocomplete="${register || reset ? "new-password" : "current-password"}" ${register || reset ? `minlength="10" pattern="(?=.*[A-Za-zÁÉÍÓÚÜÑáéíóúüñ])(?=.*[0-9]).{10,}" title="Al menos 10 caracteres, con letras y números." aria-describedby="password-hint"` : `minlength="8"`} required></label>${register || reset ? '<p class="fine" id="password-hint">Al menos 10 caracteres, con letras y números.</p>' : ""}${register ? legalConsentMarkup() : ""}${alert()}<button>${reset ? "Guardar contraseña" : register ? "Crear cuenta" : "Iniciar sesión"}</button></form>${!register && !reset ? '<button class="text-button" id="forgot">Olvidé mi contraseña</button>' : ""}<p>${register ? '<a href="#login">Ya tengo una cuenta</a>' : '<a href="#register">Crear una cuenta</a>'}</p>`,
+    `<p class="muted">${reset ? "Escribe tu nueva contraseña." : register ? "Tus metas y Lumi te esperan en cualquier dispositivo." : "Vuelve a tu siguiente paso."}</p>${reset ? "" : googleBlock(register)}<form id="auth-form">${register ? '<label>Tu nombre<input name="name" autocomplete="name" maxlength="80" required></label>' : ""}${!reset ? '<label>Correo electrónico<input name="email" type="email" autocomplete="email" required></label>' : ""}<label>Contraseña<input name="password" type="password" autocomplete="${register || reset ? "new-password" : "current-password"}" ${register || reset ? `minlength="10" pattern="(?=.*[A-Za-zÁÉÍÓÚÜÑáéíóúüñ])(?=.*[0-9]).{10,}" title="Al menos 10 caracteres, con letras y números." aria-describedby="password-hint"` : `minlength="8"`} required></label>${register || reset ? '<p class="fine" id="password-hint">Al menos 10 caracteres, con letras y números.</p>' : ""}${register ? legalConsentMarkup() : ""}${alert()}<button>${reset ? "Guardar contraseña" : register ? "Crear cuenta" : "Iniciar sesión"}</button></form>${!register && !reset ? '<button class="text-button" id="forgot">Olvidé mi contraseña</button>' : ""}<p>${register ? '<a href="#login">Ya tengo una cuenta</a>' : '<a href="#register">Crear una cuenta</a>'}</p>`,
   );
+  bindGoogleSignIn(host);
+  if (authNotice && !reset) {
+    const problem = $("#auth-form [role=alert]", host);
+    problem.textContent = authNotice;
+    problem.hidden = false;
+  }
   // Crear cuenta queda deshabilitado hasta marcar la casilla de edad y aceptación (sin marcar al abrir).
   const consent = $("[data-legal-consent]", host);
   if (consent) {
@@ -905,6 +1009,7 @@ function authModal(mode) {
   }
   $("#auth-form", host).onsubmit = (event) => {
     event.preventDefault();
+    authNotice = "";
     const form = event.currentTarget;
     if (consent && !consent.checked) return;
     busy($("button", form), async () => {
@@ -966,6 +1071,52 @@ function authModal(mode) {
         "Si existe la cuenta, recibirás un enlace para cambiar la contraseña.",
       );
     });
+  });
+}
+// Logotipo «G» de Google, como piden sus pautas para el botón de inicio de sesión.
+const GOOGLE_ICON =
+  '<svg aria-hidden="true" width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>';
+// Va fuera del formulario de correo, que sigue igual. Oculto hasta confirmar que Google está activo.
+function googleBlock(register) {
+  return `<div class="google-auth" data-google-auth hidden><button type="button" class="google-button" data-google-signin>${GOOGLE_ICON}<span>Continuar con Google</span></button>${register ? '<p class="fine">Si es tu primera vez, antes de empezar te pediremos confirmar tu edad y aceptar los términos.</p>' : ""}${alert()}<p class="auth-divider">o con tu correo</p></div>`;
+}
+function bindGoogleSignIn(host) {
+  const box = $("[data-google-auth]", host);
+  const mode = cloud ? googleSignInMode(GOOGLE_WEB_CLIENT_ID) : null;
+  if (!box || !mode) return;
+  void loadAuthSettings().then((settings) => {
+    if (settings?.external?.google === true && box.isConnected) box.hidden = false;
+  });
+  const button = $("[data-google-signin]", box),
+    problem = $("[role=alert]", box);
+  button.addEventListener("click", async () => {
+    if (button.disabled) return;
+    authNotice = "";
+    button.disabled = true;
+    button.setAttribute("aria-busy", "true");
+    problem.hidden = true;
+    try {
+      if (mode === "web") {
+        // Lleva a Google; al volver, la sesión llega en el enlace y la recupera supabase-js.
+        await signInWithGoogleWeb({ auth: cloud.auth, redirectTo: authRedirect() });
+        return;
+      }
+      const session = await signInWithGoogleNative({ auth: cloud.auth, clientId: GOOGLE_WEB_CLIENT_ID });
+      // Canceló en la ventana de Google: sigue en el formulario, sin mensaje de error.
+      if (!session) return;
+      closeModal();
+      user = session.user;
+      location.hash = billingDestination();
+      await refresh();
+    } catch (error) {
+      problem.textContent = errorMessage(error);
+      problem.hidden = false;
+    } finally {
+      if (button.isConnected) {
+        button.disabled = false;
+        button.removeAttribute("aria-busy");
+      }
+    }
   });
 }
 function deleteAccountForm() {
@@ -1584,6 +1735,7 @@ installNativeBack({
 window.addEventListener("hashchange", () => {
   // Page anchors are not routes: keep the current view and keyboard position.
   if (["#main", "#how"].includes(location.hash)) return;
+  authNotice = "";
   closeModal();
   if (location.hash === "#reset") {
     authModal("reset");
@@ -1661,14 +1813,19 @@ if (cloud) {
     .then((data) => {
       const waiting = stopRestoring();
       if (data.session) {
+        showAuthReturn(true);
         user = data.session.user;
         const selectedPlan = consumeBillingIntent();
         if (selectedPlan) location.hash = `subscription?plan=${selectedPlan}`;
         refresh();
-      } else if (waiting) render();
+      } else {
+        if (waiting) render();
+        showAuthReturn(false);
+      }
     })
     .catch((error) => {
       if (stopRestoring()) render();
-      toast(errorMessage(error));
+      if (authReturn) showAuthReturn(false);
+      else toast(errorMessage(error));
     });
 }
