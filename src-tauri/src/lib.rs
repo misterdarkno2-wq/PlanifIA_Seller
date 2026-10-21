@@ -5,6 +5,7 @@ pub fn run() {
     .plugin(tauri_plugin_fs::init())
     .plugin(tauri_plugin_planifia_ads::init())
     .plugin(tauri_plugin_planifia_billing::init())
+    .plugin(tauri_plugin_planifia_auth::init())
     .setup(|app| {
       if cfg!(debug_assertions) {
         app.handle().plugin(

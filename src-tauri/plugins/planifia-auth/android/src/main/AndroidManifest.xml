@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Permiso normal (no se pide en pantalla; el SDK de anuncios ya lo agrega): saber si hay red
+         antes de abrir la ventana de Google, para avisar "sin conexión" en vez de un error genérico. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+</manifest>

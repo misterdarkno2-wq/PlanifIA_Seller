@@ -24,9 +24,11 @@ tauri-plugin-log = "2"
 
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
-# Plugins propios: anuncios (AdMob) y compras (Google Play Billing). En escritorio responden "no disponible".
+# Plugins propios: anuncios (AdMob), compras (Google Play Billing) e inicio de sesión con Google
+# (Credential Manager). En escritorio responden "no disponible".
 tauri-plugin-planifia-ads = { path = "plugins/planifia-ads" }
 tauri-plugin-planifia-billing = { path = "plugins/planifia-billing" }
+tauri-plugin-planifia-auth = { path = "plugins/planifia-auth" }
 
 # Keep the test APK small; Android/WebView debugging remains enabled.
 [profile.dev]
