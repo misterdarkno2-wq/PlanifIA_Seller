@@ -158,4 +158,8 @@ Con una cuenta de Google de prueba (no la personal):
 | `npm run test:google-ui` | La app real con Supabase y Google simulados: botón sólo con Google activo, ida y vuelta de OAuth, pantalla obligatoria, rechazo, aceptación, cuenta vinculada, errores, Android (Tauri simulado) y escritorio |
 | `node --test tests/legal-security.test.js` | La política declara los datos de Google y la app no pide más alcances |
 
-Nada de esto usa Google ni Supabase reales. Sin las credenciales de Google no se pudo probar el inicio de sesión real, ni Credential Manager en un teléfono, ni la vinculación en el Supabase real.
+Nada de esto usa Google ni Supabase reales.
+
+En el emulador (21 de octubre de 2026, Android 16 con Google Play Services y sin cuenta de Google, APK de depuración), el comando nativo respondió `config` con un ID de cliente inválido. Con un ID con formato válido abrió la ventana de Google, y al cancelar con Atrás devolvió `cancelled`. Sin red devolvió `offline`, y con Google Play Services desactivado, `no_play_services`. En todos los casos la app siguió abierta, con el mismo proceso. El APK release con R8 abrió sin errores y con el formulario de correo igual.
+
+Sin las credenciales de Google **no** se pudo probar: obtener un ID token real, el inicio de sesión real en la web o en Android, la pantalla de consentimiento ni la vinculación en el Supabase real.
