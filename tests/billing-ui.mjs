@@ -271,6 +271,8 @@ async function mainFixture(hash = "") {
     let result;
     if (url.pathname === "/auth/v1/token") result = session;
     else if (url.pathname === "/auth/v1/user") result = user;
+    // La portada consulta si «Continuar con Google» está activo (aquí no).
+    else if (url.pathname === "/auth/v1/settings") result = { external: { google: false } };
     else if (url.pathname === "/rest/v1/profiles") result = profile;
     else if (url.pathname === "/rest/v1/rpc/pet_state")
       result = {

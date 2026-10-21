@@ -42,20 +42,23 @@ Selecciona únicamente **18 años o más**. Responde **No** a "¿podría atraer 
 
 ## 6. Seguridad de los datos
 
-Esta sección debe coincidir con `public/privacidad.html` (versión del 18 de octubre de 2026). Si cambias una, cambia la otra. `tests/legal-security.test.js` comprueba que la política nombre a cada proveedor de IA y cada dato guardado en el teléfono.
+Esta sección debe coincidir con `public/privacidad.html` (versión del 21 de octubre de 2026, que agrega el inicio de sesión con Google). Si cambias una, cambia la otra. `tests/legal-security.test.js` comprueba que la política nombre a cada proveedor de IA y cada dato guardado en el teléfono.
 
 - ¿Recopila o comparte datos? **Sí recopila** y **sí comparte**: el SDK de Google AdMob recoge y comparte datos de anuncios en el plan Gratis (ver [monetización](monetizacion.md)). Supabase, Cloudflare y Groq (la IA de respaldo en la nube) son proveedores que tratan datos en nombre de PlanifIA, y Google no lo considera "compartir". Groq sólo cuenta como proveedor si aceptaste su DPA y activaste Zero Data Retention (ver [respaldo en la nube](respaldo-nube.md)); si no, declara el nombre y el contenido generado por el usuario como **compartidos** y corrige la política antes de publicarla.
 - ¿Datos cifrados en tránsito? **Sí**.
 - ¿Las personas pueden pedir que se eliminen sus datos? **Sí**. URL: `https://planifia.cl/eliminar-cuenta.html`.
-- Las cuentas se crean **con nombre de usuario (correo) y contraseña**.
+- Métodos para crear cuentas: marca **Nombre de usuario y contraseña** (correo y contraseña) y **OAuth** (Continuar con Google). Si Play Console sólo deja elegir uno, elige **Nombre de usuario, contraseña y otro método de autenticación**.
+- La URL para eliminar la cuenta sirve igual para las cuentas creadas con Google: `https://planifia.cl/eliminar-cuenta.html`.
 - ¿Sigue la política de Familias? **No aplica**: público objetivo de 18 años o más (sección 5).
 
 Tipos de datos. Salvo que se indique otra cosa: *recopilado*, *no compartido*, *no efímero*, *obligatorio*, propósitos **Funcionalidad de la app** y **Administración de la cuenta**.
 
 | Sección de Play | Dato | Notas |
 | --- | --- | --- |
-| Información personal → Nombre | Nombre del perfil | Opcional. Groq lo recibe como proveedor con cada mensaje a Lumi que responde la IA de respaldo |
-| Información personal → Dirección de correo | Correo de la cuenta | Obligatorio |
+| Información personal → Nombre | Nombre del perfil, escrito por la persona o entregado por Google al entrar con Google | Opcional. Groq lo recibe como proveedor con cada mensaje a Lumi que responde la IA de respaldo |
+| Información personal → Dirección de correo | Correo de la cuenta (lo escribe la persona o lo entrega Google) | Obligatorio |
+| Información personal → ID de usuario | Identificador de la cuenta de PlanifIA y, si entra con Google, el identificador de su cuenta de Google | Obligatorio. El de PlanifIA también se **comparte** con AdMob en los anuncios recompensados (verificación SSV), propósito **Prevención de fraudes, seguridad y cumplimiento**: la política ya lo dice en la tabla de proveedores. Faltaba en esta tabla (revisión del 21 de octubre) |
+| Información personal → Otra información | Enlace a la foto de perfil de Google | Sólo si entra con Google. Supabase guarda el enlace con los datos de la cuenta; la app no descarga ni muestra la imagen. Por eso no se declara en **Fotos y videos** |
 | Actividad en apps → Otro contenido generado por el usuario | Metas, acciones, hábitos, texto enviado a la IA, mensajes de **Hablar con Lumi** y reportes de contenido de la IA | Obligatorio. Groq lo recibe como proveedor (planes y chat cuando responde la IA de respaldo). Los reportes también tienen el propósito **Seguridad, cumplimiento y prevención de fraudes** |
 | Actividad en apps → Interacciones con la app | Progreso de Lumi, XP, uso de IA, créditos y aceptación de los términos | Obligatorio. Propósitos: Funcionalidad de la app y **Prevención de fraudes, seguridad y cumplimiento**. También **compartido** con AdMob (plan Gratis), para **Publicidad o marketing** y **Estadísticas** |
 | Información financiera → Historial de compras | Compras y suscripciones de Google Play | Sólo si compras algo |

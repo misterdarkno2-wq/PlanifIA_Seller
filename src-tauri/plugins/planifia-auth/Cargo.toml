@@ -1,0 +1,15 @@
+[package]
+name = "tauri-plugin-planifia-auth"
+version = "0.1.0"
+description = "Inicio de sesión nativo con Google (Credential Manager) para PlanifIA en Android"
+edition = "2024"
+rust-version = "1.90"
+links = "tauri-plugin-planifia-auth"
+publish = false
+
+[dependencies]
+tauri = { version = "2.12.1", default-features = false }
+serde_json = "1"
+
+[build-dependencies]
+tauri-plugin = { version = "2.7.1", features = ["build"] }

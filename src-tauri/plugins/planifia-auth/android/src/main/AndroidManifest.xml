@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <!-- Permiso normal (no se pide en pantalla; el SDK de anuncios ya lo agrega): saber si hay red
+         antes de abrir la ventana de Google, para avisar "sin conexión" en vez de un error genérico. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Credential Manager 1.6 (androidx.biometric) los declara para su confirmación biométrica
+         opcional de llaves de acceso y contraseñas. «Continuar con Google» no la usa: se quitan para
+         no ampliar los permisos de la app. -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" tools:node="remove" />
+    <uses-permission android:name="android.permission.USE_FINGERPRINT" tools:node="remove" />
+</manifest>

@@ -30,6 +30,19 @@ test("Una compilación pública rechaza las claves administrativas y de IA", () 
   }
 });
 
+test("El secreto del cliente de Google no entra en la app; el ID de cliente Web sí", () => {
+  const run = (value) =>
+    spawnSync(process.execPath, ["scripts/check-public-config.js"], {
+      env: { ...process.env, VITE_GOOGLE_WEB_CLIENT_ID: value },
+      encoding: "utf8",
+    });
+  const secret = run("GOCSPX-test-only-fixture");
+  assert.notEqual(secret.status, 0);
+  assert.match(secret.stderr, /privada/);
+  assert.equal(secret.stderr.includes("GOCSPX-test-only-fixture"), false);
+  assert.equal(run("123456789012-abcdefghijklmnop0123456789.apps.googleusercontent.com").status, 0);
+});
+
 test("El control también revisa los archivos de entorno de producción", () => {
   const folder = mkdtempSync(join(tmpdir(), "planifia-config-"));
   try {

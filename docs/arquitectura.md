@@ -8,6 +8,8 @@ La aplicación nueva se compila con Vite y `@supabase/supabase-js`. La persisten
 
 La interfaz se publica en `https://planifia.cl/` desde GitHub Pages de `PlanifIA_Seller`, con base de assets `/` y dominio declarado en `public/CNAME`. La dirección anterior `https://misterdarkno2-wq.github.io/PlanifIA_Seller/` queda como retorno autorizado de Auth para conservar enlaces existentes. La configuración de Supabase permite también `www.planifia.cl` y el desarrollo local, incluida la recuperación con `#reset`.
 
+Se entra con correo y contraseña o con Google: en la web, OAuth de Supabase; en Android, Credential Manager y `signInWithIdToken` con nonce (plugin `planifia-auth`). Una cuenta con Google sin aceptación de los términos no ve la app hasta aceptarlos. Detalle en [login con Google](login-google.md).
+
 La instalación usa Supabase `hlnzxgpdxgadbdcqavcd` y la Edge Function `goal-plan`. Para la IA, un túnel independiente sirve `https://ia-seller.planifia.cl/v1`, con autenticación Bearer y un adaptador local en `127.0.0.1:8012`. El adaptador llama exclusivamente al Ollama local en `127.0.0.1:11434` con el modelo de 27B fijado en la configuración privada. No se publican las rutas de administración de Ollama.
 
 El generador centraliza el presupuesto efectivo de cada semana y día; valida la respuesta y permite una corrección dentro del mismo límite total de tiempo. La propuesta queda guardada como resultado privado de la cola; las metas y acciones no se modifican hasta su aprobación. Las cuentas y datos están en la nube; generar con esta instalación de Ollama necesita el PC y sus servicios activos.

@@ -30,7 +30,8 @@ Para escritorio: `npm.cmd run desktop:dev` o `npm.cmd run desktop:build` (ejecut
 
 ## Servicios y permisos
 
-- `.env.local`: solo URL y clave pública publishable/anon de Supabase. Se comprueban antes de cada build; nunca incorporar `.env.gateway.local`, claves administrativas ni contraseñas al APK.
+- `.env.local`: solo URL y clave pública publishable/anon de Supabase, y el ID de cliente Web de Google (`VITE_GOOGLE_WEB_CLIENT_ID`, público) para «Continuar con Google». Se comprueban antes de cada build; nunca incorporar `.env.gateway.local`, claves administrativas, el secreto del cliente de Google (`GOCSPX-…`) ni contraseñas al APK.
+- «Continuar con Google» usa Credential Manager (plugin `planifia-auth`), porque Google bloquea OAuth dentro del WebView. Necesita clientes OAuth de Android con la SHA-1 de cada firma (depuración, subida y firma de apps de Play). Pasos en [login con Google](login-google.md).
 - En Supabase, `ALLOWED_ORIGINS` incluye exactamente `https://tauri.localhost`, además de los orígenes web existentes. Los enlaces de confirmación y recuperación abren `https://planifia.cl/`, porque el origen interno del APK no es accesible desde el correo.
 - El único permiso Android del manifiesto principal es Internet. No se solicita cámara, micrófono ni almacenamiento completo. La exportación utiliza el selector de documentos y escribe únicamente en la ubicación elegida; cancelar no crea un respaldo. Los errores de escritura se muestran.
 - CSP restringe scripts al paquete y conexiones al proyecto Supabase. No se habilita navegación remota con permisos nativos. Las conexiones de producción requieren HTTPS; no se omite validación de certificados.
@@ -89,6 +90,6 @@ La 2.3.2 también muestra un esqueleto de carga (`index.html`, `src/boot.css`, `
 
 La alineación de 16 KB de `libapp_lib.so` se comprueba en cada compilación del workflow. Antes de subir una versión, revisa también **Android vitals → Fallos y ANR** y el **informe previo al lanzamiento** en Play Console.
 
-**Límites externos:** Google Play Billing y AdMob están integrados con plugins propios (`src-tauri/plugins/`); para vender y mostrar anuncios reales debes completar la configuración de AdMob, Play Console, Google Cloud y Supabase descrita en [monetización](monetizacion.md). El SMTP propio de Supabase requiere un dominio de correo verificado para registros públicos; las pruebas administrativas no acreditan entrega de correos. La IA requiere que el servicio del PC esté encendido.
+**Límites externos:** Google Play Billing, AdMob y el inicio de sesión con Google están integrados con plugins propios (`src-tauri/plugins/`); para vender y mostrar anuncios reales debes completar la configuración de AdMob, Play Console, Google Cloud y Supabase descrita en [monetización](monetizacion.md). El SMTP propio de Supabase requiere un dominio de correo verificado para registros públicos; las pruebas administrativas no acreditan entrega de correos. La IA requiere que el servicio del PC esté encendido.
 
 Documentación oficial: [requisitos de Tauri](https://v2.tauri.app/start/prerequisites/), [distribución Android](https://v2.tauri.app/distribute/google-play/).

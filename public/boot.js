@@ -2,7 +2,9 @@
 // de la portada. ES5 y sin módulos para que corra de inmediato. La clave es la de src/cloud.js.
 (function () {
   try {
-    if (localStorage.getItem("planifia-seller-auth")) document.documentElement.setAttribute("data-boot", "app");
+    // También al volver de Google con la sesión en el enlace (#access_token=…).
+    if (localStorage.getItem("planifia-seller-auth") || /[#&]access_token=/.test(location.hash))
+      document.documentElement.setAttribute("data-boot", "app");
   } catch (error) {
     // Sin acceso a localStorage se muestra el esqueleto de la portada.
   }

@@ -2,6 +2,8 @@ import { createClient } from "@supabase/supabase-js";
 import { requestSignal } from "./platform.js";
 const url = import.meta.env.VITE_SUPABASE_URL?.trim();
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim();
+// ID de cliente Web de Google (público). Sólo lo usa la app de Android para Credential Manager.
+export const GOOGLE_WEB_CLIENT_ID = import.meta.env.VITE_GOOGLE_WEB_CLIENT_ID?.trim() || "";
 // public/boot.js lee la misma clave para elegir el esqueleto de carga.
 export const AUTH_STORAGE_KEY = "planifia-seller-auth";
 export const missing = [
@@ -28,6 +30,20 @@ export const cloud = missing.length
           }),
       },
     });
+// Configuración pública de Supabase Auth: qué proveedores están activos. «Continuar con Google» se
+// muestra sólo con Google activado en el panel, así que desactivarlo allí también quita el botón.
+let authSettings = null;
+export function loadAuthSettings() {
+  if (!cloud) return Promise.resolve(null);
+  authSettings ||= fetch(`${url}/auth/v1/settings`, { headers: { apikey: key }, signal: requestSignal(10000) })
+    .then((response) => (response.ok ? response.json() : null))
+    .catch(() => null)
+    .then((settings) => {
+      if (!settings) authSettings = null;
+      return settings;
+    });
+  return authSettings;
+}
 export async function checked(promise) {
   const { data, error } = await promise;
   if (error) {
