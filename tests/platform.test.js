@@ -73,12 +73,15 @@ test("Los enlaces de recuperación con #reset#access_token se corrigen antes de 
   // Supabase agrega su fragmento con otro "#" cuando la dirección de retorno ya traía "#reset".
   assert.equal(repairedAuthHash("#reset#access_token=abc&type=recovery"), "#access_token=abc&type=recovery");
   assert.equal(repairedAuthHash("#reset#error=access_denied&error_code=otp_expired"), "#error=access_denied&error_code=otp_expired");
-  for (const hash of ["", "#reset", "#today", "#access_token=abc&type=recovery", "#reset#today", "#a=b#access_token=x"])
+  for (const hash of ["", "#reset", "#today", "#access_token=abc&type=recovery", "#reset#today", "#a=b#access_token=x", "#login#access_token=x"])
     assert.equal(repairedAuthHash(hash), null, hash);
   const calls = [];
   const history = { state: { k: 1 }, replaceState: (...args) => calls.push(args) };
   repairAuthHash({ hash: "#reset#access_token=abc&type=recovery", pathname: "/", search: "" }, history);
-  assert.deepEqual(calls, [[{ k: 1 }, "", "/#access_token=abc&type=recovery"]]);
-  repairAuthHash({ hash: "#today", pathname: "/", search: "" }, history);
-  assert.equal(calls.length, 1, "Sin nada que corregir no toca la dirección");
+  assert.deepEqual(calls.at(-1), [{ k: 1 }, "", "/#access_token=abc&type=recovery"]);
+  // Sin nada que corregir deja la misma dirección.
+  repairAuthHash({ hash: "#today", pathname: "/app", search: "?x=1" }, history);
+  assert.deepEqual(calls.at(-1), [{ k: 1 }, "", "/app?x=1#today"]);
+  repairAuthHash(null, history);
+  assert.equal(calls.length, 2, "Sin location no hace nada");
 });
