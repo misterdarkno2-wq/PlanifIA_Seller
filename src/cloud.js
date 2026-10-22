@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { requestSignal } from "./platform.js";
+import { repairAuthHash, requestSignal } from "./platform.js";
 const url = import.meta.env.VITE_SUPABASE_URL?.trim();
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim();
 // ID de cliente Web de Google (público). Sólo lo usa la app de Android para Credential Manager.
@@ -10,6 +10,8 @@ export const missing = [
   !url && "VITE_SUPABASE_URL",
   !key && "VITE_SUPABASE_PUBLISHABLE_KEY",
 ].filter(Boolean);
+// Antes de crear el cliente: corrige "#reset#access_token=…" de los enlaces de recuperación antiguos.
+repairAuthHash();
 export const cloud = missing.length
   ? null
   : createClient(url, key, {
