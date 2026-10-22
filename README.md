@@ -1,6 +1,6 @@
 # PlanifIA Seller
 
-Versión **2.3.6** · Android `versionCode=20306`.
+Versión **2.3.7** · Android `versionCode=20307`.
 
 **Tus metas, un plan claro y un paso a la vez.** Aplicación de metas, acciones, hábitos y progreso con Lumi. Comparte la misma interfaz entre web, escritorio y Android. Supabase guarda cuentas y datos; Ollama procesa la IA local y Groq es el respaldo opcional en la nube.
 
