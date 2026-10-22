@@ -119,6 +119,12 @@ Con un SMTP propio, la confirmación y la recuperación de contraseña de quiene
 5. Prueba: crea una cuenta con correo nuevo y pide «Olvidé mi contraseña». Revisa que los correos lleguen y no vayan a spam.
 6. Opcional: traduce las plantillas en **Authentication → Emails → Templates**.
 
+**Hecho el 21 de octubre de 2026 con Brevo**: dominio `planifia.cl` autenticado (DKIM y DMARC), remitente `no-responder@planifia.cl`, SMTP activo en Supabase y prueba de «Olvidé mi contraseña» recibida en la bandeja de entrada. Cloudflare Email Routing reenvía `no-responder@planifia.cl` a `planifia.revision@gmail.com`. Pendiente: subir el límite de correos (paso 4).
+
+**Antes de publicar la política del 22 de octubre** (que nombra a Brevo):
+- En Brevo, configura la retención de los **registros y vistas previas transaccionales** en **1 mes**, el plazo que dice la política. Por defecto Brevo los guarda sin plazo, y la copia incluye el enlace de un solo uso de cada correo. Si el mínimo que permite Brevo es otro, cambia el plazo en `public/privacidad.html` (sección 6) antes de publicar.
+- Descarga y archiva el acuerdo de tratamiento de datos (DPA) desde la configuración de la cuenta de Brevo.
+
 `supabase/config.toml` tiene la sección `[auth.email.smtp]` comentada, con la contraseña en `env(SUPABASE_AUTH_SMTP_PASS)`. Descoméntala sólo si vas a usar `config push`, y define antes la variable: si no, se enviaría el texto `env(...)` como contraseña y dejarían de llegar todos los correos.
 
 ### 8. Pruebas en producción, antes de anunciarlo
