@@ -28,6 +28,7 @@ jobs:
       - run: npm run test:companion-ui
       - run: npm run test:chat-ui
       - run: npm run test:legal-ui
+      - run: npm run test:recovery-ui
       - run: npm run test:csp-ui
       - run: npm run build
         env:

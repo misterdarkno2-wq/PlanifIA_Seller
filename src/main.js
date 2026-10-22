@@ -1064,7 +1064,9 @@ function authModal(mode) {
       if (!cloud) throw new Error("Falta conectar Supabase.");
       await checked(
         cloud.auth.resetPasswordForEmail(email, {
-          redirectTo: authRedirect("#reset"),
+          // Sin "#reset": Supabase agrega su propio fragmento (type=recovery) y supabase-js avisa con
+          // PASSWORD_RECOVERY, que abre el formulario de la contraseña nueva.
+          redirectTo: authRedirect(),
         }),
       );
       toast(

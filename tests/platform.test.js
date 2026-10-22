@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { backAction, authRedirect, isNative, downloadJson, requestSignal, hasStoredSession } from "../src/platform.js";
+import { backAction, authRedirect, isNative, downloadJson, requestSignal, hasStoredSession, repairedAuthHash, repairAuthHash } from "../src/platform.js";
 
 test("Android Back closes modals before navigating, returns through history and exits at home", () => {
   assert.equal(backAction({ modalOpen: true, hash: "#today", canGoBack: true }), "modal");
@@ -67,4 +67,21 @@ test("the loading skeleton waits for a stored session instead of flashing the la
   assert.equal(hasStoredSession("planifia-seller-auth", undefined), false);
   // Navegación privada o almacenamiento bloqueado: getItem lanza un error.
   assert.equal(hasStoredSession("planifia-seller-auth", { getItem() { throw new Error("SecurityError"); } }), false);
+});
+
+test("Los enlaces de recuperación con #reset#access_token se corrigen antes de que Supabase los lea", () => {
+  // Supabase agrega su fragmento con otro "#" cuando la dirección de retorno ya traía "#reset".
+  assert.equal(repairedAuthHash("#reset#access_token=abc&type=recovery"), "#access_token=abc&type=recovery");
+  assert.equal(repairedAuthHash("#reset#error=access_denied&error_code=otp_expired"), "#error=access_denied&error_code=otp_expired");
+  for (const hash of ["", "#reset", "#today", "#access_token=abc&type=recovery", "#reset#today", "#a=b#access_token=x", "#login#access_token=x"])
+    assert.equal(repairedAuthHash(hash), null, hash);
+  const calls = [];
+  const history = { state: { k: 1 }, replaceState: (...args) => calls.push(args) };
+  repairAuthHash({ hash: "#reset#access_token=abc&type=recovery", pathname: "/", search: "" }, history);
+  assert.deepEqual(calls.at(-1), [{ k: 1 }, "", "/#access_token=abc&type=recovery"]);
+  // Sin nada que corregir deja la misma dirección.
+  repairAuthHash({ hash: "#today", pathname: "/app", search: "?x=1" }, history);
+  assert.deepEqual(calls.at(-1), [{ k: 1 }, "", "/app?x=1#today"]);
+  repairAuthHash(null, history);
+  assert.equal(calls.length, 2, "Sin location no hace nada");
 });

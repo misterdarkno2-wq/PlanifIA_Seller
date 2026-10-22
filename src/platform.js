@@ -65,6 +65,27 @@ export function watchSafeArea() {
   window.addEventListener("planifia-insets", apply);
 }
 
+/**
+ * Supabase agrega "#access_token=…" (o "#error=…") a la dirección de retorno. Si esa dirección ya traía
+ * un fragmento, como "#reset" en las versiones anteriores de la app, queda "#reset#access_token=…" y
+ * supabase-js no reconoce el enlace: no abre la sesión y el token se queda a la vista. Devuelve el
+ * fragmento corregido, o null si no hay nada que corregir.
+ */
+export function repairedAuthHash(hash = "") {
+  // Sólo el prefijo que generaba la app ("#reset#"). No da acceso a nada nuevo: el mismo enlace con un
+  // solo "#" ya lo acepta supabase-js.
+  const match = /^#reset#(.+)$/.exec(hash);
+  return match && /(^|&)(access_token|error|error_code|error_description)=/.test(match[1]) ? `#${match[1]}` : null;
+}
+
+// Se llama antes de crear el cliente de Supabase (src/cloud.js), que lee la dirección al iniciar. Sin
+// nada que corregir reescribe la misma dirección, sin efecto (replaceState no navega ni recarga).
+export function repairAuthHash(location = globalThis.location, history = globalThis.history) {
+  if (!location || !history) return;
+  const hash = repairedAuthHash(location.hash) ?? location.hash;
+  history.replaceState(history.state, "", `${location.pathname}${location.search}${hash}`);
+}
+
 // Email links must open a publicly reachable website, never an APK's local origin.
 export function authRedirect(fragment = "") {
   const base = isNative() ? "https://planifia.cl/" : location.origin + location.pathname;

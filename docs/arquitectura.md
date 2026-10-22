@@ -6,7 +6,7 @@ La aplicación nueva se compila con Vite y `@supabase/supabase-js`. La persisten
 
 ## Servicios conectados
 
-La interfaz se publica en `https://planifia.cl/` desde GitHub Pages de `PlanifIA_Seller`, con base de assets `/` y dominio declarado en `public/CNAME`. La dirección anterior `https://misterdarkno2-wq.github.io/PlanifIA_Seller/` queda como retorno autorizado de Auth para conservar enlaces existentes. La configuración de Supabase permite también `www.planifia.cl` y el desarrollo local, incluida la recuperación con `#reset`.
+La interfaz se publica en `https://planifia.cl/` desde GitHub Pages de `PlanifIA_Seller`, con base de assets `/` y dominio declarado en `public/CNAME`. La dirección anterior `https://misterdarkno2-wq.github.io/PlanifIA_Seller/` queda como retorno autorizado de Auth para conservar enlaces existentes. La configuración de Supabase permite también `www.planifia.cl` y el desarrollo local. El enlace de recuperación de contraseña vuelve a la portada y supabase-js abre el formulario de la contraseña nueva (evento `PASSWORD_RECOVERY`); la web corrige los enlaces antiguos con `#reset#access_token=…`.
 
 Se entra con correo y contraseña o con Google: en la web, OAuth de Supabase; en Android, Credential Manager y `signInWithIdToken` con nonce (plugin `planifia-auth`). Una cuenta con Google sin aceptación de los términos no ve la app hasta aceptarlos. Detalle en [login con Google](login-google.md).
 
