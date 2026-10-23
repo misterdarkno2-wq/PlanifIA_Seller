@@ -1,0 +1,11 @@
+"$schema" = "schemas/schema.json"
+
+[default]
+description = "Permite a la ventana principal programar en el teléfono los recordatorios diarios que la persona activa."
+permissions = [
+  "allow-get-status",
+  "allow-request-permission",
+  "allow-schedule",
+  "allow-cancel-all",
+  "allow-open-settings",
+]

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Android 13+: se pide en pantalla sólo cuando la persona enciende los recordatorios en Ajustes. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Permiso normal (sin diálogo): Android borra las alarmas al reiniciar; así se vuelven a programar. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Sin SCHEDULE_EXACT_ALARM ni USE_EXACT_ALARM: el aviso usa una alarma inexacta. -->
+
+    <application>
+        <receiver
+            android:name="cl.planifia.reminders.ReminderReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>
