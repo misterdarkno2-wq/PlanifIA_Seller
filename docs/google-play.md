@@ -42,7 +42,7 @@ Selecciona únicamente **18 años o más**. Responde **No** a "¿podría atraer 
 
 ## 6. Seguridad de los datos
 
-Esta sección debe coincidir con `public/privacidad.html` (versión del 21 de octubre de 2026, que agrega el inicio de sesión con Google). Si cambias una, cambia la otra. `tests/legal-security.test.js` comprueba que la política nombre a cada proveedor de IA y cada dato guardado en el teléfono.
+Esta sección debe coincidir con `public/privacidad.html` (versión del 22 de octubre de 2026, que agrega el recordatorio diario de la app para Android; la del 21 agregó el inicio de sesión con Google). Si cambias una, cambia la otra. `tests/legal-security.test.js` comprueba que la política nombre a cada proveedor de IA y cada dato guardado en el teléfono.
 
 - ¿Recopila o comparte datos? **Sí recopila** y **sí comparte**: el SDK de Google AdMob recoge y comparte datos de anuncios en el plan Gratis (ver [monetización](monetizacion.md)). Supabase, Cloudflare y Groq (la IA de respaldo en la nube) son proveedores que tratan datos en nombre de PlanifIA, y Google no lo considera "compartir". Groq sólo cuenta como proveedor si aceptaste su DPA y activaste Zero Data Retention (ver [respaldo en la nube](respaldo-nube.md)); si no, declara el nombre y el contenido generado por el usuario como **compartidos** y corrige la política antes de publicarla.
 - ¿Datos cifrados en tránsito? **Sí**.
@@ -59,7 +59,7 @@ Tipos de datos. Salvo que se indique otra cosa: *recopilado*, *no compartido*, *
 | Información personal → Dirección de correo | Correo de la cuenta (lo escribe la persona o lo entrega Google) | Obligatorio |
 | Información personal → ID de usuario | Identificador de la cuenta de PlanifIA y, si entra con Google, el identificador de su cuenta de Google | Obligatorio. El de PlanifIA también se **comparte** con AdMob en los anuncios recompensados (verificación SSV), propósito **Prevención de fraudes, seguridad y cumplimiento**: la política ya lo dice en la tabla de proveedores. Faltaba en esta tabla (revisión del 21 de octubre) |
 | Información personal → Otra información | Enlace a la foto de perfil de Google | Sólo si entra con Google. Supabase guarda el enlace con los datos de la cuenta; la app no descarga ni muestra la imagen. Por eso no se declara en **Fotos y videos** |
-| Actividad en apps → Otro contenido generado por el usuario | Metas, acciones, hábitos, texto enviado a la IA, mensajes de **Hablar con Lumi** y reportes de contenido de la IA | Obligatorio. Groq lo recibe como proveedor (planes y chat cuando responde la IA de respaldo). Los reportes también tienen el propósito **Seguridad, cumplimiento y prevención de fraudes** |
+| Actividad en apps → Otro contenido generado por el usuario | Metas, acciones, hábitos, texto enviado a la IA, mensajes de **Hablar con Lumi**, reportes de contenido de la IA y la hora del recordatorio diario | Obligatorio. La hora del recordatorio es opcional: sólo si la persona la elige en **Ajustes → Recordatorios**. Groq lo recibe como proveedor (planes y chat cuando responde la IA de respaldo). Los reportes también tienen el propósito **Seguridad, cumplimiento y prevención de fraudes** |
 | Actividad en apps → Interacciones con la app | Progreso de Lumi, XP, uso de IA, créditos y aceptación de los términos | Obligatorio. Propósitos: Funcionalidad de la app y **Prevención de fraudes, seguridad y cumplimiento**. También **compartido** con AdMob (plan Gratis), para **Publicidad o marketing** y **Estadísticas** |
 | Información financiera → Historial de compras | Compras y suscripciones de Google Play | Sólo si compras algo |
 | Identificadores del dispositivo u otros → ID de dispositivo o de publicidad | ID de publicidad | Sólo plan Gratis en Android. **Recopilado y compartido** con AdMob, propósitos **Publicidad o marketing** y **Prevención de fraudes**. Sin consentimiento de UMP (en Chile, siempre) la app pide anuncios no personalizados (`npa=1`). Igual se declara así: Google sigue usando el ID para limitar la frecuencia y medir los anuncios |
@@ -69,6 +69,15 @@ Tipos de datos. Salvo que se indique otra cosa: *recopilado*, *no compartido*, *
 Antes de enviar, compara la tabla con la guía oficial "Google Mobile Ads SDK – Seguridad de los datos" y con la versión vigente de `public/privacidad.html`.
 
 No marques contactos, fotos, audio, salud, mensajes ni ubicación precisa: la app no los recopila (la voz de Lumi se sintetiza en el dispositivo y no usa el micrófono). La revisión automática de mensajes de crisis no guarda nada.
+
+### Permisos de Android
+
+Desde la versión 2.3.8 el plugin `planifia-reminders` agrega dos permisos para el recordatorio diario (`Ajustes → Recordatorios`, apagado por defecto):
+
+- `POST_NOTIFICATIONS`: Android 13 o posterior lo pide en pantalla sólo cuando la persona enciende el interruptor. Es un permiso de ejecución normal: Play Console no pide declararlo.
+- `RECEIVE_BOOT_COMPLETED`: permiso normal, sin diálogo. Vuelve a programar los avisos pendientes después de reiniciar el teléfono.
+
+Los avisos usan alarmas **inexactas** (`AlarmManager.setAndAllowWhileIdle`): la app **no** declara `SCHEDULE_EXACT_ALARM` ni `USE_EXACT_ALARM`, así que no corresponde la declaración de alarmas exactas de Play Console (si alguna vez aparece, responde que la app no usa alarmas exactas). Las notificaciones las genera el teléfono: no hay servidor de notificaciones push ni SDK de terceros. El texto sólo dice cuántos pasos hay ese día, nunca los títulos. `tests/reminders.test.js` comprueba que no aparezcan permisos de alarma exacta.
 
 ### Contenido generado por IA
 
