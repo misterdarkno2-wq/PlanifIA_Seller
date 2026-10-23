@@ -7,7 +7,7 @@ import { mkdir } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import assert from "node:assert/strict";
 import { today } from "../src/domain.js";
-import { LEGAL_URLS, LEGAL_VERSION, legalDateLabel } from "../src/legal.js";
+import { LEGAL_URLS, LEGAL_VERSION, legalDateLabel, newerVersion } from "../src/legal.js";
 import { CRISIS_MESSAGE } from "../supabase/functions/_shared/crisis.js";
 
 const PORT = 5184;
@@ -288,7 +288,7 @@ try {
   const rights = page.locator("[data-rights]");
   await rights.waitFor();
   assert.match(await rights.innerText(), /acceso, rectificación, supresión, oposición, portabilidad o bloqueo/);
-  assert.ok((await rights.innerText()).includes(`Aceptaste la versión del ${legalDateLabel(LEGAL_VERSION.terms)}`));
+  assert.ok((await rights.innerText()).includes(`Aceptaste la versión del ${legalDateLabel(newerVersion(LEGAL_VERSION.terms, LEGAL_VERSION.privacy))}`));
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await rights.scrollIntoViewIfNeeded();
   await page.screenshot({ path: "artifacts/qa/settings-rights-mobile.png" });
