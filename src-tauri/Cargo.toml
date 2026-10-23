@@ -1,6 +1,6 @@
 [package]
 name = "planifia-seller"
-version = "2.3.6"
+version = "2.4.0"
 description = "PlanifIA: metas, hábitos y Lumi"
 authors = ["PlanifIA"]
 license = ""
