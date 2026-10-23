@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "La ventana local puede guardar respaldos únicamente en el destino que el usuario elige, mostrar anuncios, usar las compras de Google Play e iniciar sesión con la cuenta de Google del teléfono.",
+  "description": "La ventana local puede guardar respaldos únicamente en el destino que el usuario elige, mostrar anuncios, usar las compras de Google Play, iniciar sesión con la cuenta de Google del teléfono y programar los recordatorios diarios que la persona activa.",
   "windows": [
     "main"
   ],
@@ -13,6 +13,7 @@
     "fs:allow-write-text-file",
     "planifia-ads:default",
     "planifia-billing:default",
-    "planifia-auth:default"
+    "planifia-auth:default",
+    "planifia-reminders:default"
   ]
 }
