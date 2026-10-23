@@ -101,6 +101,7 @@ import {
   rememberPlan,
 } from "./native-billing.js";
 import { createUpdateChecker } from "./app-update.js";
+import { createReminders, reminderTime } from "./reminders.js";
 import { validateProposal } from "../supabase/functions/_shared/plan.js";
 
 const app = document.querySelector("#app"),
@@ -308,6 +309,8 @@ let monetization = null,
   monetizationUser = null,
   lastStoreCheck = 0;
 const ads = createAdManager();
+// Recordatorio diario con notificaciones locales (sólo Android, apagado hasta que la persona lo encienda).
+const reminders = createReminders();
 const playStore = isAndroidApp()
   ? createPlayStore({ verify: verifyPlayPurchases, onState: applyMonetization })
   : null;
@@ -396,6 +399,8 @@ onPurchasesUpdated((payload) => {
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible" && user) {
     void checkStore();
+    // Recalcula los avisos: el de hoy pudo quedar atrás o la persona avanzó en otro dispositivo.
+    if (state) void reminders.sync(user.id, state);
     // Volver a la app otro día: "Hoy", los hábitos y el calendario se vuelven a dibujar y cargar.
     if (state && renderedDay && renderedDay !== day()) {
       render();
@@ -680,6 +685,7 @@ async function refresh() {
     loading = false;
     render();
     void checkLegal();
+    void reminders.sync(user?.id, state);
     return true;
   } catch (error) {
     if (version !== loadVersion) return;
@@ -839,9 +845,67 @@ function habitsPage() {
 function daysInputs(selected, prefix = "days") {
   return `<fieldset><legend>Días disponibles</legend><div class="days">${["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"].map((label, i) => `<label><input type="checkbox" name="${prefix}" value="${i}" ${selected.includes(i) ? "checked" : ""}>${label}</label>`).join("")}</div></fieldset>`;
 }
+// Panel «Recordatorios» de Ajustes (sólo Android). El permiso se pide al encender el interruptor.
+const REMINDERS_OFF = "Está apagado. Al encenderlo, el teléfono te pedirá permiso para mostrar avisos.";
+function remindersPanel() {
+  const on = reminders.isOn(user.id);
+  return `<section class="panel" data-reminders><h2>Recordatorios</h2><p>Un aviso al día, a la hora que elijas, sólo los días en que tienes acciones o hábitos pendientes. El aviso dice cuántos pasos tienes, nunca los nombres de tus metas.</p><label><input type="checkbox" id="reminders-on" ${on ? "checked" : ""}> Recordarme mis pasos del día</label><form id="reminder-form"><label>Hora del aviso<input name="time" type="time" value="${reminderTime(state.profile.reminder_time)}" required></label><button class="secondary">Guardar hora</button></form><p class="muted" data-reminders-note role="status">${on ? "" : REMINDERS_OFF}</p></section>`;
+}
+function remindersNote(status) {
+  const note = $("[data-reminders-note]");
+  if (!note) return;
+  const on = reminders.isOn(user?.id);
+  note.replaceChildren();
+  // Permiso negado (o notificaciones apagadas en el teléfono): sólo se pueden volver a permitir allá.
+  if (status?.available && status.permission === "denied") {
+    const open = document.createElement("button");
+    open.type = "button";
+    open.className = "text-button";
+    open.textContent = "Abrir los ajustes del teléfono";
+    open.onclick = () => void reminders.openSettings();
+    note.append(
+      on
+        ? "Los recordatorios están encendidos, pero el teléfono no deja mostrarlos. "
+        : "Tu teléfono no está dejando que PlanifIA muestre avisos. ",
+      open,
+    );
+  } else if (status?.error)
+    note.textContent = "No pudimos programar el aviso en este teléfono. Vuelve a intentarlo más tarde.";
+  else
+    note.textContent = on ? "Encendido. El aviso puede llegar unos minutos después de la hora elegida." : REMINDERS_OFF;
+}
+function bindReminders() {
+  const toggle = $("#reminders-on");
+  if (!toggle) return;
+  void reminders.status().then(remindersNote);
+  toggle.addEventListener("change", async () => {
+    toggle.disabled = true;
+    try {
+      if (toggle.checked) {
+        const status = await reminders.enable(user.id, state);
+        toggle.checked = reminders.isOn(user.id);
+        remindersNote(status);
+        if (toggle.checked) toast("Listo. Te avisaremos los días con pasos pendientes.");
+      } else {
+        await reminders.disable(user.id);
+        remindersNote(null);
+      }
+    } finally {
+      if (toggle.isConnected) toggle.disabled = false;
+    }
+  });
+  $("#reminder-form")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    busy($("button", form), async () => {
+      await rpc("save_reminder_time", { p_time: form.time.value });
+      await saved("Hora del recordatorio guardada.");
+    });
+  });
+}
 function settingsPage() {
   const p = state.profile;
-  return `<div class="page-heading"><div><h1>Tu ritmo y tus datos</h1><p class="muted">Los cambios se guardan en tu cuenta y se recuperan en otros dispositivos.</p></div></div><div class="settings-grid"><section class="panel pet-motion-panel"><h2>Lumi a tu ritmo</h2><p>Elige cómo te acompaña mientras organizas tus metas.</p>${petMotionControls()}${lumiConversationSettings(companion)}</section><section class="panel"><h2>Disponibilidad</h2><form id="profile-form"><label>Tu nombre<input name="name" value="${e(p.name)}" maxlength="80" required></label><label>Zona horaria<input name="timezone" value="${e(p.timezone)}" required placeholder="America/Santiago"></label><label>Minutos totales por semana<input name="minutes" type="number" min="30" max="3360" value="${p.weekly_minutes}" required></label>${daysInputs(p.available_days)}<p class="muted">La IA reparte este tiempo entre tus días disponibles, contando acciones y hábitos existentes.</p>${alert()}<button>Guardar disponibilidad</button></form></section><section class="panel"><h2>Conservar lo que ya hiciste</h2><p>Importa un archivo JSON de PlanifIA anterior. Verás el destino y el contenido antes de confirmar.</p><label class="file-label">Seleccionar exportación<input type="file" id="import-file" accept="application/json,.json"></label><button class="secondary" id="import-local">Buscar tareas guardadas en este navegador</button><p class="muted">Los archivos originales se conservan. Repetir la importación no crea actividades duplicadas. La XP histórica se conserva en el respaldo original, sin asignar recompensas nuevas.</p><h3>Importaciones guardadas</h3>${state.imports.map((i) => `<p>${e(i.source)} <button class="text-button" data-export-import="${i.id}">Descargar original</button></p>`).join("") || '<p class="muted">Todavía no hay importaciones.</p>'}<button class="secondary" id="export-data">Exportar mis datos</button></section>${isAndroidApp() ? `<section class="panel"><h2>Anuncios y privacidad</h2><p>En el plan Gratis se muestra un video de Google AdMob al usar la IA (máximo uno cada 5 minutos). Plus, Pro y la compra "Quitar anuncios" no muestran videos.</p>${ads.privacyRequired ? '<button class="secondary" id="ad-privacy">Opciones de privacidad de anuncios</button>' : '<p class="muted">Puedes revisar tu consentimiento de anuncios aquí cuando tu región lo requiera.</p>'}</section>` : ""}<section class="panel" data-rights><h2>Tus derechos sobre tus datos</h2><p>Puedes pedir acceso, rectificación, supresión, oposición, portabilidad o bloqueo de tus datos, y oponerte a decisiones tomadas sólo de forma automatizada. Aquí mismo puedes corregir tu perfil, exportar tus datos o eliminar tu cuenta; para lo demás escribe a <a href="mailto:planifiaprivacity@gmail.com">planifiaprivacity@gmail.com</a>.</p>${legal?.owner === user.id && legal.latest ? `<p class="muted">Aceptaste la versión del ${e(legalDateLabel(legal.latest.terms_version))} de los Términos de uso y la Política de privacidad.</p>` : ""}<p><a href="${LEGAL_URLS.terms}" target="_blank" rel="noopener noreferrer" data-external-link>Términos de uso</a> · <a href="${LEGAL_URLS.privacy}" target="_blank" rel="noopener noreferrer" data-external-link>Política de privacidad</a></p></section><section class="panel danger-zone"><h2>Eliminar cuenta</h2><p>Borra de forma permanente tu cuenta y todos sus datos: metas, acciones, hábitos, Lumi, solicitudes de IA e importaciones. No se puede deshacer. Los registros técnicos que aún los contengan se borran solos en los plazos de la política de privacidad.</p><p class="muted">Te recomendamos exportar tus datos antes. Consulta la <a href="${LEGAL_URLS.privacy}" target="_blank" rel="noopener noreferrer" data-external-link>política de privacidad</a>.</p><button class="danger" id="delete-account">Eliminar mi cuenta</button></section></div>`;
+  return `<div class="page-heading"><div><h1>Tu ritmo y tus datos</h1><p class="muted">Los cambios se guardan en tu cuenta y se recuperan en otros dispositivos.</p></div></div><div class="settings-grid"><section class="panel pet-motion-panel"><h2>Lumi a tu ritmo</h2><p>Elige cómo te acompaña mientras organizas tus metas.</p>${petMotionControls()}${lumiConversationSettings(companion)}</section><section class="panel"><h2>Disponibilidad</h2><form id="profile-form"><label>Tu nombre<input name="name" value="${e(p.name)}" maxlength="80" required></label><label>Zona horaria<input name="timezone" value="${e(p.timezone)}" required placeholder="America/Santiago"></label><label>Minutos totales por semana<input name="minutes" type="number" min="30" max="3360" value="${p.weekly_minutes}" required></label>${daysInputs(p.available_days)}<p class="muted">La IA reparte este tiempo entre tus días disponibles, contando acciones y hábitos existentes.</p>${alert()}<button>Guardar disponibilidad</button></form></section>${reminders.available() ? remindersPanel() : ""}<section class="panel"><h2>Conservar lo que ya hiciste</h2><p>Importa un archivo JSON de PlanifIA anterior. Verás el destino y el contenido antes de confirmar.</p><label class="file-label">Seleccionar exportación<input type="file" id="import-file" accept="application/json,.json"></label><button class="secondary" id="import-local">Buscar tareas guardadas en este navegador</button><p class="muted">Los archivos originales se conservan. Repetir la importación no crea actividades duplicadas. La XP histórica se conserva en el respaldo original, sin asignar recompensas nuevas.</p><h3>Importaciones guardadas</h3>${state.imports.map((i) => `<p>${e(i.source)} <button class="text-button" data-export-import="${i.id}">Descargar original</button></p>`).join("") || '<p class="muted">Todavía no hay importaciones.</p>'}<button class="secondary" id="export-data">Exportar mis datos</button></section>${isAndroidApp() ? `<section class="panel"><h2>Anuncios y privacidad</h2><p>En el plan Gratis se muestra un video de Google AdMob al usar la IA (máximo uno cada 5 minutos). Plus, Pro y la compra "Quitar anuncios" no muestran videos.</p>${ads.privacyRequired ? '<button class="secondary" id="ad-privacy">Opciones de privacidad de anuncios</button>' : '<p class="muted">Puedes revisar tu consentimiento de anuncios aquí cuando tu región lo requiera.</p>'}</section>` : ""}<section class="panel" data-rights><h2>Tus derechos sobre tus datos</h2><p>Puedes pedir acceso, rectificación, supresión, oposición, portabilidad o bloqueo de tus datos, y oponerte a decisiones tomadas sólo de forma automatizada. Aquí mismo puedes corregir tu perfil, exportar tus datos o eliminar tu cuenta; para lo demás escribe a <a href="mailto:planifiaprivacity@gmail.com">planifiaprivacity@gmail.com</a>.</p>${legal?.owner === user.id && legal.latest ? `<p class="muted">Aceptaste la versión del ${e(legalDateLabel(legal.latest.terms_version))} de los Términos de uso y la Política de privacidad.</p>` : ""}<p><a href="${LEGAL_URLS.terms}" target="_blank" rel="noopener noreferrer" data-external-link>Términos de uso</a> · <a href="${LEGAL_URLS.privacy}" target="_blank" rel="noopener noreferrer" data-external-link>Política de privacidad</a></p></section><section class="panel danger-zone"><h2>Eliminar cuenta</h2><p>Borra de forma permanente tu cuenta y todos sus datos: metas, acciones, hábitos, Lumi, solicitudes de IA e importaciones. No se puede deshacer. Los registros técnicos que aún los contengan se borran solos en los plazos de la política de privacidad.</p><p class="muted">Te recomendamos exportar tus datos antes. Consulta la <a href="${LEGAL_URLS.privacy}" target="_blank" rel="noopener noreferrer" data-external-link>política de privacidad</a>.</p><button class="danger" id="delete-account">Eliminar mi cuenta</button></section></div>`;
 }
 function shell(content) {
   const tab = location.hash.slice(1).split("?")[0] || "today";
@@ -1134,6 +1198,8 @@ function deleteAccountForm() {
     event.preventDefault();
     busy($("button.danger", form), async () => {
       await rpc("delete_my_account", { p_confirm: form.confirm.value.trim() });
+      reminders.forget(user.id);
+      await reminders.stop();
       await cloud.auth.signOut({ scope: "local" }).catch(() => {});
       user = null;
       state = null;
@@ -1293,6 +1359,7 @@ function bindActions() {
     }
   });
   $("#delete-account")?.addEventListener("click", deleteAccountForm);
+  bindReminders();
   $("#export-data")?.addEventListener("click", (event) => busy(event.currentTarget, exportData));
   document.querySelectorAll("[data-export-import]").forEach(
     (b) =>
@@ -1789,6 +1856,7 @@ if (cloud) {
         aiJobs.stop();
         cloudFallback.reset();
         stopMonetization();
+        void reminders.stop();
         legal = null;
         legalPrompted = false;
         user = null;
@@ -1797,6 +1865,8 @@ if (cloud) {
         render();
       } else if (session.user.id !== user?.id) {
         if (user) closeModal();
+        // Los avisos de la cuenta anterior no siguen en este teléfono; refresh() programa los de la nueva.
+        if (user) void reminders.stop();
         legal = null;
         legalPrompted = false;
         user = session.user;

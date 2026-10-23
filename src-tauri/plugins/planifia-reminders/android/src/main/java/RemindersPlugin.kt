@@ -66,8 +66,11 @@ class RemindersPlugin(private val created: Activity) : Plugin(created) {
     else invoke.resolve(status())
   }
 
+  /** Si la persona no lo permitió, se responde "denied" aunque Android aún deje volver a preguntar. */
   @PermissionCallback
-  fun permissionAnswered(invoke: Invoke) = guard(invoke, "permissionAnswered") { invoke.resolve(status()) }
+  fun permissionAnswered(invoke: Invoke) = guard(invoke, "permissionAnswered") {
+    invoke.resolve(status().apply { if (getString("permission") != "granted") put("permission", "denied") })
+  }
 
   /**
    * Reemplaza todos los avisos programados por { items: [{ id, at, title, body }] } (at en milisegundos
