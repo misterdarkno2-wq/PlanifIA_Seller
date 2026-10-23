@@ -2269,6 +2269,7 @@ dependencies = [
  "tauri-plugin-planifia-ads",
  "tauri-plugin-planifia-auth",
  "tauri-plugin-planifia-billing",
+ "tauri-plugin-planifia-reminders",
 ]
 
 [[package]]
@@ -3325,6 +3326,15 @@ dependencies = [
 
 [[package]]
 name = "tauri-plugin-planifia-billing"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "tauri",
+ "tauri-plugin",
+]
+
+[[package]]
+name = "tauri-plugin-planifia-reminders"
 version = "0.1.0"
 dependencies = [
  "serde_json",
