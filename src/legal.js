@@ -63,6 +63,7 @@ export function legalUpdateCard({ doc = document, accept, onAccepted = () => {},
   card.innerHTML = `<h2 id="legal-update-title" tabindex="-1">Actualizamos los Términos y la Política de privacidad</h2>
     <p>${reason ? `${reason} ` : ""}Revisa y acepta la versión del ${legalDateLabel(newerVersion(LEGAL_VERSION.terms, LEGAL_VERSION.privacy))} para seguir usando la IA y comprar en PlanifIA. Tus metas y tu progreso siguen disponibles aunque no aceptes.</p>
     <ul class="legal-update-changes">
+      <li>Los correos de tu cuenta (confirmación y recuperación de contraseña) ahora los envía Brevo, desde no-responder@planifia.cl.</li>
       <li>En la app para Android puedes activar un recordatorio diario: guardamos la hora que eliges y el aviso lo programa tu teléfono.</li>
       <li>Ahora puedes entrar con tu cuenta de Google: explicamos qué datos nos entrega Google y cómo quitarle el acceso.</li>
       <li>Identificamos a quien responde por tus datos y explicamos todos tus derechos y cómo ejercerlos.</li>

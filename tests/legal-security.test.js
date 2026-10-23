@@ -82,7 +82,7 @@ test("La política de privacidad nombra a cada proveedor de IA que usa el servid
   assert.ok(hosts.length, "ai-fallback.ts declara la URL de su proveedor");
   for (const provider of new Set(hosts))
     assert.match(policy, new RegExp(provider, "i"), `La política debe mencionar a ${provider}`);
-  for (const provider of ["Supabase", "Cloudflare", "GitHub", "Google Play", "AdMob"])
+  for (const provider of ["Supabase", "Cloudflare", "GitHub", "Google Play", "AdMob", "Brevo"])
     assert.ok(policy.includes(provider), provider);
 });
 
