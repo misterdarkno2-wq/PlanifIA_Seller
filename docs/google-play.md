@@ -77,7 +77,7 @@ Desde la versión 2.3.8 el plugin `planifia-reminders` agrega dos permisos para 
 - `POST_NOTIFICATIONS`: Android 13 o posterior lo pide en pantalla sólo cuando la persona enciende el interruptor. Es un permiso de ejecución normal: Play Console no pide declararlo.
 - `RECEIVE_BOOT_COMPLETED`: permiso normal, sin diálogo. Vuelve a programar los avisos pendientes después de reiniciar el teléfono.
 
-Los avisos usan alarmas **inexactas** (`AlarmManager.setAndAllowWhileIdle`): la app **no** declara `SCHEDULE_EXACT_ALARM` ni `USE_EXACT_ALARM`, así que no corresponde la declaración de alarmas exactas de Play Console (si alguna vez aparece, responde que la app no usa alarmas exactas). Las notificaciones las genera el teléfono: no hay servidor de notificaciones push ni SDK de terceros. El texto sólo dice cuántos pasos hay ese día, nunca los títulos. `tests/reminders.test.js` comprueba que no aparezcan permisos de alarma exacta.
+Los avisos usan alarmas **inexactas** (`AlarmManager.setWindow` con 15 minutos de margen y, de respaldo en reposo profundo, `setAndAllowWhileIdle`): la app **no** declara `SCHEDULE_EXACT_ALARM` ni `USE_EXACT_ALARM`, así que no corresponde la declaración de alarmas exactas de Play Console (si alguna vez aparece, responde que la app no usa alarmas exactas). Las notificaciones las genera el teléfono: no hay servidor de notificaciones push ni SDK de terceros. El texto sólo dice cuántos pasos hay ese día, nunca los títulos. `tests/reminders.test.js` comprueba que no aparezcan permisos de alarma exacta.
 
 ### Contenido generado por IA
 

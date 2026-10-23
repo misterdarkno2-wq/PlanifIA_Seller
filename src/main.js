@@ -873,7 +873,11 @@ function remindersNote(status) {
   } else if (status?.error)
     note.textContent = "No pudimos programar el aviso en este teléfono. Vuelve a intentarlo más tarde.";
   else
-    note.textContent = on ? "Encendido. El aviso puede llegar unos minutos después de la hora elegida." : REMINDERS_OFF;
+    note.textContent = on
+      ? "Encendido. El aviso puede llegar unos minutos después de la hora elegida."
+      : status?.permission === "granted"
+        ? "Está apagado."
+        : REMINDERS_OFF;
 }
 function bindReminders() {
   const toggle = $("#reminders-on");

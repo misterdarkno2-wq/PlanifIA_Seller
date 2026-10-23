@@ -170,6 +170,8 @@ test("Android: sin alarmas exactas, permiso de notificaciones y reglas para no c
   assert.doesNotMatch(manifest, /uses-permission[^>]*(SCHEDULE_EXACT_ALARM|USE_EXACT_ALARM)/);
   assert.match(manifest, /ReminderReceiver"\s+android:exported="false"/);
   assert.doesNotMatch(scheduler + plugin, /setExact|setAlarmClock|canScheduleExactAlarms/);
+  // Ventana de 15 minutos y respaldo para el reposo profundo; ninguna de las dos es exacta.
+  assert.match(scheduler, /setWindow\(AlarmManager\.RTC_WAKEUP, r\.at, WINDOW_MS/);
   assert.match(scheduler, /setAndAllowWhileIdle\(AlarmManager\.RTC_WAKEUP/);
   assert.match(scheduler, /FLAG_IMMUTABLE/);
   // Cada comando atrapa sus errores y responde en vez de lanzar.

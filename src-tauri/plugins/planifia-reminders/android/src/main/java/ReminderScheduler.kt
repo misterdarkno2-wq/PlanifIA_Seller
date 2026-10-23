@@ -25,13 +25,15 @@ private const val ACTION_SHOW = "cl.planifia.reminders.SHOW"
 data class Reminder(val id: Int, val at: Long, val title: String, val body: String)
 
 /**
- * Guarda los avisos en SharedPreferences y los programa con AlarmManager.setAndAllowWhileIdle: es una
- * alarma inexacta (Android puede atrasarla unos minutos para ahorrar batería), así que la app no
- * necesita SCHEDULE_EXACT_ALARM ni USE_EXACT_ALARM. Tras reiniciar el teléfono o actualizar la app,
+ * Guarda los avisos en SharedPreferences y los programa con alarmas inexactas de AlarmManager (Android
+ * puede atrasarlas para ahorrar batería; ver arm), así que la app no necesita SCHEDULE_EXACT_ALARM ni
+ * USE_EXACT_ALARM. Tras reiniciar el teléfono o actualizar la app,
  * ReminderReceiver vuelve a programar los que siguen pendientes.
  */
 object ReminderScheduler {
   const val MAX_ITEMS = 14
+  private const val BACKUP_OFFSET = 1000
+  private const val WINDOW_MS = 15L * 60 * 1000
   // Si el teléfono estuvo apagado o en reposo profundo y el aviso llega con más atraso, ya no sirve.
   private const val LATE_LIMIT_MS = 3L * 60 * 60 * 1000
 
@@ -53,20 +55,31 @@ object ReminderScheduler {
     prefs(context).edit().putString(KEY, array.toString()).apply()
   }
 
-  private fun intent(context: Context, id: Int): PendingIntent {
+  // backup = true: la segunda alarma del mismo aviso (otro requestCode, mismo id en el extra).
+  private fun intent(context: Context, id: Int, backup: Boolean): PendingIntent {
     val intent = Intent(context, ReminderReceiver::class.java).setAction(ACTION_SHOW).putExtra(EXTRA_ID, id)
     return PendingIntent.getBroadcast(
       context,
-      id,
+      if (backup) BACKUP_OFFSET + id else id,
       intent,
       PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
   }
 
+  /**
+   * Dos alarmas inexactas por aviso; la primera que suena lo muestra y la otra ya no lo encuentra:
+   * - setWindow con 15 minutos: lo normal, llega poco después de la hora elegida.
+   * - setAndAllowWhileIdle: respaldo si el teléfono está en reposo profundo (Doze), donde la primera
+   *   se pospone. Android le da hasta una hora de margen.
+   */
   private fun arm(context: Context, items: List<Reminder>) {
     val alarms = context.getSystemService(AlarmManager::class.java) ?: return
     val now = System.currentTimeMillis()
-    for (r in items) if (r.at > now) alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, r.at, intent(context, r.id))
+    for (r in items) {
+      if (r.at <= now) continue
+      alarms.setWindow(AlarmManager.RTC_WAKEUP, r.at, WINDOW_MS, intent(context, r.id, backup = false))
+      alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, r.at, intent(context, r.id, backup = true))
+    }
   }
 
   fun pending(context: Context): Int {
@@ -77,7 +90,10 @@ object ReminderScheduler {
   /** Cancela todo lo anterior y programa la lista nueva (vacía = apagar los recordatorios). */
   fun replace(context: Context, items: List<Reminder>) {
     val alarms = context.getSystemService(AlarmManager::class.java)
-    for (r in read(context)) alarms?.cancel(intent(context, r.id))
+    for (r in read(context)) {
+      alarms?.cancel(intent(context, r.id, backup = false))
+      alarms?.cancel(intent(context, r.id, backup = true))
+    }
     val kept = items.distinctBy { it.id }.take(MAX_ITEMS)
     write(context, kept)
     arm(context, kept)
