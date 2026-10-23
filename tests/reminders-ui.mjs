@@ -78,6 +78,8 @@ async function setup(t, { android = true, permission = "granted" } = {}) {
           if (!command.startsWith("plugin:planifia-reminders|")) return { available: false };
           const name = command.split("|")[1];
           window.reminderCalls.push([name, args]);
+          // Un teléfono lento: el estado inicial responde después que el diálogo del permiso.
+          if (name === "get_status") await new Promise((r) => setTimeout(r, 300));
           if (name === "request_permission") granted = permission === "granted";
           const status = granted ? "granted" : name === "request_permission" ? "denied" : "prompt";
           return { available: true, permission: status, scheduled: args?.items?.length ?? 0 };

@@ -882,8 +882,11 @@ function remindersNote(status) {
 function bindReminders() {
   const toggle = $("#reminders-on");
   if (!toggle) return;
-  void reminders.status().then(remindersNote);
+  // El estado inicial puede llegar después de que la persona use el interruptor: entonces ya no vale.
+  let changed = false;
+  void reminders.status().then((status) => changed || remindersNote(status));
   toggle.addEventListener("change", async () => {
+    changed = true;
     toggle.disabled = true;
     try {
       if (toggle.checked) {
