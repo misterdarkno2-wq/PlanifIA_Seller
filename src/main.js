@@ -994,8 +994,8 @@ function render() {
     ["plans", () => renderBilling({ view: "plans", user, escape: e })],
     ["subscription", () => renderBilling({ view: "subscription", user, escape: e })],
   ]);
-  const view = views.get(location.hash.slice(1).split("?")[0]) || dashboard;
-  app.innerHTML = shell(view());
+  const view = views.get(location.hash.slice(1).split("?")[0]);
+  app.innerHTML = shell(typeof view === "function" ? view() : dashboard());
   aiJobs.start(user.id);
   bindShell();
   $("#ai-jobs").onclick = aiJobsDialog;
