@@ -1,34 +1,49 @@
-export const JOB_LABELS = {
-  queued: "En cola",
-  processing: "Procesando",
-  completed: "Completado",
-  cancelled: "Cancelado",
-  error: "Error",
+import { tr } from "./i18n.js";
+import { serverText } from "./server-messages.js";
+
+const LABELS = {
+  queued: ["En cola", "Queued"],
+  processing: ["Procesando", "Processing"],
+  completed: ["Completado", "Completed"],
+  cancelled: ["Cancelado", "Cancelled"],
+  error: ["Error", "Error"],
 };
+// Se lee al dibujar, en el idioma actual.
+export const JOB_LABELS = Object.freeze(
+  Object.defineProperties(
+    {},
+    Object.fromEntries(Object.entries(LABELS).map(([key, [es, en]]) => [key, { enumerable: true, get: () => tr(es, en) }])),
+  ),
+);
 export const terminalJob = (job) =>
   ["completed", "cancelled", "error"].includes(job.status);
 export function jobDescription(job) {
   if (job.status === "queued") {
-    const position = job.position ? `Posición ${job.position}. ` : "";
+    const position = job.position ? tr(`Posición ${job.position}. `, `Position ${job.position}. `) : "";
+    const minutes = Math.max(1, Math.ceil(job.estimated_seconds / 60));
     const estimate =
       job.estimated_seconds === null || job.estimated_seconds === undefined
-        ? "Tiempo variable; aún no hay suficientes datos."
-        : `Espera aproximada: ${Math.max(1, Math.ceil(job.estimated_seconds / 60))} min. Puede cambiar.`;
-    return `${position}${job.worker_online ? estimate : "La IA local está desconectada; la IA en la nube (respaldo) preparará tu propuesta. Tu solicitud sigue guardada."} Prioridad según tu plan ${{ free: "Gratis", plus: "Plus", pro: "Pro" }[job.plan_id] || ""}, sin atención inmediata garantizada.`;
+        ? tr("Tiempo variable; aún no hay suficientes datos.", "Variable time; there isn't enough data yet.")
+        : tr(`Espera aproximada: ${minutes} min. Puede cambiar.`, `Approximate wait: ${minutes} min. It may change.`);
+    const plan = { free: tr("Gratis", "Free"), plus: "Plus", pro: "Pro" }[job.plan_id] || "";
+    return `${position}${job.worker_online ? estimate : tr("La IA local está desconectada; la IA en la nube (respaldo) preparará tu propuesta. Tu solicitud sigue guardada.", "The local AI is offline; the cloud AI (backup) will prepare your proposal. Your request is still saved.")} ${tr(`Prioridad según tu plan ${plan}, sin atención inmediata garantizada.`, `Priority based on your ${plan} plan, with no guaranteed immediate handling.`)}`;
   }
   if (job.status === "processing")
     return job.cancel_requested
-      ? "Cancelación solicitada. Esperamos a que el servicio confirme la interrupción; no se guardará la propuesta."
+      ? tr("Cancelación solicitada. Esperamos a que el servicio confirme la interrupción; no se guardará la propuesta.", "Cancellation requested. We're waiting for the service to confirm it stopped; the proposal won't be saved.")
       : job.provider === "cloud"
-        ? "La IA en la nube (respaldo) está preparando la propuesta. Puedes navegar o cerrar la página y recuperarla al volver."
-        : "La IA local está preparando la propuesta. Puedes navegar o cerrar la página y recuperarla al volver.";
+        ? tr("La IA en la nube (respaldo) está preparando la propuesta. Puedes navegar o cerrar la página y recuperarla al volver.", "The cloud AI (backup) is preparing the proposal. You can browse or close the page and get it back when you return.")
+        : tr("La IA local está preparando la propuesta. Puedes navegar o cerrar la página y recuperarla al volver.", "The local AI is preparing the proposal. You can browse or close the page and get it back when you return.");
   if (job.status === "completed")
-    return `Tu propuesta está lista para revisar. La meta no cambia hasta que la confirmes.${job.provider === "cloud" ? " Preparada con IA en la nube (respaldo)." : ""}`;
+    return tr(
+      `Tu propuesta está lista para revisar. La meta no cambia hasta que la confirmes.${job.provider === "cloud" ? " Preparada con IA en la nube (respaldo)." : ""}`,
+      `Your proposal is ready to review. The goal doesn't change until you confirm it.${job.provider === "cloud" ? " Prepared with the cloud AI (backup)." : ""}`,
+    );
   if (job.status === "cancelled")
-    return "Solicitud cancelada. Tus metas se conservan.";
+    return tr("Solicitud cancelada. Tus metas se conservan.", "Request cancelled. Your goals are kept.");
   return (
-    job.error ||
-    "No pudimos preparar la propuesta. Puedes editar la meta manualmente."
+    serverText(job.error) ||
+    tr("No pudimos preparar la propuesta. Puedes editar la meta manualmente.", "We couldn't prepare the proposal. You can edit the goal manually.")
   );
 }
 
@@ -79,14 +94,16 @@ export function createAiJobMonitor({
             callbacks ||
             ["queued", "processing"].includes(previous.get(job.id))
           )
-            notify("Tu propuesta con IA está lista para revisar.");
+            notify(tr("Tu propuesta con IA está lista para revisar.", "Your AI proposal is ready to review."));
         }
       }
       publish();
     } catch {
       if (revision === version) {
-        error =
-          "No pudimos actualizar el estado. El trabajo sigue guardado; reintentaremos.";
+        error = tr(
+          "No pudimos actualizar el estado. El trabajo sigue guardado; reintentaremos.",
+          "We couldn't update the status. The work is still saved; we'll try again.",
+        );
         publish();
       }
     } finally {

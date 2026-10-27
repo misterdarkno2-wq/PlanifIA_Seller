@@ -243,6 +243,8 @@ export async function handleGoalPlan(req: Request) {
       weekly_minutes: weeklyMinutes,
       target_date: targetDate,
       goal_id: goal?.id || null,
+      // Idioma de la propuesta: la app lo envía según el botón ES/EN. Sólo "es" o "en".
+      language: input.language === "en" ? "en" : "es",
     };
     const queued = await admin.rpc("enqueue_ai_job", {
       p_user_id: user.id,

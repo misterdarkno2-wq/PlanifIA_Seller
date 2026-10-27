@@ -38,6 +38,7 @@ import {
   loadExportExtras,
 } from "./cloud.js";
 import {
+  LEGAL_PAGES,
   LEGAL_URLS,
   LEGAL_VERSION,
   legalDateLabel,
@@ -104,6 +105,8 @@ import {
 import { createUpdateChecker } from "./app-update.js";
 import { createReminders, reminderTime } from "./reminders.js";
 import { validateProposal } from "../supabase/functions/_shared/plan.js";
+import { aiLanguage, bindLangToggle, lang, langToggle, onLangChange, tr } from "./i18n.js";
+import { serverText } from "./server-messages.js";
 
 const app = document.querySelector("#app"),
   e = (value) =>
@@ -197,7 +200,7 @@ async function acceptCurrentLegal() {
   const owner = user.id;
   const latest = await acceptLegal(LEGAL_VERSION, platformName());
   if (user?.id === owner) legal = { owner, available: true, latest };
-  toast("Gracias. Guardamos tu aceptación de los términos vigentes.");
+  toast(tr("Gracias. Guardamos tu aceptación de los términos vigentes.", "Thank you. We saved your acceptance of the current terms."));
   return latest;
 }
 /**
@@ -222,7 +225,7 @@ function legalGate(place) {
   });
 }
 function legalModal() {
-  const host = modal("Un aviso antes de seguir", "<div data-legal-slot></div>");
+  const host = modal(tr("Un aviso antes de seguir", "A notice before you continue"), "<div data-legal-slot></div>");
   const card = legalUpdateCard({
     accept: acceptCurrentLegal,
     onAccepted: closeModal,
@@ -238,13 +241,13 @@ function signupConsentPage() {
   const phase = legal?.owner !== owner ? "checking" : legal.available ? "consent" : "failed";
   // Redibujar la vista (por ejemplo, al terminar de cargar las metas) no debe desmarcar la casilla.
   const current = $("[data-signup-consent]", app);
-  if (current?.dataset.owner === owner && current.dataset.phase === phase) return;
-  app.innerHTML = `<header class="landing-header"><span>${logo()}</span></header><main id="main"><section class="panel signup-consent" data-signup-consent data-owner="${e(owner)}" data-phase="${phase}" aria-labelledby="signup-consent-title"><h1 id="signup-consent-title" tabindex="-1">Antes de empezar</h1>${
+  if (current?.dataset.owner === owner && current.dataset.phase === phase && current.dataset.langShown === lang()) return;
+  app.innerHTML = `<header class="landing-header"><span>${logo()}</span><div>${langToggle()}</div></header><main id="main"><section class="panel signup-consent" data-signup-consent data-owner="${e(owner)}" data-phase="${phase}" data-lang-shown="${lang()}" aria-labelledby="signup-consent-title"><h1 id="signup-consent-title" tabindex="-1">${tr("Antes de empezar", "Before you start")}</h1>${
     phase === "checking"
-      ? '<p role="status">Comprobando tu cuenta…</p>'
+      ? `<p role="status">${tr("Comprobando tu cuenta…", "Checking your account…")}</p>`
       : phase === "failed"
-        ? '<p class="error" role="alert">No pudimos comprobar tu cuenta. Revisa tu conexión y vuelve a intentarlo.</p><div class="actions"><button data-consent-retry>Reintentar</button><button type="button" class="secondary" data-consent-decline>Cerrar sesión</button></div>'
-        : `<p>Entraste con Google como <strong>${e(user.email)}</strong>. Para usar PlanifIA confirma tu edad y acepta los términos. Te lo pedimos sólo esta vez.</p><form data-consent-form>${legalConsentMarkup("google_consent")}${alert()}<div class="actions"><button data-consent-accept disabled>Aceptar y continuar</button><button type="button" class="secondary" data-consent-decline>No acepto, cerrar sesión</button></div></form><p class="fine">Si no aceptas, cerramos la sesión y no usamos tu cuenta. Si prefieres que no quede registrada, puedes <button type="button" class="text-button" data-consent-delete>eliminarla</button>.</p>`
+        ? `<p class="error" role="alert">${tr("No pudimos comprobar tu cuenta. Revisa tu conexión y vuelve a intentarlo.", "We couldn't check your account. Check your connection and try again.")}</p><div class="actions"><button data-consent-retry>${tr("Reintentar", "Try again")}</button><button type="button" class="secondary" data-consent-decline>${tr("Cerrar sesión", "Sign out")}</button></div>`
+        : `<p>${tr(`Entraste con Google como <strong>${e(user.email)}</strong>. Para usar PlanifIA confirma tu edad y acepta los términos. Te lo pedimos sólo esta vez.`, `You signed in with Google as <strong>${e(user.email)}</strong>. To use PlanifIA, confirm your age and accept the terms. We only ask you this once.`)}</p><form data-consent-form>${legalConsentMarkup("google_consent")}${alert()}<div class="actions"><button data-consent-accept disabled>${tr("Aceptar y continuar", "Accept and continue")}</button><button type="button" class="secondary" data-consent-decline>${tr("No acepto, cerrar sesión", "I don't accept, sign out")}</button></div></form><p class="fine">${tr("Si no aceptas, cerramos la sesión y no usamos tu cuenta. Si prefieres que no quede registrada, puedes", "If you don't accept, we sign you out and don't use your account. If you'd rather it not stay registered, you can")} <button type="button" class="text-button" data-consent-delete>${tr("eliminarla", "delete it")}</button>.</p>`
   }</section></main>`;
   $("#signup-consent-title", app).focus({ preventScroll: true });
   if (phase === "checking") void checkLegal().then(() => user?.id === owner && render());
@@ -284,12 +287,12 @@ async function declineSignupConsent(button) {
   loadVersion++;
   location.hash = "home";
   render();
-  toast("Cerramos la sesión. Para usar PlanifIA tienes que aceptar los Términos y la Política de privacidad.");
+  toast(tr("Cerramos la sesión. Para usar PlanifIA tienes que aceptar los Términos y la Política de privacidad.", "We signed you out. To use PlanifIA you need to accept the Terms and the Privacy Policy."));
 }
 // Respaldo completo de la cuenta (derecho de acceso y portabilidad), también antes de eliminarla.
 async function exportData() {
   const extras = await loadExportExtras();
-  return downloadJson("planifia-seller-respaldo.json", {
+  return downloadJson(tr("planifia-seller-respaldo.json", "planifia-seller-backup.json"), {
     version: 3,
     exported_at: new Date().toISOString(),
     sourceId: "seller:" + user.id,
@@ -303,7 +306,7 @@ document.addEventListener("click", (event) => {
   const link = event.target.closest?.("a[data-external-link]");
   if (!link || !playStore) return;
   event.preventDefault();
-  playStore.openExternal(link.href).catch(() => toast("No pudimos abrir el enlace. Visita planifia.cl."));
+  playStore.openExternal(link.href).catch(() => toast(tr("No pudimos abrir el enlace. Visita planifia.cl.", "We couldn't open the link. Visit planifia.cl.")));
 });
 // Créditos y plan vigente. En Android, además, anuncios (sólo plan Gratis) y Google Play.
 let monetization = null,
@@ -383,8 +386,8 @@ function stopMonetization() {
 function creditHint() {
   const cost = monetization?.credits?.cost_per_use ?? 20;
   return monetization
-    ? `Usar la IA cuesta ${cost} créditos. Tienes ${monetization.credits.balance}.`
-    : `Usar la IA cuesta ${cost} créditos.`;
+    ? tr(`Usar la IA cuesta ${cost} créditos. Tienes ${monetization.credits.balance}.`, `Using the AI costs ${cost} credits. You have ${monetization.credits.balance}.`)
+    : tr(`Usar la IA cuesta ${cost} créditos.`, `Using the AI costs ${cost} credits.`);
 }
 onPurchasesUpdated((payload) => {
   // Compras completadas fuera del flujo (p. ej., un pago pendiente que se confirmó después).
@@ -393,7 +396,7 @@ onPurchasesUpdated((payload) => {
       ?.sync(payload.purchases, { skipRecent: true })
       .then((result) => {
         if (result.results?.some((r) => !r.error && (r.granted || r.active)))
-          toast("Google Play confirmó tu compra. Tu cuenta ya está al día.");
+          toast(tr("Google Play confirmó tu compra. Tu cuenta ya está al día.", "Google Play confirmed your purchase. Your account is up to date."));
       })
       .catch(() => {});
 }).catch(() => {});
@@ -432,8 +435,8 @@ async function offerUpdate() {
   }
   const required = action === "required";
   const host = modal(
-    "Hay una versión nueva de PlanifIA",
-    `<p>${required ? "Esta versión ya no recibe correcciones. Actualiza para seguir usando PlanifIA sin problemas." : "Actualiza para tener las últimas correcciones y mejoras."} Google Play la descarga y la app se vuelve a abrir sola.</p>${alert()}<div class="actions"><button id="update-now">Actualizar ahora</button>${required ? "" : '<button class="secondary" id="update-later">Más tarde</button>'}</div>`,
+    tr("Hay una versión nueva de PlanifIA", "A new version of PlanifIA is available"),
+    `<p>${required ? tr("Esta versión ya no recibe correcciones. Actualiza para seguir usando PlanifIA sin problemas.", "This version no longer gets fixes. Update to keep using PlanifIA without problems.") : tr("Actualiza para tener las últimas correcciones y mejoras.", "Update to get the latest fixes and improvements.")} ${tr("Google Play la descarga y la app se vuelve a abrir sola.", "Google Play downloads it and the app reopens by itself.")}</p>${alert()}<div class="actions"><button id="update-now">${tr("Actualizar ahora", "Update now")}</button>${required ? "" : `<button class="secondary" id="update-later">${tr("Más tarde", "Later")}</button>`}</div>`,
   );
   if (!required) host.addEventListener("close", () => appUpdate.later(), { once: true });
   $("#update-later", host)?.addEventListener("click", closeModal);
@@ -450,7 +453,7 @@ async function offerUpdate() {
     // "started": Google Play instala y reinicia la app. "cancelled": la persona salió de Play.
     if (result?.status === "started") return;
     if (result?.status === "cancelled") closeModal();
-    else formError(host, new Error("No pudimos abrir Google Play. Inténtalo de nuevo en un momento."));
+    else formError(host, new Error(tr("No pudimos abrir Google Play. Inténtalo de nuevo en un momento.", "We couldn't open Google Play. Try again in a moment.")));
   };
 }
 function updateAiBadge() {
@@ -461,21 +464,21 @@ function updateAiBadge() {
   ).length;
   const ready = aiJobs.jobs.filter((j) => j.status === "completed").length;
   button.textContent = pending
-    ? "IA · " + pending + " en preparación"
+    ? tr(`IA · ${pending} en preparación`, `AI · ${pending} in progress`)
     : ready
-      ? "IA · propuestas para revisar"
-      : "Mis solicitudes de IA";
+      ? tr("IA · propuestas para revisar", "AI · proposals to review")
+      : tr("Mis solicitudes de IA", "My AI requests");
 }
 function aiJobsDialog() {
   const host = modal(
-    "Mis solicitudes de IA",
-    '<p class="muted">Tu trabajo continúa aunque cierres la página. Las propuestas sólo cambian tus metas cuando las confirmas.</p><div data-job-list></div>',
+    tr("Mis solicitudes de IA", "My AI requests"),
+    `<p class="muted">${tr("Tu trabajo continúa aunque cierres la página. Las propuestas sólo cambian tus metas cuando las confirmas.", "Your work continues even if you close the page. Proposals only change your goals when you confirm them.")}</p><div data-job-list></div>`,
   );
   let previous = "";
   const unsubscribe = aiJobs.subscribe((jobs, error) => {
     if (!host.isConnected || !host.open) return;
     const markup =
-      (error ? '<p role="alert">' + e(error) + "</p>" : "") +
+      (error ? '<p role="alert">' + e(serverText(error)) + "</p>" : "") +
       (jobs
         .map(
           (job) =>
@@ -487,7 +490,9 @@ function aiJobsDialog() {
             (job.status === "completed"
               ? '<button data-review-job="' +
                 job.id +
-                '">Revisar propuesta</button>'
+                '">' +
+                tr("Revisar propuesta", "Review proposal") +
+                "</button>"
               : "") +
             (["queued", "processing"].includes(job.status) &&
             !job.cancel_requested
@@ -495,14 +500,14 @@ function aiJobsDialog() {
                 job.id +
                 '">' +
                 (job.status === "processing"
-                  ? "Solicitar interrupción"
-                  : "Cancelar solicitud") +
+                  ? tr("Solicitar interrupción", "Ask to stop")
+                  : tr("Cancelar solicitud", "Cancel request")) +
                 "</button>"
               : "") +
             "</article>",
         )
         .join("") ||
-        '<p class="muted">Todavía no hay solicitudes. Crea una meta para pedir tu primera propuesta.</p>');
+        `<p class="muted">${tr("Todavía no hay solicitudes. Crea una meta para pedir tu primera propuesta.", "No requests yet. Create a goal to ask for your first proposal.")}</p>`);
     if (markup === previous) return;
     previous = markup;
     const focus = document.activeElement?.dataset;
@@ -641,8 +646,8 @@ function toast(message) {
 }
 function errorMessage(error) {
   return /fetch|timeout|network/i.test(error.message)
-    ? "No pudimos conectar. Revisa Internet y vuelve a intentarlo."
-    : error.message || "No pudimos guardar el cambio. Inténtalo nuevamente.";
+    ? tr("No pudimos conectar. Revisa Internet y vuelve a intentarlo.", "We couldn't connect. Check your Internet connection and try again.")
+    : serverText(error.message) || tr("No pudimos guardar el cambio. Inténtalo nuevamente.", "We couldn't save the change. Please try again.");
 }
 function formError(form, error) {
   const el = $("[role=alert]", form);
@@ -650,10 +655,10 @@ function formError(form, error) {
     el.textContent = errorMessage(error);
     el.hidden = false;
     // Sin créditos: lleva a Mi plan, donde se ganan (anuncios, invitaciones) o se compran.
-    if (/créditos suficientes/.test(el.textContent)) {
+    if (/créditos suficientes/.test(error.message)) {
       const link = document.createElement("a");
       link.href = "#subscription";
-      link.textContent = " Conseguir créditos →";
+      link.textContent = tr(" Conseguir créditos →", " Get credits →");
       link.addEventListener("click", closeModal);
       el.append(link);
     }
@@ -663,7 +668,7 @@ async function busy(button, action) {
   if (button.disabled) return;
   const label = button.textContent;
   button.disabled = true;
-  button.textContent = "Guardando…";
+  button.textContent = tr("Guardando…", "Saving…");
   try {
     await action();
   } catch (error) {
@@ -703,14 +708,14 @@ async function refresh() {
 async function saved(message) {
   closeModal();
   if (await refresh()) toast(message);
-  else toast("El cambio se guardó, pero no pudimos actualizar la vista. Vuelve a cargar tus datos.");
+  else toast(tr("El cambio se guardó, pero no pudimos actualizar la vista. Vuelve a cargar tus datos.", "The change was saved, but we couldn't refresh the view. Reload your data."));
 }
 function modal(title, content) {
   closeModal();
   dialog = document.createElement("dialog");
   dialog.className = "modal";
   dialog.setAttribute("aria-labelledby", "dialog-title");
-  dialog.innerHTML = `<div class="modal-head"><h2 id="dialog-title">${e(title)}</h2><button class="icon-button" data-close aria-label="Cerrar">×</button></div>${content}`;
+  dialog.innerHTML = `<div class="modal-head"><h2 id="dialog-title">${e(title)}</h2><button class="icon-button" data-close aria-label="${tr("Cerrar", "Close")}">×</button></div>${content}`;
   document.body.append(dialog);
   $("[data-close]", dialog).onclick = closeModal;
   dialog.showModal();
@@ -736,7 +741,7 @@ function closeModal() {
 const alert = () => '<p class="error" role="alert" hidden></p>';
 function petCard() {
   const p = state.pet;
-  return `<aside class="pet-card featured" id="pet" aria-labelledby="pet-name"><div class="pet-portrait">${portrait(p.stage)}</div><div class="pet-info">${lumiConversationMarkup()}<div class="pet-progress-summary"><p class="eyebrow">TU COMPAÑERA DE CADA PASO</p><div class="pet-title"><h2 id="pet-name">${e(p.name)}</h2><span class="pet-level">Nivel ${p.level}</span></div><p class="pet-stage">${STAGES[p.stage - 1]} · ${p.total_xp} XP</p><progress aria-label="Experiencia de Lumi" value="${p.next_xp === null ? 1 : p.level_xp}" max="${p.next_xp ?? 1}"></progress><p class="pet-xp-label">${p.next_xp === null ? "Evolución final alcanzada" : `${p.level_xp} / ${p.next_xp} XP para el siguiente nivel`}</p></div></div></aside>`;
+  return `<aside class="pet-card featured" id="pet" aria-labelledby="pet-name"><div class="pet-portrait">${portrait(p.stage)}</div><div class="pet-info">${lumiConversationMarkup()}<div class="pet-progress-summary"><p class="eyebrow">${tr("TU COMPAÑERA DE CADA PASO", "YOUR COMPANION FOR EVERY STEP")}</p><div class="pet-title"><h2 id="pet-name">${e(p.name)}</h2><span class="pet-level">${tr("Nivel", "Level")} ${p.level}</span></div><p class="pet-stage">${STAGES[p.stage - 1]} · ${p.total_xp} XP</p><progress aria-label="${tr("Experiencia de Lumi", "Lumi's experience")}" value="${p.next_xp === null ? 1 : p.level_xp}" max="${p.next_xp ?? 1}"></progress><p class="pet-xp-label">${p.next_xp === null ? tr("Evolución final alcanzada", "Final evolution reached") : tr(`${p.level_xp} / ${p.next_xp} XP para el siguiente nivel`, `${p.level_xp} / ${p.next_xp} XP to the next level`)}</p></div></div></aside>`;
 }
 function celebrate(result, before) {
   const p = result.pet;
@@ -747,14 +752,14 @@ function celebrate(result, before) {
     celebratePet(evolved ? "evolve" : levelled ? "level" : "happy");
     toast(
       evolved
-        ? `¡Lumi evolucionó! ${STAGES[p.stage - 1]}, nivel ${p.level}.`
+        ? tr(`¡Lumi evolucionó! ${STAGES[p.stage - 1]}, nivel ${p.level}.`, `Lumi evolved! ${STAGES[p.stage - 1]}, level ${p.level}.`)
         : levelled
-          ? `¡Nivel ${p.level}! Cada paso cuenta.`
-          : `¡Bien hecho! +${result.xp_delta} XP.`,
+          ? tr(`¡Nivel ${p.level}! Cada paso cuenta.`, `Level ${p.level}! Every step counts.`)
+          : tr(`¡Bien hecho! +${result.xp_delta} XP.`, `Well done! +${result.xp_delta} XP.`),
     );
   } else if (result.xp_delta < 0)
     toast(
-      `Acción reabierta. Se ajustaron ${-result.xp_delta} XP; puedes retomarla a tu ritmo.`,
+      tr(`Acción reabierta. Se ajustaron ${-result.xp_delta} XP; puedes retomarla a tu ritmo.`, `Action reopened. ${-result.xp_delta} XP were adjusted; pick it up again at your own pace.`),
     );
 }
 const activeTask = (t) =>
@@ -763,11 +768,11 @@ const activeTask = (t) =>
 const liveTasks = () => state.tasks.filter((t) => t.status !== "cancelled");
 function taskRow(t) {
   const goal = state.goals.find((g) => g.id === t.goal_id);
-  return `<article class="task-row ${t.status === "completed" ? "done" : ""}"><button class="task-check" data-toggle-task="${t.id}" aria-label="${t.status === "completed" ? "Volver a pendiente" : "Completar"}: ${e(t.title)}" aria-pressed="${t.status === "completed"}">${t.status === "completed" ? "✓" : ""}</button><div class="task-content"><strong>${e(t.title)}</strong><p>${e(goal?.title || t.area || "Acción independiente")} · ${t.minutes} min <span class="priority ${t.priority}">${PRIORITIES[t.priority]}</span></p>${t.deadline ? `<small>Fecha límite: ${dateLabel(t.deadline)}</small>` : ""}</div><button class="text-button" data-edit-task="${t.id}">Reprogramar / editar</button></article>`;
+  return `<article class="task-row ${t.status === "completed" ? "done" : ""}"><button class="task-check" data-toggle-task="${t.id}" aria-label="${t.status === "completed" ? tr("Volver a pendiente", "Mark as pending") : tr("Completar", "Complete")}: ${e(t.title)}" aria-pressed="${t.status === "completed"}">${t.status === "completed" ? "✓" : ""}</button><div class="task-content"><strong>${e(t.title)}</strong><p>${e(goal?.title || t.area || tr("Acción independiente", "Standalone action"))} · ${t.minutes} min <span class="priority ${t.priority}">${PRIORITIES[t.priority]}</span></p>${t.deadline ? `<small>${tr("Fecha límite", "Deadline")}: ${dateLabel(t.deadline)}</small>` : ""}</div><button class="text-button" data-edit-task="${t.id}">${tr("Reprogramar / editar", "Reschedule / edit")}</button></article>`;
 }
 function goalCard(g) {
   const p = progress(liveTasks().filter((t) => t.goal_id === g.id));
-  return `<article class="goal-card"><div class="card-top"><span class="tag">${CATEGORIES[g.category]}</span><span class="muted">${{ active: "Activa", paused: "En pausa", achieved: "Alcanzada", archived: "Archivada" }[g.status]}</span></div><h3><button class="title-button" data-goal="${g.id}">${e(g.title)}</button></h3><p>${e(g.outcome || g.description)}</p><div class="progress-label"><span>${p.done} de ${p.total} acciones</span><strong>${p.percent}%</strong></div><progress value="${p.percent}" max="100" aria-label="Acciones completadas de ${e(g.title)}"></progress><div class="card-foot"><span>${g.target_date ? `Objetivo: ${dateLabel(g.target_date)}` : "A tu ritmo"}</span><button class="text-button" data-goal="${g.id}">Ver plan →</button></div></article>`;
+  return `<article class="goal-card"><div class="card-top"><span class="tag">${CATEGORIES[g.category]}</span><span class="muted">${{ active: tr("Activa", "Active"), paused: tr("En pausa", "Paused"), achieved: tr("Alcanzada", "Achieved"), archived: tr("Archivada", "Archived") }[g.status]}</span></div><h3><button class="title-button" data-goal="${g.id}">${e(g.title)}</button></h3><p>${e(g.outcome || g.description)}</p><div class="progress-label"><span>${tr(`${p.done} de ${p.total} acciones`, `${p.done} of ${p.total} actions`)}</span><strong>${p.percent}%</strong></div><progress value="${p.percent}" max="100" aria-label="${tr("Acciones completadas de", "Completed actions of")} ${e(g.title)}"></progress><div class="card-foot"><span>${g.target_date ? `${tr("Objetivo", "Target")}: ${dateLabel(g.target_date)}` : tr("A tu ritmo", "At your own pace")}</span><button class="text-button" data-goal="${g.id}">${tr("Ver plan →", "View plan →")}</button></div></article>`;
 }
 function dashboard() {
   const goals = state.goals.filter((g) => g.status === "active"),
@@ -775,37 +780,37 @@ function dashboard() {
       (t) => activeTask(t) && t.scheduled_date && t.scheduled_date <= day(),
     );
   const pending = tasks.filter((t) => t.status === "pending");
-  return `<div class="page-heading"><div><p class="eyebrow">TU CAMINO</p><h1>Un paso a la vez, ${e(state.profile.name.split(" ")[0] || "a tu ritmo")}.</h1><p class="muted">Tus metas tienen espacio aquí. Elige lo que puedes hacer hoy.</p></div><button data-new-goal>+ Crear una meta</button></div>${petCard()}<div class="overview"><div class="stat"><strong>${goals.length}</strong><span>metas activas</span></div><div class="stat"><strong>${pending.length}</strong><span>acciones para hoy y por retomar</span></div><div class="stat"><strong>${liveTasks().filter((t) => t.status === "completed").length}</strong><span>pasos completados</span></div></div><section><div class="section-heading"><div><p class="eyebrow">¿QUÉ QUIERO LOGRAR?</p><h2>Mis metas</h2></div><a href="#goals">Ver todas →</a></div>${goals.length ? `<div class="goal-grid">${goals.slice(0, 4).map(goalCard).join("")}</div>` : `<div class="welcome"><h3>Tu primera meta puede empezar con una idea.</h3><p>Aprender un idioma, crear tu proyecto, preparar una carrera o encontrar un hábito que te haga bien.</p><button data-new-goal>Crear mi primera meta</button></div>`}</section><div class="today-grid"><section class="panel"><div class="section-heading"><div><p class="eyebrow">¿QUÉ PUEDO HACER HOY?</p><h2>Hoy</h2></div><button class="text-button" data-new-task>+ Acción</button></div>${
+  return `<div class="page-heading"><div><p class="eyebrow">${tr("TU CAMINO", "YOUR PATH")}</p><h1>${tr(`Un paso a la vez, ${e(state.profile.name.split(" ")[0] || "a tu ritmo")}.`, `One step at a time, ${e(state.profile.name.split(" ")[0] || "at your own pace")}.`)}</h1><p class="muted">${tr("Tus metas tienen espacio aquí. Elige lo que puedes hacer hoy.", "Your goals have room here. Choose what you can do today.")}</p></div><button data-new-goal>${tr("+ Crear una meta", "+ Create a goal")}</button></div>${petCard()}<div class="overview"><div class="stat"><strong>${goals.length}</strong><span>${tr("metas activas", "active goals")}</span></div><div class="stat"><strong>${pending.length}</strong><span>${tr("acciones para hoy y por retomar", "actions for today and to catch up on")}</span></div><div class="stat"><strong>${liveTasks().filter((t) => t.status === "completed").length}</strong><span>${tr("pasos completados", "steps completed")}</span></div></div><section><div class="section-heading"><div><p class="eyebrow">${tr("¿QUÉ QUIERO LOGRAR?", "WHAT DO I WANT TO ACHIEVE?")}</p><h2>${tr("Mis metas", "My goals")}</h2></div><a href="#goals">${tr("Ver todas →", "See all →")}</a></div>${goals.length ? `<div class="goal-grid">${goals.slice(0, 4).map(goalCard).join("")}</div>` : `<div class="welcome"><h3>${tr("Tu primera meta puede empezar con una idea.", "Your first goal can start with an idea.")}</h3><p>${tr("Aprender un idioma, crear tu proyecto, preparar una carrera o encontrar un hábito que te haga bien.", "Learning a language, building your project, training for a race or finding a habit that does you good.")}</p><button data-new-goal>${tr("Crear mi primera meta", "Create my first goal")}</button></div>`}</section><div class="today-grid"><section class="panel"><div class="section-heading"><div><p class="eyebrow">${tr("¿QUÉ PUEDO HACER HOY?", "WHAT CAN I DO TODAY?")}</p><h2>${tr("Hoy", "Today")}</h2></div><button class="text-button" data-new-task>${tr("+ Acción", "+ Action")}</button></div>${
     tasks.length
       ? tasks
           .sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date))
           .map(taskRow)
           .join("")
-      : '<div class="empty"><p>Hoy hay espacio para elegir tu siguiente paso.</p><a href="#calendar">Organizar mi calendario →</a></div>'
-  }${liveTasks().some((t) => t.status === "pending" && !t.scheduled_date) ? `<p class="muted">Hay ${liveTasks().filter((t) => t.status === "pending" && !t.scheduled_date).length} acciones sin fecha. Puedes organizarlas desde <a href="#tasks">Acciones</a>.</p>` : ""}</section><aside class="note"><h3>El progreso también es encontrar tu ritmo.</h3><p>La barra de cada meta cuenta sus acciones completadas. Tú decides cuándo el resultado que buscabas está alcanzado.</p><a href="#habits">Ver mis hábitos →</a></aside></div>`;
+      : `<div class="empty"><p>${tr("Hoy hay espacio para elegir tu siguiente paso.", "Today there's room to choose your next step.")}</p><a href="#calendar">${tr("Organizar mi calendario →", "Organize my calendar →")}</a></div>`
+  }${liveTasks().some((t) => t.status === "pending" && !t.scheduled_date) ? `<p class="muted">${tr(`Hay ${liveTasks().filter((t) => t.status === "pending" && !t.scheduled_date).length} acciones sin fecha. Puedes organizarlas desde <a href="#tasks">Acciones</a>.`, `There are ${liveTasks().filter((t) => t.status === "pending" && !t.scheduled_date).length} actions without a date. You can organize them from <a href="#tasks">Actions</a>.`)}</p>` : ""}</section><aside class="note"><h3>${tr("El progreso también es encontrar tu ritmo.", "Progress is also about finding your pace.")}</h3><p>${tr("La barra de cada meta cuenta sus acciones completadas. Tú decides cuándo el resultado que buscabas está alcanzado.", "Each goal's bar counts its completed actions. You decide when the result you wanted has been reached.")}</p><a href="#habits">${tr("Ver mis hábitos →", "See my habits →")}</a></aside></div>`;
 }
 function goalsPage() {
-  return `<div class="page-heading"><div><p class="eyebrow">¿QUÉ QUIERO LOGRAR?</p><h1>Mis metas</h1><p class="muted">Cada camino puede cambiar de ritmo.</p></div><button data-new-goal>+ Crear una meta</button></div>${
+  return `<div class="page-heading"><div><p class="eyebrow">${tr("¿QUÉ QUIERO LOGRAR?", "WHAT DO I WANT TO ACHIEVE?")}</p><h1>${tr("Mis metas", "My goals")}</h1><p class="muted">${tr("Cada camino puede cambiar de ritmo.", "Every path can change its pace.")}</p></div><button data-new-goal>${tr("+ Crear una meta", "+ Create a goal")}</button></div>${
     ["active", "paused", "achieved", "archived"]
       .map((status) => {
         const items = state.goals.filter((g) => g.status === status);
         return items.length
-          ? `<section><h2>${{ active: "En camino", paused: "En pausa", achieved: "Metas alcanzadas", archived: "Archivo" }[status]}</h2><div class="goal-grid">${items.map(goalCard).join("")}</div></section>`
+          ? `<section><h2>${{ active: tr("En camino", "In progress"), paused: tr("En pausa", "Paused"), achieved: tr("Metas alcanzadas", "Achieved goals"), archived: tr("Archivo", "Archive") }[status]}</h2><div class="goal-grid">${items.map(goalCard).join("")}</div></section>`
           : "";
       })
       .join("") ||
-    '<div class="welcome"><h2>¿Qué te gustaría lograr?</h2><p>Empieza con una idea pequeña. Puedes organizarla tú o pedir ayuda a la IA.</p><button data-new-goal>Crear una meta</button></div>'
+    `<div class="welcome"><h2>${tr("¿Qué te gustaría lograr?", "What would you like to achieve?")}</h2><p>${tr("Empieza con una idea pequeña. Puedes organizarla tú o pedir ayuda a la IA.", "Start with a small idea. You can organize it yourself or ask the AI for help.")}</p><button data-new-goal>${tr("Crear una meta", "Create a goal")}</button></div>`
   }`;
 }
 function tasksPage() {
-  return `<div class="page-heading"><div><h1>Mis acciones</h1><p class="muted">Pequeños pasos, con una meta o por sí solos.</p></div><button data-new-task>+ Crear acción</button></div><section class="panel">${
+  return `<div class="page-heading"><div><h1>${tr("Mis acciones", "My actions")}</h1><p class="muted">${tr("Pequeños pasos, con una meta o por sí solos.", "Small steps, part of a goal or on their own.")}</p></div><button data-new-task>${tr("+ Crear acción", "+ Create action")}</button></div><section class="panel">${
     liveTasks()
       .sort((a, b) =>
         (a.scheduled_date || "9999").localeCompare(b.scheduled_date || "9999"),
       )
       .map(taskRow)
       .join("") ||
-    '<p class="empty">Todavía no hay acciones. Añade una o crea un plan para tu meta.</p>'
+    `<p class="empty">${tr("Todavía no hay acciones. Añade una o crea un plan para tu meta.", "No actions yet. Add one or create a plan for your goal.")}</p>`
   }</section>`;
 }
 function calendarPage() {
@@ -817,18 +822,18 @@ function calendarPage() {
     d.setDate(d.getDate() + i);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   });
-  return `<div class="page-heading"><div><h1>Un calendario con espacio</h1><p class="muted">La IA tiene en cuenta tus acciones y hábitos al proponer un plan.</p></div><button data-new-task>+ Acción</button></div><label class="date-picker">Ver desde <input type="date" id="calendar-date" value="${start}"></label><div class="calendar-grid">${dates
+  return `<div class="page-heading"><div><h1>${tr("Un calendario con espacio", "A calendar with room to breathe")}</h1><p class="muted">${tr("La IA tiene en cuenta tus acciones y hábitos al proponer un plan.", "The AI takes your actions and habits into account when it proposes a plan.")}</p></div><button data-new-task>${tr("+ Acción", "+ Action")}</button></div><label class="date-picker">${tr("Ver desde", "Show from")} <input type="date" id="calendar-date" value="${start}"></label><div class="calendar-grid">${dates
     .map((date) => {
       const tasks = liveTasks().filter(
         (t) => t.scheduled_date === date && activeTask(t),
       );
-      return `<section class="panel"><h2>${dateLabel(date)}</h2><p class="muted">${tasks.reduce((sum, t) => sum + t.minutes, 0)} minutos en acciones</p>${tasks.map(taskRow).join("") || '<p class="empty">Espacio libre</p>'}</section>`;
+      return `<section class="panel"><h2>${dateLabel(date)}</h2><p class="muted">${tasks.reduce((sum, t) => sum + t.minutes, 0)} ${tr("minutos en acciones", "minutes of actions")}</p>${tasks.map(taskRow).join("") || `<p class="empty">${tr("Espacio libre", "Free time")}</p>`}</section>`;
     })
     .join("")}</div>`;
 }
 function habitsPage() {
   const dow = new Date(day() + "T12:00:00").getDay();
-  return `<div class="page-heading"><div><h1>Hábitos a tu ritmo</h1><p class="muted">Cada cumplimiento queda registrado por separado.</p></div><button data-new-habit>+ Crear hábito</button></div>${
+  return `<div class="page-heading"><div><h1>${tr("Hábitos a tu ritmo", "Habits at your own pace")}</h1><p class="muted">${tr("Cada cumplimiento queda registrado por separado.", "Each time you do it is recorded separately.")}</p></div><button data-new-habit>${tr("+ Crear hábito", "+ Create habit")}</button></div>${
     state.habits
       .map((h) => {
         const done = state.completions.some(
@@ -837,20 +842,24 @@ function habitsPage() {
         const history = state.completions
           .filter((c) => c.habit_id === h.id)
           .sort((a, b) => b.day.localeCompare(a.day));
-        return `<section class="panel habit-card"><div class="section-heading"><div><h2>${e(h.title)}</h2><p class="muted">${h.minutes} min · ${h.days.map((d) => ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"][d]).join(", ")}${h.active ? "" : " · En pausa"}</p></div><button class="secondary" data-edit-habit="${h.id}">Editar</button></div>${h.active && h.days.includes(dow) ? `<button data-habit="${h.id}" data-completed="${!done}">${done ? "✓ Hecho hoy · deshacer" : "Marcar hoy como hecho"}</button>` : ""}<details><summary>Historial · ${history.filter((c) => c.completed).length} cumplimientos</summary><ul>${history.map((c) => `<li>${dateLabel(c.day)} · ${c.completed ? "Completado" : "Reabierto"}</li>`).join("") || "<li>Aquí aparecerán tus próximos pasos.</li>"}</ul></details></section>`;
+        return `<section class="panel habit-card"><div class="section-heading"><div><h2>${e(h.title)}</h2><p class="muted">${h.minutes} min · ${h.days.map((d) => weekdays()[d]).join(", ")}${h.active ? "" : tr(" · En pausa", " · Paused")}</p></div><button class="secondary" data-edit-habit="${h.id}">${tr("Editar", "Edit")}</button></div>${h.active && h.days.includes(dow) ? `<button data-habit="${h.id}" data-completed="${!done}">${done ? tr("✓ Hecho hoy · deshacer", "✓ Done today · undo") : tr("Marcar hoy como hecho", "Mark today as done")}</button>` : ""}<details><summary>${tr("Historial", "History")} · ${history.filter((c) => c.completed).length} ${tr("cumplimientos", "times done")}</summary><ul>${history.map((c) => `<li>${dateLabel(c.day)} · ${c.completed ? tr("Completado", "Completed") : tr("Reabierto", "Reopened")}</li>`).join("") || `<li>${tr("Aquí aparecerán tus próximos pasos.", "Your next steps will show up here.")}</li>`}</ul></details></section>`;
       })
       .join("") ||
-    '<div class="welcome"><h2>Lo pequeño también suma.</h2><p>Leer diez minutos, practicar un idioma o reservar un rato para tu proyecto.</p><button data-new-habit>Crear mi primer hábito</button></div>'
+    `<div class="welcome"><h2>${tr("Lo pequeño también suma.", "Small things add up too.")}</h2><p>${tr("Leer diez minutos, practicar un idioma o reservar un rato para tu proyecto.", "Reading for ten minutes, practicing a language or setting aside time for your project.")}</p><button data-new-habit>${tr("Crear mi primer hábito", "Create my first habit")}</button></div>`
   }`;
 }
+// Abreviaturas de los días, de domingo (0) a sábado (6), como Date.getDay().
+const weekdays = () =>
+  tr("Dom Lun Mar Mié Jue Vie Sáb", "Sun Mon Tue Wed Thu Fri Sat").split(" ");
 function daysInputs(selected, prefix = "days") {
-  return `<fieldset><legend>Días disponibles</legend><div class="days">${["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"].map((label, i) => `<label><input type="checkbox" name="${prefix}" value="${i}" ${selected.includes(i) ? "checked" : ""}>${label}</label>`).join("")}</div></fieldset>`;
+  return `<fieldset><legend>${tr("Días disponibles", "Available days")}</legend><div class="days">${weekdays().map((label, i) => `<label><input type="checkbox" name="${prefix}" value="${i}" ${selected.includes(i) ? "checked" : ""}>${label}</label>`).join("")}</div></fieldset>`;
 }
 // Panel «Recordatorios» de Ajustes (sólo Android). El permiso se pide al encender el interruptor.
-const REMINDERS_OFF = "Está apagado. Al encenderlo, el teléfono te pedirá permiso para mostrar avisos.";
+const remindersOff = () =>
+  tr("Está apagado. Al encenderlo, el teléfono te pedirá permiso para mostrar avisos.", "It's off. When you turn it on, your phone will ask for permission to show notifications.");
 function remindersPanel() {
   const on = reminders.isOn(user.id);
-  return `<section class="panel" data-reminders><h2>Recordatorios</h2><p>Un aviso al día, a la hora que elijas, sólo los días en que tienes acciones o hábitos pendientes. El aviso dice cuántos pasos tienes, nunca los nombres de tus metas.</p><label><input type="checkbox" id="reminders-on" ${on ? "checked" : ""}> Recordarme mis pasos del día</label><form id="reminder-form"><label>Hora del aviso<input name="time" type="time" value="${reminderTime(state.profile.reminder_time)}" required></label><button class="secondary">Guardar hora</button></form><p class="muted" data-reminders-note role="status">${on ? "" : REMINDERS_OFF}</p></section>`;
+  return `<section class="panel" data-reminders><h2>${tr("Recordatorios", "Reminders")}</h2><p>${tr("Un aviso al día, a la hora que elijas, sólo los días en que tienes acciones o hábitos pendientes. El aviso dice cuántos pasos tienes, nunca los nombres de tus metas.", "One notification a day, at the time you choose, only on days when you have pending actions or habits. It says how many steps you have, never the names of your goals.")}</p><label><input type="checkbox" id="reminders-on" ${on ? "checked" : ""}> ${tr("Recordarme mis pasos del día", "Remind me of my steps for the day")}</label><form id="reminder-form"><label>${tr("Hora del aviso", "Notification time")}<input name="time" type="time" value="${reminderTime(state.profile.reminder_time)}" required></label><button class="secondary">${tr("Guardar hora", "Save time")}</button></form><p class="muted" data-reminders-note role="status">${on ? "" : remindersOff()}</p></section>`;
 }
 function remindersNote(status) {
   const note = $("[data-reminders-note]");
@@ -862,22 +871,22 @@ function remindersNote(status) {
     const open = document.createElement("button");
     open.type = "button";
     open.className = "text-button";
-    open.textContent = "Abrir los ajustes del teléfono";
+    open.textContent = tr("Abrir los ajustes del teléfono", "Open phone settings");
     open.onclick = () => void reminders.openSettings();
     note.append(
       on
-        ? "Los recordatorios están encendidos, pero el teléfono no deja mostrarlos. "
-        : "Tu teléfono no está dejando que PlanifIA muestre avisos. ",
+        ? tr("Los recordatorios están encendidos, pero el teléfono no deja mostrarlos. ", "Reminders are on, but your phone isn't letting them show. ")
+        : tr("Tu teléfono no está dejando que PlanifIA muestre avisos. ", "Your phone isn't letting PlanifIA show notifications. "),
       open,
     );
   } else if (status?.error)
-    note.textContent = "No pudimos programar el aviso en este teléfono. Vuelve a intentarlo más tarde.";
+    note.textContent = tr("No pudimos programar el aviso en este teléfono. Vuelve a intentarlo más tarde.", "We couldn't schedule the notification on this phone. Try again later.");
   else
     note.textContent = on
-      ? "Encendido. El aviso puede llegar unos minutos después de la hora elegida."
+      ? tr("Encendido. El aviso puede llegar unos minutos después de la hora elegida.", "On. The notification may arrive a few minutes after the chosen time.")
       : status?.permission === "granted"
-        ? "Está apagado."
-        : REMINDERS_OFF;
+        ? tr("Está apagado.", "It's off.")
+        : remindersOff();
 }
 function bindReminders() {
   const toggle = $("#reminders-on");
@@ -893,7 +902,7 @@ function bindReminders() {
         const status = await reminders.enable(user.id, state);
         toggle.checked = reminders.isOn(user.id);
         remindersNote(status);
-        if (toggle.checked) toast("Listo. Te avisaremos los días con pasos pendientes.");
+        if (toggle.checked) toast(tr("Listo. Te avisaremos los días con pasos pendientes.", "Done. We'll remind you on days with pending steps."));
       } else {
         await reminders.disable(user.id);
         remindersNote(null);
@@ -907,25 +916,25 @@ function bindReminders() {
     const form = event.currentTarget;
     busy($("button", form), async () => {
       await rpc("save_reminder_time", { p_time: form.time.value });
-      await saved("Hora del recordatorio guardada.");
+      await saved(tr("Hora del recordatorio guardada.", "Reminder time saved."));
     });
   });
 }
 function settingsPage() {
   const p = state.profile;
-  return `<div class="page-heading"><div><h1>Tu ritmo y tus datos</h1><p class="muted">Los cambios se guardan en tu cuenta y se recuperan en otros dispositivos.</p></div></div><div class="settings-grid"><section class="panel pet-motion-panel"><h2>Lumi a tu ritmo</h2><p>Elige cómo te acompaña mientras organizas tus metas.</p>${petMotionControls()}${lumiConversationSettings(companion)}</section><section class="panel"><h2>Disponibilidad</h2><form id="profile-form"><label>Tu nombre<input name="name" value="${e(p.name)}" maxlength="80" required></label><label>Zona horaria<input name="timezone" value="${e(p.timezone)}" required placeholder="America/Santiago"></label><label>Minutos totales por semana<input name="minutes" type="number" min="30" max="3360" value="${p.weekly_minutes}" required></label>${daysInputs(p.available_days)}<p class="muted">La IA reparte este tiempo entre tus días disponibles, contando acciones y hábitos existentes.</p>${alert()}<button>Guardar disponibilidad</button></form></section>${reminders.available() ? remindersPanel() : ""}<section class="panel"><h2>Conservar lo que ya hiciste</h2><p>Importa un archivo JSON de PlanifIA anterior. Verás el destino y el contenido antes de confirmar.</p><label class="file-label">Seleccionar exportación<input type="file" id="import-file" accept="application/json,.json"></label><button class="secondary" id="import-local">Buscar tareas guardadas en este navegador</button><p class="muted">Los archivos originales se conservan. Repetir la importación no crea actividades duplicadas. La XP histórica se conserva en el respaldo original, sin asignar recompensas nuevas.</p><h3>Importaciones guardadas</h3>${state.imports.map((i) => `<p>${e(i.source)} <button class="text-button" data-export-import="${i.id}">Descargar original</button></p>`).join("") || '<p class="muted">Todavía no hay importaciones.</p>'}<button class="secondary" id="export-data">Exportar mis datos</button></section>${isAndroidApp() ? `<section class="panel"><h2>Anuncios y privacidad</h2><p>En el plan Gratis se muestra un video de Google AdMob al usar la IA (máximo uno cada 5 minutos). Plus, Pro y la compra "Quitar anuncios" no muestran videos.</p>${ads.privacyRequired ? '<button class="secondary" id="ad-privacy">Opciones de privacidad de anuncios</button>' : '<p class="muted">Puedes revisar tu consentimiento de anuncios aquí cuando tu región lo requiera.</p>'}</section>` : ""}<section class="panel" data-rights><h2>Tus derechos sobre tus datos</h2><p>Puedes pedir acceso, rectificación, supresión, oposición, portabilidad o bloqueo de tus datos, y oponerte a decisiones tomadas sólo de forma automatizada. Aquí mismo puedes corregir tu perfil, exportar tus datos o eliminar tu cuenta; para lo demás escribe a <a href="mailto:planifiaprivacity@gmail.com">planifiaprivacity@gmail.com</a>.</p>${legal?.owner === user.id && legal.latest ? `<p class="muted">Aceptaste la versión del ${e(legalDateLabel(newerVersion(legal.latest.terms_version, legal.latest.privacy_version)))} de los Términos de uso y la Política de privacidad.</p>` : ""}<p><a href="${LEGAL_URLS.terms}" target="_blank" rel="noopener noreferrer" data-external-link>Términos de uso</a> · <a href="${LEGAL_URLS.privacy}" target="_blank" rel="noopener noreferrer" data-external-link>Política de privacidad</a></p></section><section class="panel danger-zone"><h2>Eliminar cuenta</h2><p>Borra de forma permanente tu cuenta y todos sus datos: metas, acciones, hábitos, Lumi, solicitudes de IA e importaciones. No se puede deshacer. Los registros técnicos que aún los contengan se borran solos en los plazos de la política de privacidad.</p><p class="muted">Te recomendamos exportar tus datos antes. Consulta la <a href="${LEGAL_URLS.privacy}" target="_blank" rel="noopener noreferrer" data-external-link>política de privacidad</a>.</p><button class="danger" id="delete-account">Eliminar mi cuenta</button></section></div>`;
+  return `<div class="page-heading"><div><h1>${tr("Tu ritmo y tus datos", "Your pace and your data")}</h1><p class="muted">${tr("Los cambios se guardan en tu cuenta y se recuperan en otros dispositivos.", "Changes are saved to your account and available on your other devices.")}</p></div></div><div class="settings-grid"><section class="panel" data-language-panel><h2>${tr("Idioma", "Language")}</h2><p>${tr("Elige el idioma de PlanifIA en este dispositivo. Lumi y las propuestas de la IA te responderán en ese idioma. Lo que ya escribiste o guardaste no se traduce.", "Choose PlanifIA's language on this device. Lumi and the AI proposals will answer you in that language. What you've already written or saved isn't translated.")}</p>${langToggle("lang-toggle-large")}</section><section class="panel pet-motion-panel"><h2>${tr("Lumi a tu ritmo", "Lumi at your pace")}</h2><p>${tr("Elige cómo te acompaña mientras organizas tus metas.", "Choose how Lumi keeps you company while you organize your goals.")}</p>${petMotionControls()}${lumiConversationSettings(companion)}</section><section class="panel"><h2>${tr("Disponibilidad", "Availability")}</h2><form id="profile-form"><label>${tr("Tu nombre", "Your name")}<input name="name" value="${e(p.name)}" maxlength="80" required></label><label>${tr("Zona horaria", "Time zone")}<input name="timezone" value="${e(p.timezone)}" required placeholder="America/Santiago"></label><label>${tr("Minutos totales por semana", "Total minutes per week")}<input name="minutes" type="number" min="30" max="3360" value="${p.weekly_minutes}" required></label>${daysInputs(p.available_days)}<p class="muted">${tr("La IA reparte este tiempo entre tus días disponibles, contando acciones y hábitos existentes.", "The AI spreads this time across your available days, counting your existing actions and habits.")}</p>${alert()}<button>${tr("Guardar disponibilidad", "Save availability")}</button></form></section>${reminders.available() ? remindersPanel() : ""}<section class="panel"><h2>${tr("Conservar lo que ya hiciste", "Keep what you've already done")}</h2><p>${tr("Importa un archivo JSON de PlanifIA anterior. Verás el destino y el contenido antes de confirmar.", "Import a JSON file from the previous PlanifIA. You'll see the destination and the content before confirming.")}</p><label class="file-label">${tr("Seleccionar exportación", "Choose export file")}<input type="file" id="import-file" accept="application/json,.json"></label><button class="secondary" id="import-local">${tr("Buscar tareas guardadas en este navegador", "Look for tasks saved in this browser")}</button><p class="muted">${tr("Los archivos originales se conservan. Repetir la importación no crea actividades duplicadas. La XP histórica se conserva en el respaldo original, sin asignar recompensas nuevas.", "Original files are kept. Importing again doesn't create duplicate activities. Past XP stays in the original backup, without granting new rewards.")}</p><h3>${tr("Importaciones guardadas", "Saved imports")}</h3>${state.imports.map((i) => `<p>${e(i.source)} <button class="text-button" data-export-import="${i.id}">${tr("Descargar original", "Download original")}</button></p>`).join("") || `<p class="muted">${tr("Todavía no hay importaciones.", "No imports yet.")}</p>`}<button class="secondary" id="export-data">${tr("Exportar mis datos", "Export my data")}</button></section>${isAndroidApp() ? `<section class="panel"><h2>${tr("Anuncios y privacidad", "Ads and privacy")}</h2><p>${tr('En el plan Gratis se muestra un video de Google AdMob al usar la IA (máximo uno cada 5 minutos). Plus, Pro y la compra "Quitar anuncios" no muestran videos.', 'On the Free plan, a Google AdMob video is shown when you use the AI (at most one every 5 minutes). Plus, Pro and the "Remove ads" purchase show no videos.')}</p>${ads.privacyRequired ? `<button class="secondary" id="ad-privacy">${tr("Opciones de privacidad de anuncios", "Ad privacy options")}</button>` : `<p class="muted">${tr("Puedes revisar tu consentimiento de anuncios aquí cuando tu región lo requiera.", "You can review your ad consent here when your region requires it.")}</p>`}</section>` : ""}<section class="panel" data-rights><h2>${tr("Tus derechos sobre tus datos", "Your rights over your data")}</h2><p>${tr("Puedes pedir acceso, rectificación, supresión, oposición, portabilidad o bloqueo de tus datos, y oponerte a decisiones tomadas sólo de forma automatizada. Aquí mismo puedes corregir tu perfil, exportar tus datos o eliminar tu cuenta; para lo demás escribe a", "You can request access, correction, deletion, objection, portability or blocking of your data, and object to decisions made solely by automated means. Right here you can correct your profile, export your data or delete your account; for anything else write to")} <a href="mailto:planifiaprivacity@gmail.com">planifiaprivacity@gmail.com</a>.</p>${legal?.owner === user.id && legal.latest ? `<p class="muted">${tr(`Aceptaste la versión del ${e(legalDateLabel(newerVersion(legal.latest.terms_version, legal.latest.privacy_version)))} de los Términos de uso y la Política de privacidad.`, `You accepted the ${e(legalDateLabel(newerVersion(legal.latest.terms_version, legal.latest.privacy_version)))} version of the Terms of Use and the Privacy Policy.`)}</p>` : ""}<p><a href="${LEGAL_URLS.terms}" target="_blank" rel="noopener noreferrer" data-external-link>${tr("Términos de uso", "Terms of Use")}</a> · <a href="${LEGAL_URLS.privacy}" target="_blank" rel="noopener noreferrer" data-external-link>${tr("Política de privacidad", "Privacy Policy")}</a></p></section><section class="panel danger-zone"><h2>${tr("Eliminar cuenta", "Delete account")}</h2><p>${tr("Borra de forma permanente tu cuenta y todos sus datos: metas, acciones, hábitos, Lumi, solicitudes de IA e importaciones. No se puede deshacer. Los registros técnicos que aún los contengan se borran solos en los plazos de la política de privacidad.", "Permanently deletes your account and all its data: goals, actions, habits, Lumi, AI requests and imports. This can't be undone. Technical logs that still contain them are deleted automatically within the periods set out in the privacy policy.")}</p><p class="muted">${tr("Te recomendamos exportar tus datos antes. Consulta la", "We recommend exporting your data first. See the")} <a href="${LEGAL_URLS.privacy}" target="_blank" rel="noopener noreferrer" data-external-link>${tr("política de privacidad", "privacy policy")}</a>.</p><button class="danger" id="delete-account">${tr("Eliminar mi cuenta", "Delete my account")}</button></section></div>`;
 }
 function shell(content) {
   const tab = location.hash.slice(1).split("?")[0] || "today";
-  return `<div class="app-shell"><aside class="sidebar"><a href="#today">${logo()}</a><nav aria-label="Navegación principal">${[
-    ["today", "Hoy", "☀"],
-    ["goals", "Metas", "◎"],
-    ["tasks", "Acciones", "✓"],
-    ["calendar", "Calendario", "▦", "Agenda"],
-    ["habits", "Hábitos", "↻"],
+  return `<div class="app-shell"><aside class="sidebar"><a href="#today">${logo()}</a><nav aria-label="${tr("Navegación principal", "Main navigation")}">${[
+    ["today", tr("Hoy", "Today"), "☀"],
+    ["goals", tr("Metas", "Goals"), "◎"],
+    ["tasks", tr("Acciones", "Actions"), "✓"],
+    ["calendar", tr("Calendario", "Calendar"), "▦", tr("Agenda", "Agenda")],
+    ["habits", tr("Hábitos", "Habits"), "↻"],
     ["lumi", "Lumi", "✦"],
-    ["subscription", "Mi plan", "◇"],
-    ["settings", "Ajustes", "⚙"],
+    ["subscription", tr("Mi plan", "My plan"), "◇"],
+    ["settings", tr("Ajustes", "Settings"), "⚙"],
   ]
     .map(
       ([id, label, icon, short]) =>
@@ -934,13 +943,13 @@ function shell(content) {
     )
     .join(
       "",
-    )}</nav><p>Tus metas, un plan claro<br>y un paso a la vez.</p></aside><div class="app-body"><header class="app-header"><span class="cloud-state">● Tu espacio en la nube</span><div><button class="text-button" id="ai-jobs">Mis solicitudes de IA</button><span>${e(state?.profile.name || user.email)}</span><button class="text-button" id="logout">Cerrar sesión</button></div></header><main id="main"><div class="error panel" id="page-error" role="alert" hidden><p></p><button id="retry-load">Volver a cargar</button></div>${content}</main></div></div>`;
+    )}</nav><p>${tr("Tus metas, un plan claro<br>y un paso a la vez.", "Your goals, a clear plan<br>and one step at a time.")}</p></aside><div class="app-body"><header class="app-header"><span class="cloud-state">● ${tr("Tu espacio en la nube", "Your space in the cloud")}</span><div><button class="text-button" id="ai-jobs">${tr("Mis solicitudes de IA", "My AI requests")}</button>${langToggle()}<span>${e(state?.profile.name || user.email)}</span><button class="text-button" id="logout">${tr("Cerrar sesión", "Sign out")}</button></div></header><main id="main"><div class="error panel" id="page-error" role="alert" hidden><p></p><button id="retry-load">${tr("Volver a cargar", "Reload")}</button></div>${content}</main></div></div>`;
 }
 // Mismas piezas que el esqueleto de index.html (src/boot.css) mientras llegan las metas.
 function loadingSkeleton() {
   const card =
     '<div class="boot-card"><span class="sk sk-tag"></span><span class="sk sk-name"></span><span class="sk sk-bar"></span><span class="sk sk-meta"></span></div>';
-  return `<div class="boot" role="status"><span class="sr-only">Recuperando tus metas y tu progreso…</span><div class="boot-lines" aria-hidden="true"><span class="sk sk-eyebrow"></span><span class="sk sk-title"></span><span class="sk sk-lead"></span><div class="boot-cards">${card.repeat(3)}</div></div></div>`;
+  return `<div class="boot" role="status"><span class="sr-only">${tr("Recuperando tus metas y tu progreso…", "Loading your goals and your progress…")}</span><div class="boot-lines" aria-hidden="true"><span class="sk sk-eyebrow"></span><span class="sk sk-title"></span><span class="sk sk-lead"></span><div class="boot-cards">${card.repeat(3)}</div></div></div>`;
 }
 function render() {
   disposeBilling?.();
@@ -966,7 +975,7 @@ function render() {
     app.innerHTML = shell(
       loading
         ? loadingSkeleton()
-        : '<div class="empty">No pudimos cargar tus datos.</div>',
+        : `<div class="empty">${tr("No pudimos cargar tus datos.", "We couldn't load your data.")}</div>`,
     );
     bindShell();
     return;
@@ -1020,17 +1029,17 @@ function bindAdPrivacy() {
   if (button)
     button.onclick = () =>
       busy(button, () =>
-        ads.privacyOptions().then(() => toast("Tus preferencias de anuncios quedaron guardadas.")),
+        ads.privacyOptions().then(() => toast(tr("Tus preferencias de anuncios quedaron guardadas.", "Your ad preferences were saved."))),
       );
 }
 function landing() {
   const billingRoute = location.hash.slice(1).split("?")[0];
   if (["plans", "subscription"].includes(billingRoute)) {
-    app.innerHTML = `<header class="landing-header"><a href="#home">${logo()}</a><div><a href="#home">Inicio</a><a class="button" href="#login">Iniciar sesión</a></div></header><main id="main">${renderBilling({ view: "plans", user, escape: e })}</main>`;
+    app.innerHTML = `<header class="landing-header"><a href="#home">${logo()}</a><div>${langToggle()}<a href="#home">${tr("Inicio", "Home")}</a><a class="button" href="#login">${tr("Iniciar sesión", "Sign in")}</a></div></header><main id="main">${renderBilling({ view: "plans", user, escape: e })}</main>`;
     mountBillingView();
     return;
   }
-  app.innerHTML = `<header class="landing-header"><a href="#home">${logo()}</a><div><a href="#plans">Planes</a><a href="#login">Iniciar sesión</a><a class="button" href="#register">Empezar</a></div></header><main id="main"><section class="hero"><div><p class="eyebrow">DALE FORMA A LO QUE TE IMPORTA</p><h1>Tus metas.<br>Un plan claro.<br><em>Un paso a la vez.</em></h1><p>Convierte lo que quieres lograr en acciones que caben en tu vida. La IA te ayuda a dividir el camino; tú eliges el ritmo.</p><div class="hero-actions"><a class="button" href="#register">Crear mi primera meta →</a><a href="#how">Cómo funciona</a></div><p class="fine">Para proyectos, aprendizaje, bienestar y todo lo que empieza con una idea.</p></div><div class="hero-example"><span class="example-label">UN EJEMPLO DE TU PRÓXIMO PASO</span><div class="example-goal"><span class="tag">Aprendizaje</span><h2>Hablar inglés con más confianza</h2><p>Un camino en acciones pequeñas.</p><div class="example-action"><span>✓</span><div><strong>Practicar una presentación de 2 minutos</strong><p>Hoy · 15 minutos · A mi ritmo</p></div></div></div><div class="hero-pet">${portrait(2)}<div><strong>Lumi crece contigo</strong><p>Cada acción completada suma experiencia.</p></div></div></div></section><section class="how" id="how"><p class="eyebrow">DEL «ALGÚN DÍA» AL SIGUIENTE PASO</p><h2>Una idea tiene por dónde empezar.</h2><div class="three-columns"><article><span>01</span><h3>Cuenta qué quieres lograr</h3><p>Tu punto de partida, el resultado que buscas y el tiempo que tienes.</p></article><article><span>02</span><h3>Revisa un plan a tu medida</h3><p>La IA propone hitos, prioridades y acciones. Puedes editarlos antes de guardar.</p></article><article><span>03</span><h3>Avanza y ajusta el camino</h3><p>Organiza tu calendario, registra lo que haces y cambia el plan cuando lo necesites.</p></article></div></section><section class="examples"><h2>Un lugar para distintas metas.</h2><div>${["Aprender un idioma", "Lanzar mi proyecto", "Preparar una carrera", "Crear un hábito de lectura"].map((t) => `<button class="secondary" data-example="${e(t)}">${e(t)} ↗</button>`).join("")}</div></section>${missing.length ? `<section class="setup-note" role="status"><h2>La conexión con la nube está pendiente.</h2><p>Falta configurar ${missing.map((x) => `<code>${x}</code>`).join(" y ")} y aplicar las migraciones de Supabase. El registro, tus datos y la IA se habilitarán al conectar el proyecto.</p></section>` : ""}<footer class="landing-footer"><p>PlanifIA · Un paso posible vale más que un plan imposible.</p><nav aria-label="Información legal"><a href="./privacidad.html">Privacidad</a><a href="./terminos.html">Términos</a><a href="./eliminar-cuenta.html">Eliminar cuenta</a></nav></footer></main>`;
+  app.innerHTML = `<header class="landing-header"><a href="#home">${logo()}</a><div>${langToggle()}<a href="#plans">${tr("Planes", "Plans")}</a><a href="#login">${tr("Iniciar sesión", "Sign in")}</a><a class="button" href="#register">${tr("Empezar", "Get started")}</a></div></header><main id="main"><section class="hero"><div><p class="eyebrow">${tr("DALE FORMA A LO QUE TE IMPORTA", "GIVE SHAPE TO WHAT MATTERS TO YOU")}</p><h1>${tr("Tus metas.<br>Un plan claro.<br><em>Un paso a la vez.</em>", "Your goals.<br>A clear plan.<br><em>One step at a time.</em>")}</h1><p>${tr("Convierte lo que quieres lograr en acciones que caben en tu vida. La IA te ayuda a dividir el camino; tú eliges el ritmo.", "Turn what you want to achieve into actions that fit your life. AI helps you break down the path; you choose the pace.")}</p><div class="hero-actions"><a class="button" href="#register">${tr("Crear mi primera meta →", "Create my first goal →")}</a><a href="#how">${tr("Cómo funciona", "How it works")}</a></div><p class="fine">${tr("Para proyectos, aprendizaje, bienestar y todo lo que empieza con una idea.", "For projects, learning, wellbeing and everything that starts with an idea.")}</p></div><div class="hero-example"><span class="example-label">${tr("UN EJEMPLO DE TU PRÓXIMO PASO", "AN EXAMPLE OF YOUR NEXT STEP")}</span><div class="example-goal"><span class="tag">${CATEGORIES.learning}</span><h2>${tr("Hablar inglés con más confianza", "Speak Spanish with more confidence")}</h2><p>${tr("Un camino en acciones pequeñas.", "A path made of small actions.")}</p><div class="example-action"><span>✓</span><div><strong>${tr("Practicar una presentación de 2 minutos", "Practice a 2-minute introduction")}</strong><p>${tr("Hoy · 15 minutos · A mi ritmo", "Today · 15 minutes · At my own pace")}</p></div></div></div><div class="hero-pet">${portrait(2)}<div><strong>${tr("Lumi crece contigo", "Lumi grows with you")}</strong><p>${tr("Cada acción completada suma experiencia.", "Every completed action adds experience.")}</p></div></div></div></section><section class="how" id="how"><p class="eyebrow">${tr("DEL «ALGÚN DÍA» AL SIGUIENTE PASO", "FROM “SOMEDAY” TO THE NEXT STEP")}</p><h2>${tr("Una idea tiene por dónde empezar.", "Every idea has somewhere to start.")}</h2><div class="three-columns"><article><span>01</span><h3>${tr("Cuenta qué quieres lograr", "Tell us what you want to achieve")}</h3><p>${tr("Tu punto de partida, el resultado que buscas y el tiempo que tienes.", "Where you're starting from, the result you're after and the time you have.")}</p></article><article><span>02</span><h3>${tr("Revisa un plan a tu medida", "Review a plan made for you")}</h3><p>${tr("La IA propone hitos, prioridades y acciones. Puedes editarlos antes de guardar.", "The AI suggests milestones, priorities and actions. You can edit them before saving.")}</p></article><article><span>03</span><h3>${tr("Avanza y ajusta el camino", "Move forward and adjust the path")}</h3><p>${tr("Organiza tu calendario, registra lo que haces y cambia el plan cuando lo necesites.", "Organize your calendar, track what you do and change the plan whenever you need to.")}</p></article></div></section><section class="examples"><h2>${tr("Un lugar para distintas metas.", "One place for all kinds of goals.")}</h2><div>${(lang() === "en" ? ["Learn a language", "Launch my project", "Train for a race", "Build a reading habit"] : ["Aprender un idioma", "Lanzar mi proyecto", "Preparar una carrera", "Crear un hábito de lectura"]).map((t) => `<button class="secondary" data-example="${e(t)}">${e(t)} ↗</button>`).join("")}</div></section>${missing.length ? `<section class="setup-note" role="status"><h2>${tr("La conexión con la nube está pendiente.", "The cloud connection is pending.")}</h2><p>${tr(`Falta configurar ${missing.map((x) => `<code>${x}</code>`).join(" y ")} y aplicar las migraciones de Supabase. El registro, tus datos y la IA se habilitarán al conectar el proyecto.`, `${missing.map((x) => `<code>${x}</code>`).join(" and ")} still need to be configured and the Supabase migrations applied. Sign-up, your data and the AI will be enabled once the project is connected.`)}</p></section>` : ""}<footer class="landing-footer"><p>${tr("PlanifIA · Un paso posible vale más que un plan imposible.", "PlanifIA · One possible step is worth more than an impossible plan.")}</p><nav aria-label="${tr("Información legal", "Legal information")}"><a href="${LEGAL_PAGES.privacy}">${tr("Privacidad", "Privacy")}</a><a href="${LEGAL_PAGES.terms}">${tr("Términos", "Terms")}</a><a href="${LEGAL_PAGES.deletion}">${tr("Eliminar cuenta", "Delete account")}</a></nav></footer></main>`;
   document.querySelectorAll("[data-example]").forEach(
     (b) =>
       (b.onclick = () => {
@@ -1060,11 +1069,11 @@ function authModal(mode) {
     reset = mode === "reset";
   const host = modal(
     reset
-      ? "Una nueva contraseña"
+      ? tr("Una nueva contraseña", "A new password")
       : register
-        ? "Empieza tu camino"
-        : "Qué bueno verte",
-    `<p class="muted">${reset ? "Escribe tu nueva contraseña." : register ? "Tus metas y Lumi te esperan en cualquier dispositivo." : "Vuelve a tu siguiente paso."}</p>${reset ? "" : googleBlock(register)}<form id="auth-form">${register ? '<label>Tu nombre<input name="name" autocomplete="name" maxlength="80" required></label>' : ""}${!reset ? '<label>Correo electrónico<input name="email" type="email" autocomplete="email" required></label>' : ""}<label>Contraseña<input name="password" type="password" autocomplete="${register || reset ? "new-password" : "current-password"}" ${register || reset ? `minlength="10" pattern="(?=.*[A-Za-zÁÉÍÓÚÜÑáéíóúüñ])(?=.*[0-9]).{10,}" title="Al menos 10 caracteres, con letras y números." aria-describedby="password-hint"` : `minlength="8"`} required></label>${register || reset ? '<p class="fine" id="password-hint">Al menos 10 caracteres, con letras y números.</p>' : ""}${register ? legalConsentMarkup() : ""}${alert()}<button>${reset ? "Guardar contraseña" : register ? "Crear cuenta" : "Iniciar sesión"}</button></form>${!register && !reset ? '<button class="text-button" id="forgot">Olvidé mi contraseña</button>' : ""}<p>${register ? '<a href="#login">Ya tengo una cuenta</a>' : '<a href="#register">Crear una cuenta</a>'}</p>`,
+        ? tr("Empieza tu camino", "Start your journey")
+        : tr("Qué bueno verte", "Good to see you"),
+    `<p class="muted">${reset ? tr("Escribe tu nueva contraseña.", "Type your new password.") : register ? tr("Tus metas y Lumi te esperan en cualquier dispositivo.", "Your goals and Lumi are waiting for you on any device.") : tr("Vuelve a tu siguiente paso.", "Get back to your next step.")}</p>${reset ? "" : googleBlock(register)}<form id="auth-form">${register ? `<label>${tr("Tu nombre", "Your name")}<input name="name" autocomplete="name" maxlength="80" required></label>` : ""}${!reset ? `<label>${tr("Correo electrónico", "Email")}<input name="email" type="email" autocomplete="email" required></label>` : ""}<label>${tr("Contraseña", "Password")}<input name="password" type="password" autocomplete="${register || reset ? "new-password" : "current-password"}" ${register || reset ? `minlength="10" pattern="(?=.*[A-Za-zÁÉÍÓÚÜÑáéíóúüñ])(?=.*[0-9]).{10,}" title="${tr("Al menos 10 caracteres, con letras y números.", "At least 10 characters, with letters and numbers.")}" aria-describedby="password-hint"` : `minlength="8"`} required></label>${register || reset ? `<p class="fine" id="password-hint">${tr("Al menos 10 caracteres, con letras y números.", "At least 10 characters, with letters and numbers.")}</p>` : ""}${register ? legalConsentMarkup() : ""}${alert()}<button>${reset ? tr("Guardar contraseña", "Save password") : register ? tr("Crear cuenta", "Create account") : tr("Iniciar sesión", "Sign in")}</button></form>${!register && !reset ? `<button class="text-button" id="forgot">${tr("Olvidé mi contraseña", "I forgot my password")}</button>` : ""}<p>${register ? `<a href="#login">${tr("Ya tengo una cuenta", "I already have an account")}</a>` : `<a href="#register">${tr("Crear una cuenta", "Create an account")}</a>`}</p>`,
   );
   bindGoogleSignIn(host);
   if (authNotice && !reset) {
@@ -1086,11 +1095,11 @@ function authModal(mode) {
     if (consent && !consent.checked) return;
     busy($("button", form), async () => {
       if (!cloud)
-        throw new Error(`Falta conectar Supabase: ${missing.join(", ")}.`);
+        throw new Error(tr(`Falta conectar Supabase: ${missing.join(", ")}.`, `Supabase isn't connected yet: ${missing.join(", ")}.`));
       const fields = Object.fromEntries(new FormData(form));
       if (reset) {
         await checked(cloud.auth.updateUser({ password: fields.password }));
-        await saved("Contraseña actualizada.");
+        await saved(tr("Contraseña actualizada.", "Password updated."));
         return;
       }
       if (register) {
@@ -1108,7 +1117,7 @@ function authModal(mode) {
         if (!data.session) {
           closeModal();
           toast(
-            "Revisa tu correo para confirmar la cuenta. Después podrás iniciar sesión.",
+            tr("Revisa tu correo para confirmar la cuenta. Después podrás iniciar sesión.", "Check your email to confirm your account. Then you'll be able to sign in."),
           );
           return;
         }
@@ -1129,11 +1138,11 @@ function authModal(mode) {
   $("#forgot", host)?.addEventListener("click", () => {
     const email = $("[name=email]", host).value;
     if (!email) {
-      toast("Escribe tu correo para recibir el enlace.");
+      toast(tr("Escribe tu correo para recibir el enlace.", "Type your email to get the link."));
       return;
     }
     busy($("#forgot", host), async () => {
-      if (!cloud) throw new Error("Falta conectar Supabase.");
+      if (!cloud) throw new Error(tr("Falta conectar Supabase.", "Supabase isn't connected yet."));
       await checked(
         cloud.auth.resetPasswordForEmail(email, {
           // Sin "#reset": Supabase agrega su propio fragmento (type=recovery) y supabase-js avisa con
@@ -1142,7 +1151,7 @@ function authModal(mode) {
         }),
       );
       toast(
-        "Si existe la cuenta, recibirás un enlace para cambiar la contraseña.",
+        tr("Si existe la cuenta, recibirás un enlace para cambiar la contraseña.", "If the account exists, you'll get a link to change your password."),
       );
     });
   });
@@ -1152,7 +1161,7 @@ const GOOGLE_ICON =
   '<svg aria-hidden="true" width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>';
 // Va fuera del formulario de correo, que sigue igual. Oculto hasta confirmar que Google está activo.
 function googleBlock(register) {
-  return `<div class="google-auth" data-google-auth hidden><button type="button" class="google-button" data-google-signin>${GOOGLE_ICON}<span>Continuar con Google</span></button>${register ? '<p class="fine">Si es tu primera vez, antes de empezar te pediremos confirmar tu edad y aceptar los términos.</p>' : ""}${alert()}<p class="auth-divider">o con tu correo</p></div>`;
+  return `<div class="google-auth" data-google-auth hidden><button type="button" class="google-button" data-google-signin>${GOOGLE_ICON}<span>${tr("Continuar con Google", "Continue with Google")}</span></button>${register ? `<p class="fine">${tr("Si es tu primera vez, antes de empezar te pediremos confirmar tu edad y aceptar los términos.", "If it's your first time, before you start we'll ask you to confirm your age and accept the terms.")}</p>` : ""}${alert()}<p class="auth-divider">${tr("o con tu correo", "or with your email")}</p></div>`;
 }
 function bindGoogleSignIn(host) {
   const box = $("[data-google-auth]", host);
@@ -1193,19 +1202,22 @@ function bindGoogleSignIn(host) {
     }
   });
 }
+const confirmWord = () => tr("ELIMINAR", "DELETE");
 function deleteAccountForm() {
   const form = $(
     "form",
     modal(
-      "Eliminar tu cuenta",
-      `<form><p>Se borrarán permanentemente tu cuenta (${e(user.email)}) y todos tus datos de PlanifIA. Esta acción no se puede deshacer.</p><p class="muted">Perderás tus créditos. Si tienes una suscripción de Google Play, cancélala también en Google Play para que no se renueve. Puedes exportar tus datos antes desde Ajustes.</p><label>Escribe ELIMINAR para confirmar<input name="confirm" autocomplete="off" required pattern="ELIMINAR"></label><p class="error" role="alert" hidden></p><div class="actions"><button type="button" class="secondary" data-cancel>Cancelar</button><button class="danger">Eliminar definitivamente</button></div></form>`,
+      tr("Eliminar tu cuenta", "Delete your account"),
+      `<form><p>${tr(`Se borrarán permanentemente tu cuenta (${e(user.email)}) y todos tus datos de PlanifIA. Esta acción no se puede deshacer.`, `Your account (${e(user.email)}) and all your PlanifIA data will be permanently deleted. This can't be undone.`)}</p><p class="muted">${tr("Perderás tus créditos. Si tienes una suscripción de Google Play, cancélala también en Google Play para que no se renueve. Puedes exportar tus datos antes desde Ajustes.", "You'll lose your credits. If you have a Google Play subscription, also cancel it in Google Play so it doesn't renew. You can export your data first from Settings.")}</p><label>${tr(`Escribe ${confirmWord()} para confirmar`, `Type ${confirmWord()} to confirm`)}<input name="confirm" autocomplete="off" required pattern="${confirmWord()}"></label><p class="error" role="alert" hidden></p><div class="actions"><button type="button" class="secondary" data-cancel>${tr("Cancelar", "Cancel")}</button><button class="danger">${tr("Eliminar definitivamente", "Delete permanently")}</button></div></form>`,
     ),
   );
   $("[data-cancel]", form).onclick = closeModal;
   form.onsubmit = (event) => {
     event.preventDefault();
     busy($("button.danger", form), async () => {
-      await rpc("delete_my_account", { p_confirm: form.confirm.value.trim() });
+      // El servidor exige la palabra en español; en inglés se escribe DELETE y se envía su equivalente.
+      const typed = form.confirm.value.trim();
+      await rpc("delete_my_account", { p_confirm: typed === confirmWord() ? "ELIMINAR" : typed });
       reminders.forget(user.id);
       await reminders.stop();
       await cloud.auth.signOut({ scope: "local" }).catch(() => {});
@@ -1215,7 +1227,7 @@ function deleteAccountForm() {
       closeModal();
       location.hash = "home";
       render();
-      toast("Tu cuenta y tus datos fueron eliminados.");
+      toast(tr("Tu cuenta y tus datos fueron eliminados.", "Your account and your data were deleted."));
     });
   };
 }
@@ -1279,7 +1291,7 @@ function bindActions() {
           ) {
             celebratePet();
             companion.say("milestone");
-            toast(`¡Hito completado: ${m.title}! Un paso más en tu camino.`);
+            toast(tr(`¡Hito completado: ${m.title}! Un paso más en tu camino.`, `Milestone completed: ${m.title}! One more step on your path.`));
           }
         })),
   );
@@ -1330,7 +1342,7 @@ function bindActions() {
         p_days: fields.getAll("days").map(Number),
       });
       await saved(
-        "Disponibilidad guardada. Puedes pedir un ajuste de tus metas cuando quieras.",
+        tr("Disponibilidad guardada. Puedes pedir un ajuste de tus metas cuando quieras.", "Availability saved. You can ask for an adjustment to your goals whenever you want."),
       );
     });
   });
@@ -1339,7 +1351,7 @@ function bindActions() {
       const file = event.target.files[0];
       if (!file) return;
       if (file.size > 5000000)
-        throw new Error("El archivo debe ocupar menos de 5 MB.");
+        throw new Error(tr("El archivo debe ocupar menos de 5 MB.", "The file must be smaller than 5 MB."));
       importPreview(normalizeLegacy(JSON.parse(await file.text())));
     } catch (error) {
       toast(errorMessage(error));
@@ -1362,7 +1374,7 @@ function bindActions() {
     } catch (error) {
       toast(
         error.message +
-          " Los datos de otros dominios se importan con un archivo exportado.",
+          tr(" Los datos de otros dominios se importan con un archivo exportado.", " Data from other websites is imported with an exported file."),
       );
     }
   });
@@ -1395,8 +1407,8 @@ function goalForm(goal = null) {
     target_date: "",
   };
   const host = modal(
-    goal ? "Editar mi meta" : "¿Qué quieres lograr?",
-    `<form id="goal-form"><label>Mi idea o meta<textarea name="title" rows="2" maxlength="160" required placeholder="Quiero hablar inglés con más confianza">${e(g.title)}</textarea></label><label>Mi punto de partida<textarea name="current_situation" maxlength="2000" placeholder="Qué haces ahora y qué te cuesta">${e(g.current_situation)}</textarea></label><label>El resultado que quiero ver<textarea name="outcome" maxlength="1000" placeholder="Por ejemplo, mantener una conversación de 10 minutos">${e(g.outcome)}</textarea></label><label>Área<select name="category">${options(CATEGORIES, g.category)}</select></label><div class="form-grid"><label>Minutos por semana para esta meta<input name="weekly_minutes" type="number" min="30" max="${state.profile.weekly_minutes}" value="${g.weekly_minutes}" required></label><label>Fecha objetivo · opcional<input name="target_date" type="date" value="${g.target_date || ""}"></label></div>${goal ? `<label>Descripción de la meta<textarea name="description" maxlength="3000">${e(g.description)}</textarea></label>` : ""}${goal ? '<label>¿Qué cambió para ajustar el plan?<textarea name="reason" maxlength="1000" placeholder="Tengo menos tiempo o quiero cambiar el enfoque"></textarea></label>' : ""}<p class="muted">La IA tendrá en cuenta tus ${state.profile.weekly_minutes} minutos semanales y las acciones que ya tienes. Revisarás la propuesta antes de guardarla. Es una sugerencia automática: puede equivocarse y no reemplaza consejo médico, psicológico, legal ni financiero.</p>${alert()}<div class="actions"><button type="button" id="ai-plan">✦ Proponer un plan con IA</button><button class="secondary">${goal ? "Guardar meta" : "Crear sin IA"}</button></div><p class="fine credit-hint" data-credit-hint>${e(creditHint())}</p></form>`,
+    goal ? tr("Editar mi meta", "Edit my goal") : tr("¿Qué quieres lograr?", "What do you want to achieve?"),
+    `<form id="goal-form"><label>${tr("Mi idea o meta", "My idea or goal")}<textarea name="title" rows="2" maxlength="160" required placeholder="${tr("Quiero hablar inglés con más confianza", "I want to speak Spanish with more confidence")}">${e(g.title)}</textarea></label><label>${tr("Mi punto de partida", "Where I'm starting from")}<textarea name="current_situation" maxlength="2000" placeholder="${tr("Qué haces ahora y qué te cuesta", "What you do now and what you find hard")}">${e(g.current_situation)}</textarea></label><label>${tr("El resultado que quiero ver", "The result I want to see")}<textarea name="outcome" maxlength="1000" placeholder="${tr("Por ejemplo, mantener una conversación de 10 minutos", "For example, holding a 10-minute conversation")}">${e(g.outcome)}</textarea></label><label>${tr("Área", "Area")}<select name="category">${options(CATEGORIES, g.category)}</select></label><div class="form-grid"><label>${tr("Minutos por semana para esta meta", "Minutes per week for this goal")}<input name="weekly_minutes" type="number" min="30" max="${state.profile.weekly_minutes}" value="${g.weekly_minutes}" required></label><label>${tr("Fecha objetivo · opcional", "Target date · optional")}<input name="target_date" type="date" value="${g.target_date || ""}"></label></div>${goal ? `<label>${tr("Descripción de la meta", "Goal description")}<textarea name="description" maxlength="3000">${e(g.description)}</textarea></label>` : ""}${goal ? `<label>${tr("¿Qué cambió para ajustar el plan?", "What changed that you want to adjust the plan?")}<textarea name="reason" maxlength="1000" placeholder="${tr("Tengo menos tiempo o quiero cambiar el enfoque", "I have less time or I want to change the focus")}"></textarea></label>` : ""}<p class="muted">${tr(`La IA tendrá en cuenta tus ${state.profile.weekly_minutes} minutos semanales y las acciones que ya tienes. Revisarás la propuesta antes de guardarla. Es una sugerencia automática: puede equivocarse y no reemplaza consejo médico, psicológico, legal ni financiero.`, `The AI will take into account your ${state.profile.weekly_minutes} weekly minutes and the actions you already have. You'll review the proposal before saving it. It's an automatic suggestion: it can be wrong and it doesn't replace medical, psychological, legal or financial advice.`)}</p>${alert()}<div class="actions"><button type="button" id="ai-plan">${tr("✦ Proponer un plan con IA", "✦ Suggest a plan with AI")}</button><button class="secondary">${goal ? tr("Guardar meta", "Save goal") : tr("Crear sin IA", "Create without AI")}</button></div><p class="fine credit-hint" data-credit-hint>${e(creditHint())}</p></form>`,
   );
   const form = $("#goal-form", host);
   form.onsubmit = (event) => {
@@ -1413,8 +1425,8 @@ function goalForm(goal = null) {
       });
       await saved(
         goal
-          ? "Meta actualizada."
-          : "Meta creada. Puedes añadir tus primeras acciones.",
+          ? tr("Meta actualizada.", "Goal updated.")
+          : tr("Meta creada. Puedes añadir tus primeras acciones.", "Goal created. You can add your first actions."),
       );
     });
   };
@@ -1461,6 +1473,8 @@ function goalForm(goal = null) {
           idea: fields.title,
           weekly_minutes: Number(fields.weekly_minutes),
           goal_id: goal?.id || null,
+          // La propuesta llega en el idioma de la app (el servidor acepta "es" o "en").
+          language: aiLanguage(),
         });
         aiJobs.refresh();
         void refreshMonetization().catch(() => {});
@@ -1515,19 +1529,19 @@ function goalDetail(id) {
     p = progress(tasks);
   const host = modal(
     goal.title,
-    `<p>${e(goal.description)}</p><p><strong>El resultado que busco:</strong> ${e(goal.outcome || "Puedes concretarlo al editar la meta.")}</p><p class="muted">${p.done} de ${p.total} acciones completadas (${p.percent}%). Completar acciones y alcanzar el resultado son dos cosas que tú puedes comprobar.</p><div class="actions"><button id="adjust">✦ Revisar / ajustar con IA</button><button class="secondary" id="edit-goal">Editar meta</button></div>${state.milestones
+    `<p>${e(goal.description)}</p><p><strong>${tr("El resultado que busco:", "The result I'm after:")}</strong> ${e(goal.outcome || tr("Puedes concretarlo al editar la meta.", "You can define it when you edit the goal."))}</p><p class="muted">${tr(`${p.done} de ${p.total} acciones completadas (${p.percent}%). Completar acciones y alcanzar el resultado son dos cosas que tú puedes comprobar.`, `${p.done} of ${p.total} actions completed (${p.percent}%). Completing actions and reaching the result are two things you can check for yourself.`)}</p><div class="actions"><button id="adjust">${tr("✦ Revisar / ajustar con IA", "✦ Review / adjust with AI")}</button><button class="secondary" id="edit-goal">${tr("Editar meta", "Edit goal")}</button></div>${state.milestones
       .filter((m) => m.goal_id === id)
       .sort((a, b) => a.position - b.position)
       .map((m) => {
         const children = tasks.filter((t) => t.milestone_id === m.id);
-        return `<section class="milestone"><h3>${e(m.title)}</h3>${children.map(taskRow).join("") || '<p class="muted">Hito del historial, sin acciones activas.</p>'}</section>`;
+        return `<section class="milestone"><h3>${e(m.title)}</h3>${children.map(taskRow).join("") || `<p class="muted">${tr("Hito del historial, sin acciones activas.", "Milestone from your history, with no active actions.")}</p>`}</section>`;
       })
       .join("")}${tasks
       .filter((t) => !t.milestone_id)
       .map(taskRow)
       .join(
         "",
-      )}<div class="actions"><button class="secondary" id="add-goal-task">+ Acción para esta meta</button><button class="secondary" id="add-milestone">+ Crear hito</button></div><div class="actions goal-status"><button id="achieve">Confirmar que logré mi meta</button><button class="secondary" id="pause">${goal.status !== "active" ? "Retomar meta" : "Pausar meta"}</button><button class="text-button" id="archive">Archivar</button></div>`,
+      )}<div class="actions"><button class="secondary" id="add-goal-task">${tr("+ Acción para esta meta", "+ Action for this goal")}</button><button class="secondary" id="add-milestone">${tr("+ Crear hito", "+ Create milestone")}</button></div><div class="actions goal-status"><button id="achieve">${tr("Confirmar que logré mi meta", "Confirm I reached my goal")}</button><button class="secondary" id="pause">${goal.status !== "active" ? tr("Retomar meta", "Resume goal") : tr("Pausar meta", "Pause goal")}</button><button class="text-button" id="archive">${tr("Archivar", "Archive")}</button></div>`,
   );
   host.dataset.goalId = id;
   $("#add-milestone", host).onclick = () => milestoneForm(goal);
@@ -1540,36 +1554,36 @@ function goalDetail(id) {
         p_id: id,
         p_status: goal.status !== "active" ? "active" : "paused",
       });
-      await saved("El ritmo de tu meta se actualizó.");
+      await saved(tr("El ritmo de tu meta se actualizó.", "Your goal's pace was updated."));
     });
   $("#archive", host).onclick = () =>
     confirmStatus(
       goal,
       "archived",
-      "Archivar conserva la meta y su historial. Podrás consultarla y retomarla desde el archivo.",
+      tr("Archivar conserva la meta y su historial. Podrás consultarla y retomarla desde el archivo.", "Archiving keeps the goal and its history. You can look at it and resume it from the archive."),
     );
   $("#achieve", host).onclick = () =>
     confirmStatus(
       goal,
       "achieved",
-      "Tú decides si alcanzaste el resultado que buscabas, aunque todavía queden acciones. ¿Quieres marcar esta meta como alcanzada?",
+      tr("Tú decides si alcanzaste el resultado que buscabas, aunque todavía queden acciones. ¿Quieres marcar esta meta como alcanzada?", "You decide whether you reached the result you wanted, even if there are actions left. Do you want to mark this goal as achieved?"),
     );
   bindActions();
 }
 function confirmStatus(goal, status, message) {
   const host = modal(
     status === "achieved"
-      ? "Reconoce lo que lograste"
-      : "Conservar en el archivo",
-    `<p>${e(message)}</p>${alert()}<button id="confirm-status">${status === "achieved" ? "Sí, alcancé mi meta" : "Archivar meta"}</button>`,
+      ? tr("Reconoce lo que lograste", "Recognize what you achieved")
+      : tr("Conservar en el archivo", "Keep it in the archive"),
+    `<p>${e(message)}</p>${alert()}<button id="confirm-status">${status === "achieved" ? tr("Sí, alcancé mi meta", "Yes, I reached my goal") : tr("Archivar meta", "Archive goal")}</button>`,
   );
   $("#confirm-status", host).onclick = (event) =>
     busy(event.currentTarget, async () => {
       await rpc("set_goal_status", { p_id: goal.id, p_status: status });
       await saved(
         status === "achieved"
-          ? "¡Meta alcanzada! Date un momento para reconocer este paso."
-          : "Meta archivada. Su historial sigue contigo.",
+          ? tr("¡Meta alcanzada! Date un momento para reconocer este paso.", "Goal achieved! Take a moment to recognize this step.")
+          : tr("Meta archivada. Su historial sigue contigo.", "Goal archived. Its history stays with you."),
       );
       if (status === "achieved") {
         celebratePet();
@@ -1579,8 +1593,8 @@ function confirmStatus(goal, status, message) {
 }
 function milestoneForm(goal) {
   const host = modal(
-    "Un hito en tu camino",
-    `<form><label>Qué quiero completar en esta etapa<input name="title" maxlength="160" required placeholder="Por ejemplo, mi primer prototipo"></label>${alert()}<button>Guardar hito</button></form>`,
+    tr("Un hito en tu camino", "A milestone on your path"),
+    `<form><label>${tr("Qué quiero completar en esta etapa", "What I want to complete in this stage")}<input name="title" maxlength="160" required placeholder="${tr("Por ejemplo, mi primer prototipo", "For example, my first prototype")}"></label>${alert()}<button>${tr("Guardar hito", "Save milestone")}</button></form>`,
   );
   $("form", host).onsubmit = (event) => {
     event.preventDefault();
@@ -1592,7 +1606,7 @@ function milestoneForm(goal) {
         p_id: null,
         p_request_id: requestId(form),
       });
-      await saved("Hito guardado. Puedes vincularle tus próximas acciones.");
+      await saved(tr("Hito guardado. Puedes vincularle tus próximas acciones.", "Milestone saved. You can link your next actions to it."));
       goalDetail(goal.id);
     });
   };
@@ -1609,8 +1623,8 @@ function taskForm(task = null, goalId = null) {
     minutes: 30,
   };
   const host = modal(
-    task ? "Una acción que encaje mejor" : "Mi siguiente acción",
-    `<form id="task-form"><label>Acción<input name="title" maxlength="160" value="${e(t.title)}" required></label><label>Detalles<textarea name="description" maxlength="3000">${e(t.description)}</textarea></label><label>Meta<select name="goal_id"><option value="">Acción independiente</option>${state.goals.map((g) => `<option value="${g.id}" ${g.id === t.goal_id ? "selected" : ""}>${e(g.title)}</option>`).join("")}</select></label><label>Hito · opcional<select name="milestone_id"><option value="">Sin hito</option>${state.milestones
+    task ? tr("Una acción que encaje mejor", "An action that fits better") : tr("Mi siguiente acción", "My next action"),
+    `<form id="task-form"><label>${tr("Acción", "Action")}<input name="title" maxlength="160" value="${e(t.title)}" required></label><label>${tr("Detalles", "Details")}<textarea name="description" maxlength="3000">${e(t.description)}</textarea></label><label>${tr("Meta", "Goal")}<select name="goal_id"><option value="">${tr("Acción independiente", "Standalone action")}</option>${state.goals.map((g) => `<option value="${g.id}" ${g.id === t.goal_id ? "selected" : ""}>${e(g.title)}</option>`).join("")}</select></label><label>${tr("Hito · opcional", "Milestone · optional")}<select name="milestone_id"><option value="">${tr("Sin hito", "No milestone")}</option>${state.milestones
       .filter((m) => m.goal_id === t.goal_id)
       .map(
         (m) =>
@@ -1618,12 +1632,12 @@ function taskForm(task = null, goalId = null) {
       )
       .join(
         "",
-      )}</select></label><label>Área · opcional<input name="area" value="${e(t.area)}" maxlength="80"></label><div class="form-grid"><label>Hacer el<input name="scheduled_date" type="date" value="${t.scheduled_date || ""}"></label><label>Fecha límite · opcional<input name="deadline" type="date" value="${t.deadline || ""}"></label><label>Minutos<input name="minutes" type="number" min="5" max="${Math.max(480, t.minutes)}" value="${t.minutes}" required></label><label>Prioridad<select name="priority">${options(PRIORITIES, t.priority)}</select></label></div>${alert()}<div class="actions"><button>Guardar acción</button>${task ? '<button type="button" class="text-button" id="cancel-task">Retirar del plan</button>' : ""}</div></form>`,
+      )}</select></label><label>${tr("Área · opcional", "Area · optional")}<input name="area" value="${e(t.area)}" maxlength="80"></label><div class="form-grid"><label>${tr("Hacer el", "Do it on")}<input name="scheduled_date" type="date" value="${t.scheduled_date || ""}"></label><label>${tr("Fecha límite · opcional", "Deadline · optional")}<input name="deadline" type="date" value="${t.deadline || ""}"></label><label>${tr("Minutos", "Minutes")}<input name="minutes" type="number" min="5" max="${Math.max(480, t.minutes)}" value="${t.minutes}" required></label><label>${tr("Prioridad", "Priority")}<select name="priority">${options(PRIORITIES, t.priority)}</select></label></div>${alert()}<div class="actions"><button>${tr("Guardar acción", "Save action")}</button>${task ? `<button type="button" class="text-button" id="cancel-task">${tr("Retirar del plan", "Remove from plan")}</button>` : ""}</div></form>`,
   );
   const form = $("#task-form", host);
   $("[name=goal_id]", form).onchange = (event) => {
     $("[name=milestone_id]", form).innerHTML =
-      '<option value="">Sin hito</option>' +
+      `<option value="">${tr("Sin hito", "No milestone")}</option>` +
       state.milestones
         .filter((m) => m.goal_id === event.target.value)
         .map((m) => `<option value="${m.id}">${e(m.title)}</option>`)
@@ -1640,7 +1654,7 @@ function taskForm(task = null, goalId = null) {
         p_id: task?.id || null,
         p_request_id: requestId(form),
       });
-      await saved("Acción guardada.");
+      await saved(tr("Acción guardada.", "Action saved."));
     });
   };
   $("#cancel-task", host)?.addEventListener("click", (event) =>
@@ -1651,7 +1665,7 @@ function taskForm(task = null, goalId = null) {
         p_status: "cancelled",
         p_request_id: event.currentTarget.dataset.requestId,
       });
-      await saved("Acción retirada. Su historial queda conservado.");
+      await saved(tr("Acción retirada. Su historial queda conservado.", "Action removed. Its history is kept."));
     }),
   );
 }
@@ -1664,8 +1678,8 @@ function habitForm(habit = null) {
     active: true,
   };
   const host = modal(
-    habit ? "Ajustar hábito" : "Un hábito pequeño",
-    `<form id="habit-form"><label>Qué quiero repetir<input name="title" value="${e(h.title)}" maxlength="160" required></label>${daysInputs(h.days)}<div class="form-grid"><label>Minutos<input name="minutes" type="number" min="5" max="120" value="${h.minutes}" required></label><label>Prioridad<select name="priority">${options(PRIORITIES, h.priority)}</select></label></div><label><input name="active" type="checkbox" ${h.active ? "checked" : ""}> Hábito activo</label>${alert()}<button>Guardar hábito</button></form>`,
+    habit ? tr("Ajustar hábito", "Adjust habit") : tr("Un hábito pequeño", "A small habit"),
+    `<form id="habit-form"><label>${tr("Qué quiero repetir", "What I want to repeat")}<input name="title" value="${e(h.title)}" maxlength="160" required></label>${daysInputs(h.days)}<div class="form-grid"><label>${tr("Minutos", "Minutes")}<input name="minutes" type="number" min="5" max="120" value="${h.minutes}" required></label><label>${tr("Prioridad", "Priority")}<select name="priority">${options(PRIORITIES, h.priority)}</select></label></div><label><input name="active" type="checkbox" ${h.active ? "checked" : ""}> ${tr("Hábito activo", "Active habit")}</label>${alert()}<button>${tr("Guardar hábito", "Save habit")}</button></form>`,
   );
   const form = $("#habit-form", host);
   form.onsubmit = (event) => {
@@ -1684,7 +1698,7 @@ function habitForm(habit = null) {
           goal_id: habit?.goal_id || null,
         },
       });
-      await saved("Hábito guardado.");
+      await saved(tr("Hábito guardado.", "Habit saved."));
     });
   };
 }
@@ -1692,25 +1706,25 @@ function proposalEditor(response) {
   const plan = response.proposal,
     requestId = response.job_id || uuid();
   const host = modal(
-    response.goal_id ? "Revisar el ajuste" : "Tu propuesta, antes de guardar",
-    `<p class="notice">${response.goal_id ? "Este ajuste reemplazará únicamente las acciones pendientes. Las completadas y sus recompensas se conservan." : "Esta propuesta todavía no está guardada. Puedes editar sus acciones y fechas antes de confirmar."}</p><p class="fine">La preparó una IA: revísala antes de guardarla. Puede equivocarse y no reemplaza consejo médico, psicológico, legal ni financiero.</p><p data-proposal-summary>${e(plan.summary)}</p><p><strong>Primera acción:</strong> ${e(plan.first_action)}</p><form id="proposal-form"><label>Meta<input name="title" value="${e(plan.title)}" maxlength="160" required></label><label>Descripción<textarea name="description" maxlength="3000">${e(plan.description)}</textarea></label><label>Resultado esperado<textarea name="outcome" maxlength="1000" required>${e(plan.outcome)}</textarea></label><label>Área<select name="category">${options(CATEGORIES, plan.category)}</select></label>${plan.milestones
+    response.goal_id ? tr("Revisar el ajuste", "Review the adjustment") : tr("Tu propuesta, antes de guardar", "Your proposal, before saving"),
+    `<p class="notice">${response.goal_id ? tr("Este ajuste reemplazará únicamente las acciones pendientes. Las completadas y sus recompensas se conservan.", "This adjustment only replaces pending actions. Completed ones and their rewards are kept.") : tr("Esta propuesta todavía no está guardada. Puedes editar sus acciones y fechas antes de confirmar.", "This proposal isn't saved yet. You can edit its actions and dates before confirming.")}</p><p class="fine">${tr("La preparó una IA: revísala antes de guardarla. Puede equivocarse y no reemplaza consejo médico, psicológico, legal ni financiero.", "An AI prepared it: review it before saving. It can be wrong and it doesn't replace medical, psychological, legal or financial advice.")}</p><p data-proposal-summary>${e(plan.summary)}</p><p><strong>${tr("Primera acción:", "First action:")}</strong> ${e(plan.first_action)}</p><form id="proposal-form"><label>${tr("Meta", "Goal")}<input name="title" value="${e(plan.title)}" maxlength="160" required></label><label>${tr("Descripción", "Description")}<textarea name="description" maxlength="3000">${e(plan.description)}</textarea></label><label>${tr("Resultado esperado", "Expected result")}<textarea name="outcome" maxlength="1000" required>${e(plan.outcome)}</textarea></label><label>${tr("Área", "Area")}<select name="category">${options(CATEGORIES, plan.category)}</select></label>${plan.milestones
       .map(
         (m, i) =>
-          `<fieldset class="proposal-milestone"><legend>Hito ${i + 1}</legend><input aria-label="Título del hito ${i + 1}" data-milestone="${i}" value="${e(m.title)}" maxlength="160" required>${m.tasks
+          `<fieldset class="proposal-milestone"><legend>${tr("Hito", "Milestone")} ${i + 1}</legend><input aria-label="${tr("Título del hito", "Milestone title")} ${i + 1}" data-milestone="${i}" value="${e(m.title)}" maxlength="160" required>${m.tasks
             .map((t, j) => {
               const d = new Date(plan.start_date + "T12:00:00Z");
               d.setUTCDate(d.getUTCDate() + t.day_offset);
-              return `<div class="proposal-task" data-proposal-task="${i}:${j}"><label>Acción<input data-field="title" value="${e(t.title)}" maxlength="160" required></label><label>Detalles<textarea data-field="description" maxlength="3000">${e(t.description)}</textarea></label><div class="form-grid"><label>Hacer el<input data-field="date" type="date" value="${d.toISOString().slice(0, 10)}" required></label><label>Fecha límite<input data-field="deadline" type="date" value="${t.deadline || ""}"></label><label>Minutos<input data-field="minutes" type="number" min="5" max="120" value="${t.minutes}" required></label><label>Prioridad<select data-field="priority">${options(PRIORITIES, t.priority)}</select></label></div><button type="button" class="text-button" data-remove-proposal>Retirar acción</button></div>`;
+              return `<div class="proposal-task" data-proposal-task="${i}:${j}"><label>${tr("Acción", "Action")}<input data-field="title" value="${e(t.title)}" maxlength="160" required></label><label>${tr("Detalles", "Details")}<textarea data-field="description" maxlength="3000">${e(t.description)}</textarea></label><div class="form-grid"><label>${tr("Hacer el", "Do it on")}<input data-field="date" type="date" value="${d.toISOString().slice(0, 10)}" required></label><label>${tr("Fecha límite", "Deadline")}<input data-field="deadline" type="date" value="${t.deadline || ""}"></label><label>${tr("Minutos", "Minutes")}<input data-field="minutes" type="number" min="5" max="120" value="${t.minutes}" required></label><label>${tr("Prioridad", "Priority")}<select data-field="priority">${options(PRIORITIES, t.priority)}</select></label></div><button type="button" class="text-button" data-remove-proposal>${tr("Retirar acción", "Remove action")}</button></div>`;
             })
             .join("")}</fieldset>`,
       )
-      .join("")}${alert()}<button>Confirmar y guardar el plan</button></form>`,
+      .join("")}${alert()}<button>${tr("Confirmar y guardar el plan", "Confirm and save the plan")}</button></form>`,
   );
   // Reportar la propuesta sin salir de la app (contenido generado por IA, Google Play).
   if (response.job_id)
     $("[data-proposal-summary]", host).after(
       reportControl({
-        label: "Reportar esta propuesta",
+        label: tr("Reportar esta propuesta", "Report this proposal"),
         submit: (input) => reportAiPlan(response.job_id, input),
       }),
     );
@@ -1771,34 +1785,34 @@ function proposalEditor(response) {
         p_plan: edited,
         p_request_id: requestId,
       });
-      await saved("Plan guardado. Tu siguiente paso ya tiene un lugar.");
+      await saved(tr("Plan guardado. Tu siguiente paso ya tiene un lugar.", "Plan saved. Your next step now has a place."));
     });
   };
 }
 function importPreview(data) {
   const host = modal(
-    "Revisar antes de importar",
-    `<p>Destino: <strong>${e(user.email)}</strong>. Solo se importará a esta cuenta.</p><p>${data.items.length} actividades de <strong>${e(data.source)}</strong>, con sus títulos, áreas, fechas y estados. No se borrarán los originales.</p><ul class="import-list">${data.items
+    tr("Revisar antes de importar", "Review before importing"),
+    `<p>${tr(`Destino: <strong>${e(user.email)}</strong>. Solo se importará a esta cuenta.`, `Destination: <strong>${e(user.email)}</strong>. It will only be imported into this account.`)}</p><p>${tr(`${data.items.length} actividades de <strong>${e(data.source)}</strong>, con sus títulos, áreas, fechas y estados. No se borrarán los originales.`, `${data.items.length} activities from <strong>${e(data.source)}</strong>, with their titles, areas, dates and statuses. The originals won't be deleted.`)}</p><ul class="import-list">${data.items
       .slice(0, 30)
       .map(
         (t) =>
-          `<li>${e(t.title)} · ${e(t.area)} · ${dateLabel(t.deadline)} · ${t.status === "completed" ? "Completada" : "Pendiente"}</li>`,
+          `<li>${e(t.title)} · ${e(t.area)} · ${dateLabel(t.deadline)} · ${t.status === "completed" ? tr("Completada", "Completed") : tr("Pendiente", "Pending")}</li>`,
       )
       .join(
         "",
-      )}</ul>${data.items.length > 30 ? "<p>Se muestran las primeras 30 actividades.</p>" : ""}<label><input type="checkbox" id="confirm-import"> Confirmo que estos datos son míos y quiero guardarlos en esta cuenta.</label>${alert()}<button id="import-confirm">Confirmar importación</button>`,
+      )}</ul>${data.items.length > 30 ? `<p>${tr("Se muestran las primeras 30 actividades.", "Showing the first 30 activities.")}</p>` : ""}<label><input type="checkbox" id="confirm-import"> ${tr("Confirmo que estos datos son míos y quiero guardarlos en esta cuenta.", "I confirm this data is mine and I want to save it in this account.")}</label>${alert()}<button id="import-confirm">${tr("Confirmar importación", "Confirm import")}</button>`,
   );
   const requestId = uuid();
   $("#import-confirm", host).onclick = (event) =>
     busy(event.currentTarget, async () => {
       if (!$("#confirm-import", host).checked)
-        throw new Error("Confirma primero la cuenta de destino.");
+        throw new Error(tr("Confirma primero la cuenta de destino.", "First confirm the destination account."));
       const result = await rpc("import_legacy", {
         p_data: data,
         p_request_id: requestId,
       });
       await saved(
-        `Importación guardada: ${result.added} actividades nuevas y ${result.skipped} ya existentes.`,
+        tr(`Importación guardada: ${result.added} actividades nuevas y ${result.skipped} ya existentes.`, `Import saved: ${result.added} new activities and ${result.skipped} that already existed.`),
       );
     });
 }
@@ -1837,6 +1851,36 @@ window.addEventListener("pageshow", () => {
   mountPets();
   mountBillingView();
 });
+// Título y descripción de la pestaña en el idioma actual (index.html trae los de español).
+function translateDocument() {
+  document.title = tr("PlanifIA · Tus metas, paso a paso", "PlanifIA · Your goals, step by step");
+  document
+    .querySelector('meta[name="description"]')
+    ?.setAttribute(
+      "content",
+      tr(
+        "Tus metas, un plan claro y un paso a la vez. Organiza acciones, ajusta tu ritmo y crece con Lumi.",
+        "Your goals, a clear plan and one step at a time. Organize actions, adjust your pace and grow with Lumi.",
+      ),
+    );
+  const skip = document.querySelector(".skip-link");
+  if (skip) skip.textContent = tr("Saltar al contenido", "Skip to content");
+}
+// Botón ES/EN: redibuja la vista en el otro idioma. Un formulario abierto se cierra (el botón queda
+// detrás del diálogo, así que sólo pasa si se cambia desde fuera, p. ej. con otra pestaña).
+bindLangToggle();
+onLangChange(() => {
+  translateDocument();
+  closeModal();
+  // Lumi repite lo que estaba diciendo (otra frase del mismo tipo) en el idioma nuevo.
+  const said = companion.message;
+  if (user && state && said) companion.say(said.kind, said.askMood);
+  render();
+  // Los avisos del día se vuelven a programar con el texto en el idioma nuevo.
+  if (user && state) void reminders.sync(user.id, state);
+  document.querySelector(`[data-lang="${lang()}"]`)?.focus({ preventScroll: true });
+});
+translateDocument();
 render();
 void offerUpdate();
 if (cloud) {

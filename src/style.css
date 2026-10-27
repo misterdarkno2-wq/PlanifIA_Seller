@@ -1624,3 +1624,55 @@ code {
   padding-left: 18px;
   line-height: 1.5;
 }
+
+/* Botón ES/EN (src/i18n.js): portada, cabecera de la app y Ajustes. */
+.lang-toggle {
+  display: inline-flex;
+  flex: none;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+}
+.lang-toggle button {
+  min-width: 40px;
+  min-height: 34px;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.lang-toggle button[aria-pressed="true"] {
+  background: var(--green);
+  color: #fff;
+}
+.lang-toggle-large button {
+  min-width: 64px;
+  min-height: 44px;
+  font-size: 14px;
+}
+/* Con el botón de idioma la navegación de la portada no cabe junto al logo en teléfonos angostos:
+   pasa a su propia línea en vez de salirse de la pantalla. */
+.landing-header {
+  flex-wrap: wrap;
+  row-gap: 12px;
+}
+.landing-header > div {
+  margin-left: auto;
+}
+@media (max-width: 760px) {
+  .lang-toggle button {
+    min-width: 38px;
+    min-height: 40px;
+    padding: 4px 8px;
+  }
+  /* En el teléfono la cabecera de la app no tiene espacio: el idioma se cambia en Ajustes. */
+  .app-header .lang-toggle {
+    display: none;
+  }
+}

@@ -103,6 +103,7 @@ La prueba directa comprueba la API; no sustituye comprobar el cambio local/nube 
 | --- | --- |
 | `index.html`, `src/main.js` | Entrada y navegación de la interfaz. |
 | `src/cloud.js`, `src/domain.js` | Acceso a Supabase y reglas del dominio. |
+| `src/i18n.js`, `src/server-messages.js` | Idioma de la interfaz (español o inglés) y traducción de los mensajes del servidor. |
 | `src/lumi-*`, `src/pet-*` | Chat, conversación, juegos y animación de Lumi. |
 | `src/billing*`, `src/native-*` | Planes comerciales e integración móvil. |
 | `public/` | Imágenes, páginas legales y archivos públicos del dominio. |
@@ -116,6 +117,15 @@ La prueba directa comprueba la API; no sustituye comprobar el cambio local/nube 
 
 Se versionan código, migraciones, pruebas, documentación técnica, ejemplos sin secretos y archivos de bloqueo (`package-lock.json`, `Cargo.lock`). Se excluyen presentaciones, documentos personales, registros, cachés y permisos generados por los `build.rs` de los plugins. Los archivos retirados del seguimiento se conservan localmente. Los `permissions/default.toml` siguen versionados.
 
+## Idiomas
+
+La web y la app están en español y en inglés. La primera vez se elige el idioma del teléfono o del navegador (español si lo pide; inglés para cualquier otro idioma) y el botón **ES/EN** lo cambia al instante: en la portada, en la cabecera de la app (escritorio y tableta) y en **Ajustes → Idioma** (también en el teléfono). La elección queda en el dispositivo (`planifia-lang`).
+
+- Los textos van en pares junto al código que los usa: `tr("Guardar", "Save")`. Las etiquetas que se leen al dibujar (categorías, prioridades, etapas de Lumi) usan getters, así que cambiar de idioma sólo vuelve a dibujar la vista.
+- La IA responde en el idioma elegido: la app envía `language: "es" | "en"` a `goal-plan` (queda en la solicitud de la cola) y a `lumi-chat`. Las instrucciones del modelo, local y de respaldo, existen en los dos idiomas (`SYSTEM_EN` en `_shared/plan.js`, `LUMI_SYSTEM_EN` en `lumi-chat/handler.ts`). Lo ya guardado (metas, conversación) no se traduce.
+- Los mensajes de error del servidor y de la base de datos siguen en español; `src/server-messages.js` los muestra en inglés. Al agregar un mensaje nuevo en el servidor, agrega también su traducción allí.
+- Las páginas legales en inglés (`privacy.html`, `terms.html`, `delete-account.html`) son traducciones de cortesía: rige la versión en español. Al publicar una versión nueva de la política o los términos, actualiza también la traducción (lo comprueba `tests/legal-security.test.js`).
+
 ## Verificación
 
 ```powershell
@@ -128,6 +138,7 @@ npm.cmd run test:companion-ui
 npm.cmd run test:billing-ui
 npm.cmd run test:legal-ui
 npm.cmd run test:csp-ui
+npm.cmd run test:i18n-ui
 npm.cmd run build
 ```
 

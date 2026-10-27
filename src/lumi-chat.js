@@ -6,8 +6,10 @@ import { createLumiUtterance, lumiMouthFrames } from "./lumi-speech.js";
 import { getPetMotionSettings } from "./pet-motion.js";
 import { aiSourceLabel } from "./ai-source.js";
 import { crisisHelp, detectCrisis } from "./crisis-help.js";
-import { CRISIS_TITLE } from "../supabase/functions/_shared/crisis.js";
+import { crisisText } from "../supabase/functions/_shared/crisis.js";
 import { reportControl } from "./ai-report.js";
+import { aiLanguage, lang, tr } from "./i18n.js";
+import { serverText } from "./server-messages.js";
 
 export const LUMI_CHAT_MAX = 500;
 
@@ -19,19 +21,20 @@ export const lumiChatApi = {
       .select("id,role,content,created_at")
       .order("id", { ascending: false })
       .limit(100);
-    if (error) throw new Error("No pudimos cargar la conversación con Lumi.");
+    if (error) throw new Error(tr("No pudimos cargar la conversación con Lumi.", "We couldn't load the conversation with Lumi."));
     return (data || []).reverse();
   },
   async send(text, requestId) {
     const { data, error } = await cloud.functions.invoke("lumi-chat", {
-      body: { request_id: requestId, text },
+      // Lumi responde en el idioma de la app (el servidor acepta "es" o "en").
+      body: { request_id: requestId, text, language: aiLanguage() },
     });
     if (error) {
       let detail;
       try {
         detail = await error.context?.json();
       } catch {}
-      throw new Error(detail?.error || "No pudimos confirmar la respuesta. Revisa la conversación y tu saldo antes de volver a enviar.");
+      throw new Error(detail?.error || unconfirmed());
     }
     return data;
   },
@@ -49,28 +52,35 @@ export const lumiChatApi = {
     ),
 };
 
+const unconfirmed = () =>
+  tr(
+    "No pudimos confirmar la respuesta. Revisa la conversación y tu saldo antes de volver a enviar.",
+    "We couldn't confirm the reply. Check the conversation and your balance before sending again.",
+  );
 const greeting = (name) =>
-  name ? `¡Hola, ${name}! ¿De qué quieres conversar hoy?` : "¡Hola! ¿De qué quieres conversar hoy?";
+  name
+    ? tr(`¡Hola, ${name}! ¿De qué quieres conversar hoy?`, `Hi, ${name}! What would you like to talk about today?`)
+    : tr("¡Hola! ¿De qué quieres conversar hoy?", "Hi! What would you like to talk about today?");
 
 export function lumiChatPage({ stage = 1, name = "", escape }) {
   return `<section class="lumi-chat" data-lumi-chat aria-labelledby="lumi-chat-title">
     <div class="lumi-chat-stage" data-lumi-chat-stage>
       <div class="lumi-chat-portrait">${portrait(stage)}</div>
-      <div class="lumi-chat-bubble"><span class="lumi-speaker" aria-hidden="true">Lumi dice</span>
+      <div class="lumi-chat-bubble"><span class="lumi-speaker" aria-hidden="true">${tr("Lumi dice", "Lumi says")}</span>
         <p data-lumi-chat-say role="status" aria-live="polite">${escape(greeting(name))}</p></div>
     </div>
-    <div class="lumi-chat-head"><h1 id="lumi-chat-title">Hablar con Lumi</h1>
-      <button type="button" class="text-button" data-lumi-chat-clear>Borrar conversación</button></div>
-    <ol class="lumi-chat-log" data-lumi-chat-log aria-label="Conversación con Lumi" aria-live="polite"></ol>
+    <div class="lumi-chat-head"><h1 id="lumi-chat-title">${tr("Hablar con Lumi", "Talk with Lumi")}</h1>
+      <button type="button" class="text-button" data-lumi-chat-clear>${tr("Borrar conversación", "Delete conversation")}</button></div>
+    <ol class="lumi-chat-log" data-lumi-chat-log aria-label="${tr("Conversación con Lumi", "Conversation with Lumi")}" aria-live="polite"></ol>
     <form class="lumi-chat-form" data-lumi-chat-form>
-      <label class="sr-only" for="lumi-chat-input">Mensaje para Lumi</label>
-      <textarea id="lumi-chat-input" name="text" rows="2" maxlength="${LUMI_CHAT_MAX}" enterkeyhint="send" autocomplete="off" placeholder="Escríbele a Lumi…" required></textarea>
-      <button data-lumi-chat-send>Enviar</button>
+      <label class="sr-only" for="lumi-chat-input">${tr("Mensaje para Lumi", "Message for Lumi")}</label>
+      <textarea id="lumi-chat-input" name="text" rows="2" maxlength="${LUMI_CHAT_MAX}" enterkeyhint="send" autocomplete="off" placeholder="${tr("Escríbele a Lumi…", "Write to Lumi…")}" required></textarea>
+      <button data-lumi-chat-send>${tr("Enviar", "Send")}</button>
       <p class="error" role="alert" hidden></p>
       <p class="fine" data-lumi-chat-cost></p>
       <p class="fine lumi-chat-source" data-lumi-chat-source hidden></p>
     </form>
-    <p class="muted fine lumi-chat-note">Lumi es una IA: puede equivocarse y no da consejos médicos, psicológicos, legales ni financieros. Tus mensajes se envían a la IA de PlanifIA o, si no está disponible, a la de respaldo de Groq, y se guardan los últimos 100. No compartas datos sensibles. Si una respuesta te parece ofensiva o peligrosa, usa «Reportar respuesta».</p>
+    <p class="muted fine lumi-chat-note">${tr("Lumi es una IA: puede equivocarse y no da consejos médicos, psicológicos, legales ni financieros. Tus mensajes se envían a la IA de PlanifIA o, si no está disponible, a la de respaldo de Groq, y se guardan los últimos 100. No compartas datos sensibles. Si una respuesta te parece ofensiva o peligrosa, usa «Reportar respuesta».", "Lumi is an AI: it can be wrong and doesn't give medical, psychological, legal or financial advice. Your messages are sent to PlanifIA's AI or, if it isn't available, to Groq's backup AI, and the last 100 are saved. Don't share sensitive data. If a reply seems offensive or dangerous, use “Report reply”.")}</p>
   </section>`;
 }
 
@@ -117,15 +127,15 @@ export function mountLumiChat(root, {
     send.disabled = loading || clearing || sending;
     clear.disabled = loading || clearing || sending;
     input.readOnly = loading || clearing || sending;
-    send.textContent = loading ? "Cargando…" : sending ? "Lumi piensa…" : "Enviar";
+    send.textContent = loading ? tr("Cargando…", "Loading…") : sending ? tr("Lumi piensa…", "Lumi is thinking…") : tr("Enviar", "Send");
     log.setAttribute("aria-busy", String(loading || clearing || sending));
   }
 
   function refreshCredits() {
     const c = credits();
     cost.textContent = c
-      ? `Cada mensaje usa ${c.chat_cost ?? 5} créditos · Tienes ${c.balance}`
-      : "Cada mensaje usa 5 créditos";
+      ? tr(`Cada mensaje usa ${c.chat_cost ?? 5} créditos · Tienes ${c.balance}`, `Each message uses ${c.chat_cost ?? 5} credits · You have ${c.balance}`)
+      : tr("Cada mensaje usa 5 créditos", "Each message uses 5 credits");
   }
   // `report`: texto completo de una respuesta de la IA, que se puede reportar (id si ya está guardada).
   function item(role, text, report = null) {
@@ -133,7 +143,7 @@ export function mountLumiChat(root, {
     li.className = `lumi-chat-message lumi-chat-${role}`;
     const who = document.createElement("span");
     who.className = "sr-only";
-    who.textContent = role === "lumi" ? "Lumi: " : "Tú: ";
+    who.textContent = role === "lumi" ? "Lumi: " : tr("Tú: ", "You: ");
     const body = document.createElement("p");
     body.textContent = text;
     li.append(who, body);
@@ -152,7 +162,7 @@ export function mountLumiChat(root, {
     li.scrollIntoView?.({ block: "end", behavior: textMotion.matches ? "auto" : "smooth" });
     stopTalking();
     say.removeAttribute("aria-label");
-    say.textContent = CRISIS_TITLE;
+    say.textContent = crisisText(lang()).title;
   }
   function stopTalking() {
     clearInterval(textTimer);
@@ -200,13 +210,13 @@ export function mountLumiChat(root, {
     if (prefs.sound && !document.hidden) voice?.speak?.(Number(prefs.volume) || 0, utterance);
   }
   function showError(message) {
-    alert.textContent = message;
+    alert.textContent = serverText(message);
     alert.hidden = false;
     // Sin créditos: lleva a Mi plan, donde se ganan con anuncios o invitaciones, o se compran.
     if (/créditos suficientes/.test(message)) {
       const link = document.createElement("a");
       link.href = "#subscription";
-      link.textContent = " Conseguir créditos →";
+      link.textContent = tr(" Conseguir créditos →", " Get credits →");
       alert.append(link);
     }
   }
@@ -214,7 +224,8 @@ export function mountLumiChat(root, {
     const text = input.value.trim();
     if (loading || clearing || sending || disposed) return;
     if (!text) return input.focus();
-    if (text.length > LUMI_CHAT_MAX) return showError(`Escribe un mensaje de hasta ${LUMI_CHAT_MAX} caracteres.`);
+    if (text.length > LUMI_CHAT_MAX)
+      return showError(tr(`Escribe un mensaje de hasta ${LUMI_CHAT_MAX} caracteres.`, `Write a message of up to ${LUMI_CHAT_MAX} characters.`));
     alert.hidden = true;
     // Una crisis no se envía a la IA ni se cobra: se muestran líneas de ayuda de inmediato.
     if (detectCrisis(text)) {
@@ -242,7 +253,7 @@ export function mountLumiChat(root, {
     thinking(true);
     stopTalking();
     say.removeAttribute("aria-label");
-    say.textContent = "Lumi está pensando…";
+    say.textContent = tr("Lumi está pensando…", "Lumi is thinking…");
     try {
       const result = await api.send(text, uuid());
       if (disposed) return;
@@ -258,15 +269,15 @@ export function mountLumiChat(root, {
       if (Number.isFinite(result?.credits)) onCredits(result.credits);
       // Indicador discreto de qué IA respondió el último mensaje.
       const label = aiSourceLabel(result?.source);
-      sourceNote.textContent = label ? `Respondió: ${label}` : "";
+      sourceNote.textContent = label ? tr(`Respondió: ${label}`, `Answered by: ${label}`) : "";
       sourceNote.hidden = !label;
       sourceNote.dataset.source = label ? result.source : "";
     } catch (error) {
       if (disposed) return;
       mine.remove();
       thinking(false);
-      say.textContent = "Aquí sigo. Puedes intentarlo de nuevo cuando quieras.";
-      showError(error.message || "No pudimos confirmar la respuesta. Revisa la conversación y tu saldo antes de volver a enviar.");
+      say.textContent = tr("Aquí sigo. Puedes intentarlo de nuevo cuando quieras.", "I'm still here. You can try again whenever you want.");
+      showError(error.message || unconfirmed());
     } finally {
       if (!disposed) {
         sending = false;
@@ -293,14 +304,14 @@ export function mountLumiChat(root, {
     if (!clearArmed) {
       clearArmed = setTimeout(() => {
         clearArmed = null;
-        clear.textContent = "Borrar conversación";
+        clear.textContent = tr("Borrar conversación", "Delete conversation");
       }, 4000);
-      clear.textContent = "¿Borrar todo? Toca otra vez";
+      clear.textContent = tr("¿Borrar todo? Toca otra vez", "Delete everything? Tap again");
       return;
     }
     clearTimeout(clearArmed);
     clearArmed = null;
-    clear.textContent = "Borrar conversación";
+    clear.textContent = tr("Borrar conversación", "Delete conversation");
     clearing = true;
     updateControls();
     try {
@@ -309,9 +320,9 @@ export function mountLumiChat(root, {
       stopTalking();
       log.replaceChildren();
       say.removeAttribute("aria-label");
-      say.textContent = "Listo, empezamos de nuevo. ¿Qué tienes en mente?";
+      say.textContent = tr("Listo, empezamos de nuevo. ¿Qué tienes en mente?", "Done, let's start over. What's on your mind?");
     } catch (error) {
-      if (!disposed) showError(error.message || "No pudimos borrar la conversación.");
+      if (!disposed) showError(error.message || tr("No pudimos borrar la conversación.", "We couldn't delete the conversation."));
     } finally {
       clearing = false;
       if (!disposed) updateControls();

@@ -4,13 +4,20 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFile, readdir, access } from "node:fs/promises";
 import { LEGAL_URLS, LEGAL_VERSION } from "../src/legal.js";
+import { setLang } from "../src/i18n.js";
 import { REFERRER_POLICY, STATIC_PAGE_CSP, webCsp } from "../scripts/web-csp.js";
 import { CRISIS_LINES } from "../supabase/functions/_shared/crisis.js";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 const exists = (path) => access(new URL(`../${path}`, import.meta.url)).then(() => true, () => false);
 const text = (html) => html.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ");
-const PAGES = ["public/privacidad.html", "public/terminos.html", "public/eliminar-cuenta.html"];
+// Cada página en español (la que rige) y su traducción al inglés.
+const ENGLISH = {
+  "public/privacidad.html": "public/privacy.html",
+  "public/terminos.html": "public/terms.html",
+  "public/eliminar-cuenta.html": "public/delete-account.html",
+};
+const PAGES = [...Object.keys(ENGLISH), ...Object.values(ENGLISH)];
 
 test("La versión vigente está en un solo lugar y coincide con las páginas publicadas", async () => {
   for (const [kind, page] of [["privacy", "public/privacidad.html"], ["terms", "public/terminos.html"]]) {
@@ -25,6 +32,26 @@ test("La versión vigente está en un solo lugar y coincide con las páginas pub
       assert.match(old, new RegExp(`href="\\.\\./${page.split("/").pop()}"`), archived);
     }
     assert.ok([...html.matchAll(/href="legal\//g)].length >= 1, `${page} enlaza sus versiones anteriores`);
+  }
+});
+
+test("Cada página legal tiene su traducción al inglés, de la misma versión y enlazada en ambos sentidos", async () => {
+  const name = (page) => page.split("/").pop();
+  for (const [es, en] of Object.entries(ENGLISH)) {
+    const [spanish, english] = await Promise.all([read(es), read(en)]);
+    const version = (html) => html.match(/data-legal-version="([^"]+)"/)?.[1];
+    assert.equal(version(english), version(spanish), `${en} traduce la versión vigente de ${es}`);
+    assert.match(spanish, new RegExp(`href="${name(en)}"`), `${es} enlaza la traducción`);
+    assert.match(english, new RegExp(`href="${name(es)}"`), `${en} enlaza el original`);
+    assert.match(english, /<html lang="en">/, en);
+  }
+  // Con la app en inglés, los enlaces legales llevan a la traducción.
+  setLang("en", { remember: false });
+  try {
+    assert.equal(new URL(LEGAL_URLS.terms).pathname, "/terms.html");
+    assert.equal(new URL(LEGAL_URLS.privacy).pathname, "/privacy.html");
+  } finally {
+    setLang("es", { remember: false });
   }
 });
 
@@ -76,14 +103,16 @@ test("La CSP de la web equivale a la de Tauri, con el proyecto de Supabase y sin
 });
 
 test("La política de privacidad nombra a cada proveedor de IA que usa el servidor", async () => {
-  const policy = text(await read("public/privacidad.html"));
-  const fallback = await read("supabase/functions/_shared/ai-fallback.ts");
-  const hosts = [...fallback.matchAll(/https:\/\/(?:api\.|integrate\.api\.)?([a-z0-9-]+)\.(?:com|ai|io)\b/g)].map((m) => m[1]);
-  assert.ok(hosts.length, "ai-fallback.ts declara la URL de su proveedor");
-  for (const provider of new Set(hosts))
-    assert.match(policy, new RegExp(provider, "i"), `La política debe mencionar a ${provider}`);
-  for (const provider of ["Supabase", "Cloudflare", "GitHub", "Google Play", "AdMob", "Brevo"])
-    assert.ok(policy.includes(provider), provider);
+  for (const page of ["public/privacidad.html", "public/privacy.html"]) {
+    const policy = text(await read(page));
+    const fallback = await read("supabase/functions/_shared/ai-fallback.ts");
+    const hosts = [...fallback.matchAll(/https:\/\/(?:api\.|integrate\.api\.)?([a-z0-9-]+)\.(?:com|ai|io)\b/g)].map((m) => m[1]);
+    assert.ok(hosts.length, "ai-fallback.ts declara la URL de su proveedor");
+    for (const provider of new Set(hosts))
+      assert.match(policy, new RegExp(provider, "i"), `${page} debe mencionar a ${provider}`);
+    for (const provider of ["Supabase", "Cloudflare", "GitHub", "Google Play", "AdMob", "Brevo"])
+      assert.ok(policy.includes(provider), `${page}: ${provider}`);
+  }
 });
 
 test("La política dice qué datos llegan al entrar con Google, y la app no pide más permisos", async () => {
@@ -102,7 +131,7 @@ test("La política dice qué datos llegan al entrar con Google, y la app no pide
 });
 
 test("Cada dato que la app guarda en el navegador o el teléfono aparece en la política", async () => {
-  const policy = await read("public/privacidad.html");
+  const [policy, english] = await Promise.all([read("public/privacidad.html"), read("public/privacy.html")]);
   const keys = new Set();
   // Constantes *_KEY, llamadas a get/set/removeItem, read/write de lumi-messages.js y la clave de
   // solicitudes de IA de cloud.js. Se compara el prefijo fijo: "planifia-plan:" + cuenta, etc.
@@ -114,6 +143,7 @@ test("Cada dato que la app guarda en el navegador o el teléfono aparece en la p
   }
   assert.ok(keys.size >= 12, `Se encontraron ${keys.size} claves`);
   for (const key of keys) assert.ok(policy.includes(key), `La política no menciona ${key}`);
+  for (const key of keys) assert.ok(english.includes(key), `La traducción de la política no menciona ${key}`);
   assert.ok(policy.includes("planifia-seller-auth"));
 });
 

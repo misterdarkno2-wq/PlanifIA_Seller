@@ -1,3 +1,5 @@
+import { lang } from "./i18n.js";
+
 /** Local conversation only: none of these messages calls an AI provider. */
 export const LUMI_MESSAGES = {
   welcome: [
@@ -57,6 +59,65 @@ export const LUMI_MESSAGES = {
     "Si el plan se siente pesado, puedes revisarlo o hacer una pausa. No hace falta resolverlo todo ahora.",
   ],
 };
+// Los mismos mensajes en inglés, con las mismas claves y la misma cantidad por clave.
+export const LUMI_MESSAGES_EN = {
+  welcome: [
+    "Hi! I'm Lumi. Shall we plan your day together? How are you today?",
+    "So good to see you! How are you today?",
+    "A new moment for your goals. How are you feeling today?",
+    "Hi, here's your space to move forward at your own pace. How are you?",
+  ],
+  small: [
+    "A small step counts too. You can choose an action that fits in your day.",
+    "You don't need to solve everything today. One next step is enough.",
+    "Got a few minutes? A short action can be a good start.",
+  ],
+  completed: [
+    "An action completed! Take a moment to recognize that step.",
+    "What you just did adds up. You can keep going at your own pace.",
+    "Well done! That effort is already part of your path.",
+  ],
+  milestone: [
+    "A milestone reached! Your goal has one more stage behind it.",
+    "You've completed a stage. You can celebrate before choosing the next step.",
+  ],
+  goal: [
+    "Goal achieved! It's worth recognizing the whole path you walked.",
+    "You've reached the result you were after. Enjoy this achievement your own way.",
+  ],
+  level: [
+    "Lumi leveled up with your progress! Every action counts.",
+    "A new level! Your steps are helping this little virtual companion grow.",
+  ],
+  evolve: [
+    "Lumi has a new form! Your progress stays with you.",
+    "A new stage for Lumi! You can celebrate it without rushing the next step.",
+  ],
+  return: [
+    "You can pick up wherever feels comfortable. There's nothing to make up for.",
+    "Glad you're back in your space. We can start with something small.",
+  ],
+  waiting: [
+    "Your proposal is being prepared. You can keep organizing your goals.",
+    "The work stays saved even if you close this window. You'll find it here again.",
+  ],
+  energy: [
+    "With that energy, you could pick a priority and set aside some time for it. You decide which.",
+    "You can make the most of this moment for an important step. Choose the one that makes sense today.",
+  ],
+  well: [
+    "We can go step by step. A manageable action could fit well today.",
+    "You can choose your next step without rushing. Your plan is here to help you.",
+  ],
+  tired: [
+    "If you're tired, a short action or a break can be good options. You choose.",
+    "Today might be a day to slow down. You can pick something small or rest.",
+  ],
+  discouraged: [
+    "Thanks for saying so. If you want, we can start with a very manageable step.",
+    "If the plan feels heavy, you can review it or take a break. You don't need to solve everything now.",
+  ],
+};
 export const LUMI_FREQUENCY = { normal: 120000, quiet: 300000, off: Infinity };
 
 export function createLumiCompanion({
@@ -102,7 +163,8 @@ export function createLumiCompanion({
   write(storage, "planifia-lumi-conversation", preferences);
   function say(kind, askMood = false) {
     if (!account) return;
-    const library = LUMI_MESSAGES[kind] || LUMI_MESSAGES.small;
+    const messages = lang() === "en" ? LUMI_MESSAGES_EN : LUMI_MESSAGES;
+    const library = messages[kind] || messages.small;
     const candidates = library.filter(
       (text) => !history.slice(-2).includes(text),
     );
