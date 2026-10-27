@@ -388,3 +388,20 @@ Deno.test("Con la app en inglés, Lumi recibe sus reglas en inglés, también en
     assert(/Eres Lumi/.test(messages[0].content));
   }
 });
+
+Deno.test("Lumi responde en el idioma del mensaje aunque la app esté en otro", async () => {
+  for (const [text, language, rules] of [
+    ["¿Qué hago hoy?", "en", /Eres Lumi/],
+    ["What should I do today?", "es", /You are Lumi/],
+    ["ok", "en", /You are Lumi/],
+  ] as const) {
+    const f = setup();
+    try {
+      assert((await handleLumiChat(request({ request_id: REQUEST, text, language }))).status === 200);
+      const system = (f.aiBody()!.messages as { content: string }[])[0].content;
+      assert(rules.test(system), `${text} (${language}): ${system.slice(0, 20)}`);
+    } finally {
+      f.close();
+    }
+  }
+});
