@@ -69,7 +69,7 @@ try {
   };
   const violations = [];
   for (const viewport of [{ width: 390, height: 844 }, { width: 1366, height: 900 }]) {
-    const context = await browser.newContext({ viewport });
+    const context = await browser.newContext({ locale: "es-CL", viewport });
     await context.route("https://supabase.example.test/**", fixture);
     await context.addInitScript(() => {
       window.__csp = [];

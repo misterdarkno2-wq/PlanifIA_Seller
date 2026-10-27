@@ -158,7 +158,7 @@ async function fixture({
   state = initial(),
   failState = false,
 } = {}) {
-  const page = await browser.newPage({
+  const page = await browser.newPage({ locale: "es-CL",
     viewport: { width: 1366, height: 1024 },
   });
   page.on("pageerror", (error) => errors.push(error.message));
@@ -219,7 +219,7 @@ const capture = async (page, name) => {
 };
 
 async function mainFixture(hash = "") {
-  const page = await browser.newPage({
+  const page = await browser.newPage({ locale: "es-CL",
     viewport: { width: 1366, height: 1024 },
   });
   page.on("pageerror", (error) => errors.push(error.message));
@@ -656,7 +656,7 @@ try {
     monetization:{load:async()=>m,redeem:async(code)=>{window.redeemed=code;return {ok:true,invitee_reward:20};},store,ads,userId:user.id}});
 </script></html>`;
     const playPage = async (view, plan = "free") => {
-      const page = await browser.newPage({ viewport: { width: 1366, height: 1024 } });
+      const page = await browser.newPage({ locale: "es-CL", viewport: { width: 1366, height: 1024 } });
       page.on("pageerror", (error) => errors.push(error.message));
       await page.route("**/play-fixture", (route) =>
         route.fulfill({ contentType: "text/html", body: playHtml(view, plan) }),

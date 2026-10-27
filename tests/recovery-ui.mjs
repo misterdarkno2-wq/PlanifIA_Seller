@@ -43,7 +43,7 @@ try {
 
   async function open(hash) {
     const calls = { recover: [], password: [] };
-    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const context = await browser.newContext({ locale: "es-CL", viewport: { width: 390, height: 844 } });
     await context.route(`${SUPABASE}/**`, (route) => {
       const request = route.request(),
         url = new URL(request.url());

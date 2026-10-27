@@ -257,7 +257,7 @@ try {
     ["desktop", { width: 1440, height: 1050 }],
     ["mobile", { width: 390, height: 844 }],
   ]) {
-    const context = await browser.newContext({
+    const context = await browser.newContext({ locale: "es-CL",
         viewport,
         reducedMotion: label === "mobile" ? "reduce" : "no-preference",
       }),

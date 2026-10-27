@@ -56,7 +56,7 @@ after(async () => {
 });
 
 async function setup(t, { android = true, permission = "granted" } = {}) {
-  const context = await browser.newContext({
+  const context = await browser.newContext({ locale: "es-CL",
     viewport: { width: 390, height: 844 },
     isMobile: true,
     hasTouch: true,
