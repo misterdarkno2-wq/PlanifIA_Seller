@@ -71,7 +71,7 @@ try {
       expires_at: Math.floor(Date.now() / 1000) + 7200,
       user,
     };
-    const context = await browser.newContext({
+    const context = await browser.newContext({ locale: "es-CL",
       viewport,
       reducedMotion: "no-preference",
     });

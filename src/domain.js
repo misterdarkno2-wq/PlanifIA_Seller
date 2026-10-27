@@ -1,19 +1,29 @@
-export const CATEGORIES = {
-  personal: "Personal",
-  professional: "Profesional",
-  learning: "Aprendizaje",
-  wellbeing: "Bienestar",
-  creative: "Creatividad",
-  project: "Proyecto",
-};
-export const PRIORITIES = { low: "Baja", medium: "Media", high: "Alta" };
-export const STAGES = [
-  "Recién nacida",
-  "Infantil",
-  "Juvenil",
-  "Avanzada",
-  "Evolución final",
-];
+import { locale, tr } from "./i18n.js";
+
+// Etiquetas en el idioma actual: cada propiedad se lee al dibujar, así que cambiar de idioma basta
+// con volver a dibujar la vista. En la base de datos sólo se guardan las claves.
+function localized(pairs) {
+  const labels = Array.isArray(pairs) ? [] : {};
+  for (const [key, [es, en]] of Object.entries(pairs))
+    Object.defineProperty(labels, key, { enumerable: true, get: () => tr(es, en) });
+  return Object.freeze(labels);
+}
+export const CATEGORIES = localized({
+  personal: ["Personal", "Personal"],
+  professional: ["Profesional", "Professional"],
+  learning: ["Aprendizaje", "Learning"],
+  wellbeing: ["Bienestar", "Wellbeing"],
+  creative: ["Creatividad", "Creativity"],
+  project: ["Proyecto", "Project"],
+});
+export const PRIORITIES = localized({ low: ["Baja", "Low"], medium: ["Media", "Medium"], high: ["Alta", "High"] });
+export const STAGES = localized([
+  ["Recién nacida", "Newborn"],
+  ["Infantil", "Little one"],
+  ["Juvenil", "Young"],
+  ["Avanzada", "Advanced"],
+  ["Evolución final", "Final evolution"],
+]);
 export function progression(
   total,
   { first = 100, increment = 35, max = 20 } = {},
@@ -54,14 +64,14 @@ export function today(timeZone = "America/Santiago", now = new Date()) {
 }
 export const dateLabel = (value) =>
   value
-    ? new Intl.DateTimeFormat("es", { day: "numeric", month: "short" }).format(
+    ? new Intl.DateTimeFormat(locale(), { day: "numeric", month: "short" }).format(
         new Date(value + "T12:00:00"),
       )
-    : "Sin fecha";
+    : tr("Sin fecha", "No date");
 export function normalizeLegacy(data, source = "PlanifIA anterior") {
   if (!data || typeof data !== "object" || Array.isArray(data))
     throw new Error(
-      "El archivo debe contener una exportación JSON de PlanifIA.",
+      tr("El archivo debe contener una exportación JSON de PlanifIA.", "The file must contain a PlanifIA JSON export."),
     );
   const tasks = Array.isArray(data.tasks)
     ? data.tasks
@@ -78,15 +88,15 @@ export function normalizeLegacy(data, source = "PlanifIA anterior") {
     ...exams.map((t) => ({ ...t, kind: "exam" })),
   ];
   if (!items.length)
-    throw new Error("No encontramos tareas o evaluaciones para importar.");
+    throw new Error(tr("No encontramos tareas o evaluaciones para importar.", "We found no tasks or exams to import."));
   if (items.length > 1000)
-    throw new Error("Importa hasta 1.000 actividades por archivo.");
+    throw new Error(tr("Importa hasta 1.000 actividades por archivo.", "Import up to 1,000 activities per file."));
   const ids = new Set();
   const rows = items.map((t, i) => {
     const key = String(t.id ?? i),
       unique = t.kind + ":" + key;
     if (ids.has(unique))
-      throw new Error("Hay identificadores repetidos dentro del archivo.");
+      throw new Error(tr("Hay identificadores repetidos dentro del archivo.", "The file has duplicate identifiers."));
     ids.add(unique);
     const priority =
       { baja: "low", media: "medium", alta: "high" }[t.prioridad] ||
@@ -97,15 +107,15 @@ export function normalizeLegacy(data, source = "PlanifIA anterior") {
       null;
     if (deadline && !/^\d{4}-\d{2}-\d{2}$/.test(deadline))
       throw new Error(
-        "Hay una fecha que no podemos interpretar. Revisa el archivo original.",
+        tr("Hay una fecha que no podemos interpretar. Revisa el archivo original.", "There is a date we can't read. Check the original file."),
       );
     return {
       key: unique,
       title: String(
-        t.titulo || t.nombre || t.title || "Actividad importada",
+        t.titulo || t.nombre || t.title || tr("Actividad importada", "Imported activity"),
       ).slice(0, 160),
       description: String(t.descripcion || t.description || "").slice(0, 3000),
-      area: String(t.asignatura || t.area || "Aprendizaje").slice(0, 80),
+      area: String(t.asignatura || t.area || tr("Aprendizaje", "Learning")).slice(0, 80),
       priority,
       deadline,
       scheduled_date: t.scheduled_date || deadline,

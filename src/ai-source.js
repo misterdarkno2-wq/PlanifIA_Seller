@@ -2,10 +2,16 @@
 // (lumi-chat y ai-fallback): la clave de Groq nunca llega al teléfono. Aquí sólo se muestra el
 // origen y se pide el respaldo para una propuesta en cola mientras el PC está apagado.
 
-export const AI_SOURCE_LABELS = {
-  local: "IA local",
-  cloud: "IA en la nube (respaldo)",
-};
+import { tr } from "./i18n.js";
+
+export const AI_SOURCE_LABELS = Object.freeze({
+  get local() {
+    return tr("IA local", "Local AI");
+  },
+  get cloud() {
+    return tr("IA en la nube (respaldo)", "Cloud AI (backup)");
+  },
+});
 
 export const aiSourceLabel = (source) => AI_SOURCE_LABELS[source] || "";
 

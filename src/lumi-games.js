@@ -1,5 +1,6 @@
 import { spriteSvg, dataUrl, drawSprite } from "./lumi-sprite.js";
 import { MORE_GAMES } from "./lumi-games-more.js";
+import { tr } from "./i18n.js";
 
 export { spriteSvg };
 const W = 360,
@@ -30,17 +31,29 @@ ${spriteSvg(stage, 'x="10" y="22" width="50" height="42"')}
 export const LUMI_GAMES = [
   {
     id: "flap",
-    name: "Vuelo de Lumi",
-    hint: "Toca o pulsa Espacio para aletear entre los tubos.",
-    stageHint: "Con tus alas el paso entre tubos es más amplio.",
+    get name() {
+      return tr("Vuelo de Lumi", "Lumi's Flight");
+    },
+    get hint() {
+      return tr("Toca o pulsa Espacio para aletear entre los tubos.", "Tap or press Space to flap between the pipes.");
+    },
+    get stageHint() {
+      return tr("Con tus alas el paso entre tubos es más amplio.", "With your wings, the gap between pipes is wider.");
+    },
     thumb: flapThumb,
     logic: flapGame,
   },
   {
     id: "run",
-    name: "Carrera de Lumi",
-    hint: "Toca o pulsa Espacio para saltar los obstáculos.",
-    stageHint: "Con tus alas puedes saltar dos veces.",
+    get name() {
+      return tr("Carrera de Lumi", "Lumi's Run");
+    },
+    get hint() {
+      return tr("Toca o pulsa Espacio para saltar los obstáculos.", "Tap or press Space to jump over the obstacles.");
+    },
+    get stageHint() {
+      return tr("Con tus alas puedes saltar dos veces.", "With your wings you can jump twice.");
+    },
     thumb: runThumb,
     logic: runGame,
   },
@@ -250,7 +263,7 @@ export function playGame(host, gameId, stage, onExit) {
   const logic = gameLogic(gameId, stage);
   const hint =
     info.hint + (stage >= 4 && info.stageHint ? " " + info.stageHint : "");
-  host.innerHTML = `<div class="lumi-game-bar"><button type="button" class="text-button" data-game-exit>← Juegos</button><strong>${info.name}</strong><span data-game-score aria-live="off">0</span></div>
+  host.innerHTML = `<div class="lumi-game-bar"><button type="button" class="text-button" data-game-exit>${tr("← Juegos", "← Games")}</button><strong>${info.name}</strong><span data-game-score aria-live="off">0</span></div>
     <canvas class="lumi-game-canvas" tabindex="0" role="img" aria-label="${info.name}. ${hint}"></canvas>
     <p class="lumi-game-hint">${hint}</p>`;
   const canvas = host.querySelector("canvas");
@@ -283,12 +296,12 @@ export function playGame(host, gameId, stage, onExit) {
   function render() {
     ctx.setTransform(canvas.width / W, 0, 0, canvas.height / H, 0, 0);
     logic.draw(ctx, sprite, time);
-    if (game.state === "ready") overlay("¡A jugar!", "Toca para empezar");
-    else if (game.state === "paused") overlay("En pausa", "Toca para continuar");
+    if (game.state === "ready") overlay(tr("¡A jugar!", "Let's play!"), tr("Toca para empezar", "Tap to start"));
+    else if (game.state === "paused") overlay(tr("En pausa", "Paused"), tr("Toca para continuar", "Tap to continue"));
     else if (game.state === "over")
       overlay(
-        logic.overTitle?.(game) || `Puntaje: ${game.score}`,
-        `Récord: ${game.best} · Toca para reintentar`,
+        logic.overTitle?.(game) || tr(`Puntaje: ${game.score}`, `Score: ${game.score}`),
+        tr(`Récord: ${game.best} · Toca para reintentar`, `Best: ${game.best} · Tap to try again`),
       );
   }
   function loop(now) {
@@ -401,9 +414,9 @@ export function mountLumiGames(host, { stage, onPlayingChange = () => {} }) {
   function menu() {
     active = null;
     onPlayingChange(false);
-    host.innerHTML = `<div class="lumi-speech-bubble lumi-games-bubble"><span class="lumi-speaker">Lumi</span><p>¿Quieres jugar conmigo mientras esperas? Te aviso apenas tu plan esté listo.</p></div>
+    host.innerHTML = `<div class="lumi-speech-bubble lumi-games-bubble"><span class="lumi-speaker">Lumi</span><p>${tr("¿Quieres jugar conmigo mientras esperas? Te aviso apenas tu plan esté listo.", "Want to play with me while you wait? I'll let you know as soon as your plan is ready.")}</p></div>
       <div class="lumi-games-list">${LUMI_GAMES.map(
-        (g) => `<button type="button" class="lumi-game-card" data-game="${g.id}"><img src="${g.thumb(stage)}" alt="" width="64" height="64"><span><strong>${g.name}</strong><small>Récord: ${readBest(g.id)}</small></span></button>`,
+        (g) => `<button type="button" class="lumi-game-card" data-game="${g.id}"><img src="${g.thumb(stage)}" alt="" width="64" height="64"><span><strong>${g.name}</strong><small>${tr("Récord", "Best")}: ${readBest(g.id)}</small></span></button>`,
       ).join("")}</div>`;
     host.querySelectorAll("[data-game]").forEach(
       (button) =>

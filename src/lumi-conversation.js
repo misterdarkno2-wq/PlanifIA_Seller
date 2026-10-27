@@ -2,47 +2,48 @@ import { LUMI_FREQUENCY } from "./lumi-messages.js";
 import { createLumiVoice } from "./lumi-voice.js";
 import { createLumiUtterance, lumiMouthFrames } from "./lumi-speech.js";
 import { getPetMotionSettings } from "./pet-motion.js";
-const MOODS = {
-  energy: "Con energía",
-  well: "Bien",
-  tired: "Cansado",
-  discouraged: "Desanimado",
-  skip: "Omitir",
-};
+import { tr } from "./i18n.js";
+const moods = () => ({
+  energy: tr("Con energía", "Energetic"),
+  well: tr("Bien", "Good"),
+  tired: tr("Cansado", "Tired"),
+  discouraged: tr("Desanimado", "Discouraged"),
+  skip: tr("Omitir", "Skip"),
+});
 const presented = new WeakMap();
 
 export const lumiConversationMarkup =
-  () => `<section class="lumi-conversation" aria-label="Mensajes de Lumi">
-  <div class="lumi-speech-bubble"><span class="lumi-speaker" aria-hidden="true">Lumi dice</span><p class="lumi-message-text" role="status" aria-live="polite"></p><svg class="lumi-bubble-tail" viewBox="0 0 32 36" aria-hidden="true"><path d="M31 2C20 5 18 19 3 32C21 32 30 24 31 21"/></svg></div><div class="lumi-moods" aria-label="Cómo te sientes" hidden>${Object.entries(
-    MOODS,
+  () => `<section class="lumi-conversation" aria-label="${tr("Mensajes de Lumi", "Messages from Lumi")}">
+  <div class="lumi-speech-bubble"><span class="lumi-speaker" aria-hidden="true">${tr("Lumi dice", "Lumi says")}</span><p class="lumi-message-text" role="status" aria-live="polite"></p><svg class="lumi-bubble-tail" viewBox="0 0 32 36" aria-hidden="true"><path d="M31 2C20 5 18 19 3 32C21 32 30 24 31 21"/></svg></div><div class="lumi-moods" aria-label="${tr("Cómo te sientes", "How you feel")}" hidden>${Object.entries(
+    moods(),
   )
     .map(
       ([id, title]) =>
         `<button type="button" class="secondary" data-lumi-mood="${id}">${title}</button>`,
     )
     .join("")}</div>
-  <div class="lumi-message-tools"><button class="text-button" data-lumi-mute type="button">Silenciar</button><button class="text-button" data-lumi-reveal type="button">Mostrar texto completo</button><button class="text-button" data-lumi-dismiss type="button">Cerrar mensaje</button></div>
+  <div class="lumi-message-tools"><button class="text-button" data-lumi-mute type="button">${tr("Silenciar", "Mute")}</button><button class="text-button" data-lumi-reveal type="button">${tr("Mostrar texto completo", "Show full text")}</button><button class="text-button" data-lumi-dismiss type="button">${tr("Cerrar mensaje", "Close message")}</button></div>
   <small class="muted lumi-audio-status" data-lumi-audio-status></small>
-  <small class="muted">Lumi es tu compañera virtual con IA. Tu respuesta de ánimo no se guarda en tu cuenta.</small></section>`;
+  <small class="muted">${tr("Lumi es tu compañera virtual con IA. Tu respuesta de ánimo no se guarda en tu cuenta.", "Lumi is your AI virtual companion. Your mood answer isn't saved to your account.")}</small></section>`;
 
 export function lumiConversationSettings(model) {
   const p = model.preferences;
-  return `<fieldset class="lumi-conversation-settings"><legend>Mensajes y sonido</legend>
-    <label><input type="checkbox" data-lumi-preference="greetings" ${p.greetings ? "checked" : ""}> Saludar y preguntar cómo estoy al iniciar una sesión</label>
-    <label><input type="checkbox" data-lumi-preference="sound" ${p.sound ? "checked" : ""}> Sonido suave al conversar</label>
-    <label>Volumen<input type="range" min="0" max="0.4" step="0.02" value="${p.volume}" data-lumi-preference="volume"></label>
-    <label><input type="checkbox" data-lumi-preference="immediate" ${p.immediate ? "checked" : ""}> Mostrar el texto completo inmediatamente</label>
-    <label>Mensajes espontáneos<select data-lumi-preference="frequency">${[
-      ["normal", "De vez en cuando"],
-      ["quiet", "Pocos mensajes"],
-      ["off", "Sólo saludos y progreso"],
+  return `<fieldset class="lumi-conversation-settings"><legend>${tr("Mensajes y sonido", "Messages and sound")}</legend>
+    <label><input type="checkbox" data-lumi-preference="greetings" ${p.greetings ? "checked" : ""}> ${tr("Saludar y preguntar cómo estoy al iniciar una sesión", "Greet me and ask how I am when I start a session")}</label>
+    <label><input type="checkbox" data-lumi-preference="sound" ${p.sound ? "checked" : ""}> ${tr("Sonido suave al conversar", "Soft sound while talking")}</label>
+    <label>${tr("Volumen", "Volume")}<input type="range" min="0" max="0.4" step="0.02" value="${p.volume}" data-lumi-preference="volume"></label>
+    <label><input type="checkbox" data-lumi-preference="immediate" ${p.immediate ? "checked" : ""}> ${tr("Mostrar el texto completo inmediatamente", "Show the full text right away")}</label>
+    <label>${tr("Mensajes espontáneos", "Spontaneous messages")}<select data-lumi-preference="frequency">${[
+      ["normal", tr("De vez en cuando", "Now and then")],
+      ["quiet", tr("Pocos mensajes", "Few messages")],
+      ["off", tr("Sólo saludos y progreso", "Only greetings and progress")],
     ]
       .map(
         ([v, t]) =>
           `<option value="${v}" ${p.frequency === v ? "selected" : ""}>${t}</option>`,
       )
       .join("")}</select></label>
-    <p class="muted">Preferencias guardadas en este navegador. El sonido necesita una primera interacción y se silencia al salir de la pestaña.</p></fieldset>`;
+    <p class="muted">${tr("Preferencias guardadas en este navegador. El sonido necesita una primera interacción y se silencia al salir de la pestaña.", "Preferences saved in this browser. Sound needs a first interaction and is muted when you leave the tab.")}</p></fieldset>`;
 }
 
 /** Conversation lifecycle is separate from autonomous movement; no pet click handler. */
@@ -90,7 +91,7 @@ export function mountLumiConversation(root, model, options = {}) {
     if (!messageRoot) return;
     const node = messageRoot.querySelector("[data-lumi-audio-status]");
     node.textContent = model.preferences.sound && !voice.ready
-      ? "Sonido activado. Se habilita al usar un control de la página."
+      ? tr("Sonido activado. Se habilita al usar un control de la página.", "Sound on. It starts once you use a control on the page.")
       : "";
     node.hidden = !node.textContent;
   }
@@ -114,8 +115,8 @@ export function mountLumiConversation(root, model, options = {}) {
     const node = messageRoot.querySelector(".lumi-message-text");
     messageRoot.querySelector(".lumi-moods").hidden = !message.askMood;
     messageRoot.querySelector("[data-lumi-mute]").textContent = prefs.sound
-      ? "Silenciar"
-      : "Activar sonido";
+      ? tr("Silenciar", "Mute")
+      : tr("Activar sonido", "Turn on sound");
     messageRoot
       .querySelector("[data-lumi-mute]")
       .setAttribute("aria-pressed", String(prefs.sound));

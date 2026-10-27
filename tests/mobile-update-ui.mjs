@@ -27,7 +27,7 @@ before(async () => {
 after(async () => { await browser?.close(); server?.kill(); });
 
 async function open(update) {
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 },
+  const context = await browser.newContext({ locale: "es-CL", viewport: { width: 390, height: 844 },
     userAgent: "Mozilla/5.0 (Linux; Android 16; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Mobile Safari/537.36" });
   await context.route("https://supabase.example.test/**", (route) => route.abort());
   await context.addInitScript((initial) => {

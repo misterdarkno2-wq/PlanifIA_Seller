@@ -22,6 +22,37 @@ export const CRISIS_INTRO =
 export const CRISIS_CLOSING =
   "Si puedes, cuéntale también a alguien de confianza. No se descontaron créditos.";
 
+// Versión en inglés del aviso (la app la muestra cuando está en inglés). Las líneas son las mismas
+// de Chile, con su nombre original, y se agrega qué hacer fuera de Chile.
+const CRISIS_EN = {
+  title: "What you're going through matters, and you don't have to face it alone.",
+  intro: "Lumi is an AI and can't support you through a crisis, but there are people who can right now:",
+  lines: [
+    { name: "Suicide Prevention Line (Línea de Prevención del Suicidio)", detail: "free, confidential and 24 hours a day, from mobile phones" },
+    { name: "Salud Responde", detail: "health guidance, 24 hours a day" },
+    { name: "SAMU (ambulance)", detail: "if your life or someone else's is at risk" },
+    { name: "Carabineros (police)", detail: "if you are in danger" },
+    { name: "Violence against women helpline (SernamEG)", detail: "every day from 8:00 to 24:00" },
+  ],
+  abroad: "These lines are in Chile. If you are somewhere else, call your local emergency number.",
+  closing: "If you can, also tell someone you trust. No credits were deducted.",
+  notRefunded: "If you can, also tell someone you trust. Check your balance: we couldn't confirm the credit refund.",
+};
+
+/** Textos del aviso en "es" o "en", con las mismas líneas de ayuda y en el mismo orden. */
+export function crisisText(language = "es") {
+  if (language !== "en")
+    return {
+      title: CRISIS_TITLE,
+      intro: CRISIS_INTRO,
+      lines: CRISIS_LINES,
+      abroad: "",
+      closing: CRISIS_CLOSING,
+      notRefunded: "Si puedes, cuéntale también a alguien de confianza. Revisa tu saldo: no pudimos confirmar la devolución de créditos.",
+    };
+  return { ...CRISIS_EN, lines: CRISIS_LINES.map((line, i) => ({ ...line, ...CRISIS_EN.lines[i] })) };
+}
+
 /** Texto completo del aviso, el mismo en la app y en las respuestas del servidor. */
 export const CRISIS_MESSAGE = [
   CRISIS_TITLE,
@@ -31,8 +62,9 @@ export const CRISIS_MESSAGE = [
 ].join("\n");
 
 // "matarme estudiando" o "me voy a matar trabajando" son exageraciones comunes: un gerundio justo
-// después no cuenta como crisis.
+// después no cuenta como crisis. Lo mismo en inglés: "killing myself studying".
 const NOT_GERUND = "(?! [a-z]+(ando|iendo)\\b)";
+const NOT_ING = "(?! [a-z]+ing\\b)";
 const rule = (source) => new RegExp(source);
 
 // Se buscan sobre el texto normalizado: minúsculas, sin tildes y con la puntuación como espacios.
@@ -57,8 +89,17 @@ const SELF_HARM = [
   /\b(tirar|lanzar)(me|te|se) (de|del|desde|al|a la|a las) (un |una |el |la )?(puente|edificio|balcon|piso|techo|metro|vias|tren|ventana)\b/,
   /\bahorcar(me|te|se)\b/,
   /\bsobredosis\b/,
-  /\b(kill|hurt) (myself|yourself)\b/,
-  /\b(want|wanna) to die\b/,
+  // Inglés: la app también se usa en inglés y el texto llega normalizado igual ("don't" → "don t").
+  rule("\\b(kill|killing|hurt|hurting|harm|harming) (myself|yourself|themselves)\\b" + NOT_ING),
+  /\b(cut|cutting|hang|hanging|shoot|shooting|drown|drowning|starve|starving) (myself|yourself|themselves)\b/,
+  /\b(want|wanna|going|gonna|ready) to die\b/,
+  /\bwish i (was|were) dead\b/,
+  /\bbetter off dead\b/,
+  /\b(end|take|ending|taking) (my|your|their) (own )?life\b/,
+  /\b(don t|do not|dont|no longer|not) want to (live|be alive|exist|wake up)\b/,
+  /\bno (reason|point) (to|in) (live|living|being alive)\b/,
+  /\bjump(ing)? (off|from) (a |the )?(bridge|building|roof|balcony|window)\b/,
+  /\boverdos(e|ing)\b/,
   /\bself ?harm\b/,
 ];
 const VIOLENCE = [
@@ -71,6 +112,14 @@ const VIOLENCE = [
   /\babuso sexual\b/,
   /\babusaron de mi\b/,
   /\bme (violo|violaron)\b/,
+  /\b(going to|gonna|want to|plan to|planning to) (kill|stab|shoot) (him|her|them|someone|somebody|everyone)\b/,
+  /\b(he|she|they|partner|husband|wife|boyfriend|girlfriend|dad|father|mom|mother) (hits|beats|abuses|threatens|rapes) me\b/,
+  /\b(is|are) (hitting|beating|abusing|threatening) me\b/,
+  /\bdeath threats?\b/,
+  /\bdomestic (violence|abuse)\b/,
+  /\bsexual(ly)? (abuse|abused|assault|assaulted)\b/,
+  /\b(raped|abused) me\b/,
+  /\bi was raped\b/,
 ];
 
 export function normalizeForCrisis(text) {

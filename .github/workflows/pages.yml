@@ -30,6 +30,7 @@ jobs:
       - run: npm run test:legal-ui
       - run: npm run test:recovery-ui
       - run: npm run test:csp-ui
+      - run: npm run test:i18n-ui
       - run: npm run build
         env:
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}

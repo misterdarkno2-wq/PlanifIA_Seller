@@ -4,7 +4,7 @@
 // cobraron al encolar y la base los devuelve si la solicitud termina en error o cancelada.
 import { createClient } from "npm:@supabase/supabase-js@2.58.0";
 import { BodyTooLarge, readRequestText } from "../_shared/request-body.ts";
-import { CLOUD_PLAN_ADDENDUM, CloudUnavailable, cloudSettings, isRetiredModel, type CloudSettings } from "../_shared/ai-fallback.ts";
+import { cloudPlanAddendum, CloudUnavailable, cloudSettings, isRetiredModel, type CloudSettings } from "../_shared/ai-fallback.ts";
 import { generateValidatedPlan, PlanGenerationError, planJobResult } from "../_shared/generate-plan.ts";
 import { allowIp } from "../_shared/rate-limit.ts";
 
@@ -42,7 +42,7 @@ export async function runCloudJob(admin: SupabaseAdmin, job: ClaimedJob, setting
           requestData: job.payload.requestData,
           limits: job.payload.limits,
           budgetMs: job.timeout_ms,
-          systemAddendum: CLOUD_PLAN_ADDENDUM,
+          systemAddendum: cloudPlanAddendum(job.payload.requestData?.language),
           responseFormat: settings.planFormat,
         });
         break;

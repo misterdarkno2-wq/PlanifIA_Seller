@@ -6,6 +6,8 @@
   var android = /Android/i.test(navigator.userAgent);
   var match = navigator.userAgent.match(/Chrome\/(\d+)/);
   var version = match ? Number(match[1]) : 0;
+  // public/boot.js ya fijó el idioma en <html lang>.
+  var en = document.documentElement.lang === "en";
 
   function started() {
     var app = document.getElementById("app");
@@ -24,24 +26,33 @@
       "max-width:28rem;margin:15vh auto 0;padding:24px;font:16px/1.5 sans-serif;color:#1d2b27;text-align:center";
     var title = document.createElement("h1");
     title.style.cssText = "font-size:1.3rem;margin:0 0 12px";
-    title.textContent = "PlanifIA necesita una actualización del sistema";
+    title.textContent = en ? "PlanifIA needs a system update" : "PlanifIA necesita una actualización del sistema";
     var text = document.createElement("p");
     var old = version && version < MIN_CHROME;
-    if (!old) title.textContent = "PlanifIA no pudo iniciarse";
-    text.textContent = android
-      ? (old
-          ? "Tu teléfono usa una versión antigua de «Android System WebView» (" + version + "). "
-          : "Puede faltar una actualización de «Android System WebView». ") +
-        "Actualízala desde Google Play y vuelve a abrir PlanifIA."
-      : old
-        ? "Tu navegador es demasiado antiguo para PlanifIA. Actualízalo y vuelve a abrir la página."
-        : "Recarga la página. Si sigue sin abrir, actualiza tu navegador.";
+    if (!old) title.textContent = en ? "PlanifIA couldn't start" : "PlanifIA no pudo iniciarse";
+    text.textContent = en
+      ? android
+        ? (old
+            ? "Your phone uses an old version of “Android System WebView” (" + version + "). "
+            : "An “Android System WebView” update may be missing. ") +
+          "Update it from Google Play and open PlanifIA again."
+        : old
+          ? "Your browser is too old for PlanifIA. Update it and open the page again."
+          : "Reload the page. If it still doesn't open, update your browser."
+      : android
+        ? (old
+            ? "Tu teléfono usa una versión antigua de «Android System WebView» (" + version + "). "
+            : "Puede faltar una actualización de «Android System WebView». ") +
+          "Actualízala desde Google Play y vuelve a abrir PlanifIA."
+        : old
+          ? "Tu navegador es demasiado antiguo para PlanifIA. Actualízalo y vuelve a abrir la página."
+          : "Recarga la página. Si sigue sin abrir, actualiza tu navegador.";
     box.appendChild(title);
     box.appendChild(text);
     if (android) {
       var link = document.createElement("a");
       link.href = "https://play.google.com/store/apps/details?id=com.google.android.webview";
-      link.textContent = "Abrir Android System WebView en Google Play";
+      link.textContent = en ? "Open Android System WebView in Google Play" : "Abrir Android System WebView en Google Play";
       link.style.cssText =
         "display:inline-block;margin-top:12px;padding:12px 18px;border-radius:10px;background:#10796c;color:#fff;text-decoration:none";
       if (window.PlanifiaSystem && window.PlanifiaSystem.openWebViewUpdate) {

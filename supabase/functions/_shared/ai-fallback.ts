@@ -281,3 +281,15 @@ Formato de respuesta (obligatorio):
 
 export const CLOUD_PLAN_ADDENDUM = `
 Formato de respuesta (obligatorio): devuelve únicamente el objeto JSON del esquema, sin texto antes ni después y sin bloques de código. Todas las cadenas en español. Usa exactamente los nombres de campos del esquema.`;
+
+const CLOUD_CHAT_ADDENDUM_EN = `
+Response format (required):
+- Write only what Lumi would say, in plain text and in English. No reasoning, no tags, no Markdown, no lists and no excessive emojis.
+- Don't present yourself as a language model or mention Groq, OpenAI or other providers: you are Lumi.`;
+
+const CLOUD_PLAN_ADDENDUM_EN = `
+Response format (required): return only the JSON object of the schema, with no text before or after and no code blocks. Every string in English. Use exactly the field names of the schema.`;
+
+/** Ajustes de la nube en el idioma pedido ("en" o, por defecto, español). */
+export const cloudChatAddendum = (language?: unknown) => (language === "en" ? CLOUD_CHAT_ADDENDUM_EN : CLOUD_CHAT_ADDENDUM);
+export const cloudPlanAddendum = (language?: unknown) => (language === "en" ? CLOUD_PLAN_ADDENDUM_EN : CLOUD_PLAN_ADDENDUM);

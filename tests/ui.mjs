@@ -347,7 +347,7 @@ try {
     } else result = data[url.pathname.split("/").at(-1)] ?? [];
     await route.fulfill({ status: 200, json: result });
   }
-  const context = await browser.newContext({
+  const context = await browser.newContext({ locale: "es-CL",
     viewport: { width: 1440, height: 1050 },
   });
   await context.route("https://supabase.example.test/**", fixture);
@@ -1078,7 +1078,7 @@ try {
   await page
     .getByRole("link", { name: "Iniciar sesión", exact: true })
     .waitFor();
-  const mobile = await browser.newContext({
+  const mobile = await browser.newContext({ locale: "es-CL",
     viewport: { width: 390, height: 844 },
     reducedMotion: "reduce",
   });

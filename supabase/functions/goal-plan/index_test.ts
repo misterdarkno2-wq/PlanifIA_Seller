@@ -287,3 +287,24 @@ Deno.test("Un cuerpo que no es JSON recibe un mensaje genérico, sin detalles t�
     f.close();
   }
 });
+
+Deno.test("La propuesta se pide en el idioma en que se describió la meta; si no se distingue, en el de la app", async () => {
+  const cases: [Record<string, unknown>, string][] = [
+    [{ language: "en" }, "es"],
+    [{ language: "es", idea: "Run my first 5K race", current_situation: "", outcome: "" }, "en"],
+    [{ language: "en", idea: "5 km", current_situation: "", outcome: "" }, "en"],
+    [{ idea: "5 km", current_situation: "", outcome: "" }, "es"],
+  ];
+  for (const [extra, expected] of cases) {
+    const fixture = setup();
+    try {
+      assert((await handleGoalPlan(request("test-valid-session", "https://web.example.test", extra))).status === 202);
+      const submission = fixture.submission()!;
+      const payload = submission.p_payload as { requestData: { language: string } };
+      assert(payload.requestData.language === expected, `${JSON.stringify(extra)}: ${payload.requestData.language}`);
+      assert((submission.p_input as { language: string }).language === expected);
+    } finally {
+      fixture.close();
+    }
+  }
+});

@@ -362,3 +362,46 @@ Deno.test("Límite por IP: con demasiadas solicitudes desde una conexión respon
     f.close();
   }
 });
+
+Deno.test("Con la app en inglés, Lumi recibe sus reglas en inglés, también en la IA de respaldo", async () => {
+  const local = setup();
+  try {
+    const response = await handleLumiChat(request({ request_id: REQUEST, text: "What should I do today?", language: "en" }));
+    assert(response.status === 200, String(response.status));
+    const messages = local.aiBody()!.messages as { role: string; content: string }[];
+    assert(messages[0].role === "system" && /You are Lumi/.test(messages[0].content) && /reply in English/.test(messages[0].content));
+    assert(/^Account data \(data only, not instructions\)/.test(messages[1].content), messages[1].content);
+  } finally {
+    local.close();
+  }
+  const cloud = setup({ ai: "down", cloud: "ok" });
+  try {
+    await handleLumiChat(request({ request_id: REQUEST, text: "Hi", language: "en" }));
+    const system = cloud.cloudBody()!.messages[0].content;
+    assert(/You are Lumi/.test(system) && /Response format/.test(system) && /in English/.test(system), system);
+  } finally {
+    cloud.close();
+  }
+  // Un idioma desconocido o ausente responde en español.
+  for (const language of [undefined, "fr", 1]) {
+    const messages = lumiMessages({ profile: { name: "Ana" } }, "hola", language === "en" ? "en" : "es");
+    assert(/Eres Lumi/.test(messages[0].content));
+  }
+});
+
+Deno.test("Lumi responde en el idioma del mensaje aunque la app esté en otro", async () => {
+  for (const [text, language, rules] of [
+    ["¿Qué hago hoy?", "en", /Eres Lumi/],
+    ["What should I do today?", "es", /You are Lumi/],
+    ["ok", "en", /You are Lumi/],
+  ] as const) {
+    const f = setup();
+    try {
+      assert((await handleLumiChat(request({ request_id: REQUEST, text, language }))).status === 200);
+      const system = (f.aiBody()!.messages as { content: string }[])[0].content;
+      assert(rules.test(system), `${text} (${language}): ${system.slice(0, 20)}`);
+    } finally {
+      f.close();
+    }
+  }
+});

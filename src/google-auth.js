@@ -5,6 +5,7 @@
 // - Escritorio: no disponible; el comando nativo responde "no disponible".
 import { isNative } from "./platform.js";
 import { isAndroidApp } from "./native-ads.js";
+import { tr } from "./i18n.js";
 
 // ID de cliente *Web* de Google. Es público: va dentro de la app. El secreto del cliente sólo se pega
 // en el panel de Supabase y nunca llega al repositorio.
@@ -35,19 +36,45 @@ export async function createNonce(cryptoApi = globalThis.crypto) {
   return { raw, hashed };
 }
 
-export const GOOGLE_MESSAGES = Object.freeze({
-  config: "El inicio con Google no está disponible en esta versión. Entra con tu correo.",
-  unavailable: "El inicio con Google no está disponible en este dispositivo. Entra con tu correo.",
-  offline: "No hay conexión a Internet. Conéctate y vuelve a intentarlo.",
-  no_account:
+const MESSAGES = {
+  config: [
+    "El inicio con Google no está disponible en esta versión. Entra con tu correo.",
+    "Google sign-in isn't available in this version. Sign in with your email.",
+  ],
+  unavailable: [
+    "El inicio con Google no está disponible en este dispositivo. Entra con tu correo.",
+    "Google sign-in isn't available on this device. Sign in with your email.",
+  ],
+  offline: ["No hay conexión a Internet. Conéctate y vuelve a intentarlo.", "There's no Internet connection. Connect and try again."],
+  no_account: [
     "No hay una cuenta de Google en este teléfono. Agrégala en Ajustes del teléfono → Cuentas, o entra con tu correo.",
-  no_play_services:
+    "There's no Google account on this phone. Add one in your phone's Settings → Accounts, or sign in with your email.",
+  ],
+  no_play_services: [
     "Para entrar con Google hace falta Google Play Services actualizado. Actualízalo desde Google Play o entra con tu correo.",
-  interrupted: "Se interrumpió el inicio con Google. Vuelve a intentarlo.",
-  disabled: "El inicio con Google todavía no está activado. Entra con tu correo.",
-  account: "No pudimos crear tu cuenta con Google. Inténtalo de nuevo en unos minutos o escríbenos a planifiaprivacity@gmail.com.",
-  error: "No pudimos iniciar sesión con Google. Inténtalo de nuevo o entra con tu correo.",
-});
+    "Signing in with Google needs an up-to-date Google Play Services. Update it from Google Play or sign in with your email.",
+  ],
+  interrupted: ["Se interrumpió el inicio con Google. Vuelve a intentarlo.", "Google sign-in was interrupted. Try again."],
+  disabled: [
+    "El inicio con Google todavía no está activado. Entra con tu correo.",
+    "Google sign-in isn't turned on yet. Sign in with your email.",
+  ],
+  account: [
+    "No pudimos crear tu cuenta con Google. Inténtalo de nuevo en unos minutos o escríbenos a planifiaprivacity@gmail.com.",
+    "We couldn't create your account with Google. Try again in a few minutes or write to us at planifiaprivacity@gmail.com.",
+  ],
+  error: [
+    "No pudimos iniciar sesión con Google. Inténtalo de nuevo o entra con tu correo.",
+    "We couldn't sign you in with Google. Try again or sign in with your email.",
+  ],
+};
+// Cada mensaje se lee en el idioma actual al momento del error.
+export const GOOGLE_MESSAGES = Object.freeze(
+  Object.defineProperties(
+    {},
+    Object.fromEntries(Object.entries(MESSAGES).map(([key, [es, en]]) => [key, { enumerable: true, get: () => tr(es, en) }])),
+  ),
+);
 
 /** Traduce un error de Supabase Auth (o de la red) al iniciar sesión con Google. */
 export function googleAuthError(error) {
@@ -66,7 +93,7 @@ export async function signInWithGoogleWeb({ auth, redirectTo }) {
 
 /**
  * Android: pide el ID token al teléfono y abre la sesión en Supabase. Devuelve la sesión, o null si
- * la persona canceló. Cualquier otro caso lanza un Error con un mensaje en español.
+ * la persona canceló. Cualquier otro caso lanza un Error con un mensaje en el idioma de la app.
  */
 export async function signInWithGoogleNative({
   auth,
@@ -112,11 +139,19 @@ export function authReturnError(hash = "") {
 }
 
 export function authReturnMessage({ code = "", description = "" } = {}) {
-  if (code === "otp_expired") return "El enlace del correo venció o ya se usó. Inicia sesión o pide uno nuevo.";
+  if (code === "otp_expired")
+    return tr(
+      "El enlace del correo venció o ya se usó. Inicia sesión o pide uno nuevo.",
+      "The email link expired or was already used. Sign in or ask for a new one.",
+    );
   if (/Database error/i.test(description)) return GOOGLE_MESSAGES.account;
   if (/provider is not enabled|Unsupported provider/i.test(description)) return GOOGLE_MESSAGES.disabled;
-  if (code === "access_denied") return "No se completó el inicio de sesión. Puedes intentarlo de nuevo o entrar con tu correo.";
-  return "No pudimos completar el inicio de sesión. Inténtalo de nuevo.";
+  if (code === "access_denied")
+    return tr(
+      "No se completó el inicio de sesión. Puedes intentarlo de nuevo o entrar con tu correo.",
+      "Sign-in wasn't completed. You can try again or sign in with your email.",
+    );
+  return tr("No pudimos completar el inicio de sesión. Inténtalo de nuevo.", "We couldn't complete the sign-in. Try again.");
 }
 
 /** La cuenta tiene una identidad de Google (entró con Google al menos una vez). */

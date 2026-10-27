@@ -16,7 +16,7 @@ try {
   }
   await mkdir("artifacts/qa", { recursive: true });
   browser = await chromium.launch({ channel: process.platform === "win32" ? "msedge" : undefined, headless: true });
-  const context = await browser.newContext({
+  const context = await browser.newContext({ locale: "es-CL",
     viewport: { width: 390, height: 844 },
     userAgent: "Mozilla/5.0 (Linux; Android 16; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Mobile Safari/537.36",
   });

@@ -2,6 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.58.0";
 import { completedAction, planningGoal, readContextRows } from "../_shared/plan-context.ts";
 import { BodyTooLarge, readRequestText } from "../_shared/request-body.ts";
 import { CRISIS_MESSAGE, detectCrisis } from "../_shared/crisis.js";
+import { textLanguage } from "../_shared/language.js";
 import { PublicError } from "../_shared/public-error.ts";
 import { allowIp, IP_LIMITED } from "../_shared/rate-limit.ts";
 
@@ -243,6 +244,12 @@ export async function handleGoalPlan(req: Request) {
       weekly_minutes: weeklyMinutes,
       target_date: targetDate,
       goal_id: goal?.id || null,
+      // Idioma de la propuesta: el que usó la persona al describir su meta; si no se distingue, el de
+      // la app (botón ES/EN). Sólo "es" o "en".
+      language: textLanguage(
+        [input.idea, input.current_situation, input.outcome, input.reason],
+        input.language === "en" ? "en" : "es",
+      ),
     };
     const queued = await admin.rpc("enqueue_ai_job", {
       p_user_id: user.id,

@@ -1,4 +1,22 @@
-import { fitSchedule, PLAN_SCHEMA, SYSTEM, validateProposal } from "./plan.js";
+import { fitSchedule, PLAN_SCHEMA, planLanguage, SYSTEM, SYSTEM_EN, validateProposal } from "./plan.js";
+
+// Instrucciones que acompañan a los datos, en el idioma en que debe responder la IA.
+const PROMPTS = {
+  es: {
+    system: SYSTEM,
+    capacity:
+      "remainingWeekly indica el máximo TOTAL de minutos de todas las acciones nuevas en cada semana de siete días desde startDate, no el tiempo de cada acción. Suma los minutos antes de responder. remainingDaily fija el máximo TOTAL exacto de cada fecha. Respeta ambos límites y reduce el número o duración de las acciones cuando sea necesario.",
+    correction:
+      "La propuesta anterior fue rechazada. Genera una nueva propuesta JSON completa cumpliendo los datos originales y los límites. Corrige el problema señalado antes de responder y suma los minutos de todas las acciones por semana y por día. No repitas acciones ya completadas.",
+  },
+  en: {
+    system: SYSTEM_EN,
+    capacity:
+      "remainingWeekly is the TOTAL maximum of minutes for all new actions in each seven-day week from startDate, not the time of each action. Add up the minutes before answering. remainingDaily sets the exact TOTAL maximum for each date. Respect both limits and reduce the number or length of the actions when needed.",
+    correction:
+      "The previous proposal was rejected. Generate a new complete JSON proposal that meets the original data and limits. Fix the reported problem before answering and add up the minutes of all actions per week and per day. Do not repeat actions that are already completed. Write every text field in English.",
+  },
+};
 
 export class PlanGenerationError extends Error {
   readonly status: number;
@@ -186,6 +204,7 @@ export async function generateValidatedPlan({
       ),
     ),
   );
+  const prompts = PROMPTS[planLanguage(requestData.language)];
   const payload = {
     ...requestData,
     startDate: limits.startDate,
@@ -194,11 +213,10 @@ export async function generateValidatedPlan({
     remainingDaily: limits.remainingDaily,
     remainingWeekly: effectiveWeekly,
     availableDays: limits.availableDays,
-    capacity_instructions:
-      "remainingWeekly indica el máximo TOTAL de minutos de todas las acciones nuevas en cada semana de siete días desde startDate, no el tiempo de cada acción. Suma los minutos antes de responder. remainingDaily fija el máximo TOTAL exacto de cada fecha. Respeta ambos límites y reduce el número o duración de las acciones cuando sea necesario.",
+    capacity_instructions: prompts.capacity,
   };
   const originalMessages = [
-    { role: "system", content: systemAddendum ? `${SYSTEM}\n${systemAddendum}` : SYSTEM },
+    { role: "system", content: systemAddendum ? `${prompts.system}\n${systemAddendum}` : prompts.system },
     { role: "user", content: JSON.stringify(payload) },
   ];
   let problem = "";
@@ -212,8 +230,7 @@ export async function generateValidatedPlan({
               role: "user",
               content: JSON.stringify({
                 correction: problem,
-                instruction:
-                  "La propuesta anterior fue rechazada. Genera una nueva propuesta JSON completa cumpliendo los datos originales y los límites. Corrige el problema señalado antes de responder y suma los minutos de todas las acciones por semana y por día. No repitas acciones ya completadas.",
+                instruction: prompts.correction,
                 remainingWeekly: effectiveWeekly,
               }),
             },
