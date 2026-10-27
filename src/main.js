@@ -980,24 +980,22 @@ function render() {
     bindShell();
     return;
   }
-  const route = location.hash.slice(1).split("?")[0] || "today";
   renderedDay = day();
-  app.innerHTML = shell(
-    (
-      {
-        today: dashboard,
-        goals: goalsPage,
-        tasks: tasksPage,
-        calendar: calendarPage,
-        habits: habitsPage,
-        settings: settingsPage,
-        lumi: () => lumiChatPage({ stage: state.pet.stage, name: state.profile.name, escape: e }),
-        plans: () => renderBilling({ view: "plans", user, escape: e }),
-        subscription: () =>
-          renderBilling({ view: "subscription", user, escape: e }),
-      }[route] || dashboard
-    )(),
-  );
+  // La dirección sólo elige una de estas vistas; cualquier otro valor muestra «Hoy». Un Map no hereda
+  // propiedades: "#constructor" o "#toString" no llaman a nada inesperado (CodeQL).
+  const views = new Map([
+    ["today", dashboard],
+    ["goals", goalsPage],
+    ["tasks", tasksPage],
+    ["calendar", calendarPage],
+    ["habits", habitsPage],
+    ["settings", settingsPage],
+    ["lumi", () => lumiChatPage({ stage: state.pet.stage, name: state.profile.name, escape: e })],
+    ["plans", () => renderBilling({ view: "plans", user, escape: e })],
+    ["subscription", () => renderBilling({ view: "subscription", user, escape: e })],
+  ]);
+  const view = views.get(location.hash.slice(1).split("?")[0]) || dashboard;
+  app.innerHTML = shell(view());
   aiJobs.start(user.id);
   bindShell();
   $("#ai-jobs").onclick = aiJobsDialog;
@@ -1048,9 +1046,16 @@ function landing() {
   );
   // Se consulta antes de abrir el formulario para que el botón de Google no aparezca con un salto.
   if (cloud && googleSignInMode(GOOGLE_WEB_CLIENT_ID)) void loadAuthSettings();
-  if (["login", "register", "reset"].includes(location.hash.slice(1)))
-    authModal(location.hash.slice(1));
+  const form = AUTH_FORMS.get(location.hash.slice(1));
+  if (form) authModal(form);
 }
+// Formularios de acceso. La dirección sólo elige cuál se muestra (#login, #register o #reset); qué
+// hace cada uno lo fija esta tabla, no una comparación con la dirección. Supabase valida cada acción.
+const AUTH_FORMS = new Map([
+  ["login", { register: false, reset: false }],
+  ["register", { register: true, reset: false }],
+  ["reset", { register: false, reset: true }],
+]);
 /** Muestra el error que Supabase dejó en el enlace al volver, y lo quita de la dirección. */
 function showAuthReturn(signedIn) {
   if (!authReturn) return;
@@ -1064,9 +1069,8 @@ function showAuthReturn(signedIn) {
   authNotice = message;
   render();
 }
-function authModal(mode) {
-  const register = mode === "register",
-    reset = mode === "reset";
+function authModal(form) {
+  const { register, reset } = form;
   const host = modal(
     reset
       ? tr("Una nueva contraseña", "A new password")
@@ -1828,8 +1832,9 @@ window.addEventListener("hashchange", () => {
   if (["#main", "#how"].includes(location.hash)) return;
   authNotice = "";
   closeModal();
-  if (location.hash === "#reset") {
-    authModal("reset");
+  const form = AUTH_FORMS.get(location.hash.slice(1));
+  if (form?.reset) {
+    authModal(form);
     return;
   }
   render();
@@ -1896,7 +1901,7 @@ if (cloud) {
           mountPets();
         }
         user = session?.user || null;
-        authModal("reset");
+        authModal(AUTH_FORMS.get("reset"));
         return;
       }
       // Al terminar la sesión o cambiar de cuenta se cierra cualquier diálogo abierto: un borrador o
