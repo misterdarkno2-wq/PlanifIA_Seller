@@ -128,7 +128,7 @@ try {
     return json(data[table] ?? []);
   }
 
-  const context = await browser.newContext({ viewport: { width: 1366, height: 1000 } });
+  const context = await browser.newContext({ locale: "es-CL", viewport: { width: 1366, height: 1000 } });
   await context.route("https://supabase.example.test/**", fixture);
   // Los enlaces legales abren planifia.cl en otra pestaña; aquí se responde sin salir a Internet.
   await context.route("https://planifia.cl/**", (route) =>

@@ -18,6 +18,7 @@
     "test:google-ui": "node tests/google-login-ui.mjs",
     "test:recovery-ui": "node tests/recovery-ui.mjs",
     "test:csp-ui": "node tests/csp-ui.mjs",
+    "test:i18n-ui": "node tests/i18n-ui.mjs",
     "test:reminders-ui": "node --test tests/reminders-ui.mjs",
     "test:edge": "npx --yes deno test --allow-env --no-config --no-lock --node-modules-dir=none supabase/functions/",
     "check:edge": "npx --yes deno check --no-config --no-lock --node-modules-dir=none supabase/functions/goal-plan/index.ts supabase/functions/play-billing/index.ts supabase/functions/play-rtdn/index.ts supabase/functions/admob-ssv/index.ts supabase/functions/lumi-chat/index.ts supabase/functions/ai-fallback/index.ts",

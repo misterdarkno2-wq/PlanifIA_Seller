@@ -1,4 +1,5 @@
 import { isAndroidApp } from "./native-ads.js";
+import { lang } from "./i18n.js";
 
 // Recordatorio diario (sólo la app de Android): un aviso a la hora que la persona eligió, y sólo los
 // días en que tiene acciones o hábitos pendientes. Lo programa el teléfono con alarmas inexactas
@@ -10,11 +11,19 @@ export const DEFAULT_REMINDER_TIME = "09:00";
 export const REMINDER_DAYS = 7;
 const TITLE = "PlanifIA";
 // Se ve con el teléfono bloqueado: sólo cuántos pasos hay, nunca títulos de metas, acciones ni hábitos.
-const BODIES = [
-  (n) => (n === 1 ? "Hoy tienes 1 paso para tus metas. ¿Lo damos?" : `Hoy tienes ${n} pasos para tus metas. Empieza por el más pequeño.`),
-  (n) => (n === 1 ? "Tienes 1 paso pendiente para hoy. Un rato basta." : `Tienes ${n} pasos pendientes para hoy. Uno a la vez.`),
-  (n) => (n === 1 ? "Tu meta te espera con 1 paso para hoy." : `Tus metas te esperan con ${n} pasos para hoy.`),
-];
+// Se redactan en el idioma de la app al programarlos; al cambiar de idioma se vuelven a programar.
+const BODIES = {
+  es: [
+    (n) => (n === 1 ? "Hoy tienes 1 paso para tus metas. ¿Lo damos?" : `Hoy tienes ${n} pasos para tus metas. Empieza por el más pequeño.`),
+    (n) => (n === 1 ? "Tienes 1 paso pendiente para hoy. Un rato basta." : `Tienes ${n} pasos pendientes para hoy. Uno a la vez.`),
+    (n) => (n === 1 ? "Tu meta te espera con 1 paso para hoy." : `Tus metas te esperan con ${n} pasos para hoy.`),
+  ],
+  en: [
+    (n) => (n === 1 ? "You have 1 step for your goals today. Shall we take it?" : `You have ${n} steps for your goals today. Start with the smallest one.`),
+    (n) => (n === 1 ? "You have 1 pending step for today. A little while is enough." : `You have ${n} pending steps for today. One at a time.`),
+    (n) => (n === 1 ? "Your goal is waiting with 1 step for today." : `Your goals are waiting with ${n} steps for today.`),
+  ],
+};
 
 export function remindersCommand(command, args = {}) {
   if (!isAndroidApp()) return Promise.resolve({ available: false });
@@ -92,7 +101,7 @@ export function pendingSteps(day, todayIso, { tasks = [], goals = [], habits = [
 }
 
 /** Los avisos de los próximos días, ya redactados, para el plugin. Sin pasos pendientes no hay aviso. */
-export function planReminders(state, now = new Date(), days = REMINDER_DAYS) {
+export function planReminders(state, now = new Date(), days = REMINDER_DAYS, language = lang()) {
   const timeZone = state.profile.timezone || "America/Santiago",
     time = reminderTime(state.profile.reminder_time),
     start = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
@@ -102,7 +111,8 @@ export function planReminders(state, now = new Date(), days = REMINDER_DAYS) {
       at = zonedEpoch(day, time, timeZone),
       steps = pendingSteps(day, start, state);
     if (at <= now.getTime() || !steps) continue;
-    items.push({ id: offset + 1, at, title: TITLE, body: BODIES[weekday(day) % BODIES.length](steps) });
+    const bodies = BODIES[language] || BODIES.es;
+    items.push({ id: offset + 1, at, title: TITLE, body: bodies[weekday(day) % bodies.length](steps) });
   }
   return items;
 }

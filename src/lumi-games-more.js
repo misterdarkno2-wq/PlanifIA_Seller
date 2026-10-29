@@ -1,4 +1,5 @@
 import { spriteSvg, dataUrl, drawSprite, star } from "./lumi-sprite.js";
+import { tr } from "./i18n.js";
 
 const W = 360,
   H = 220;
@@ -153,7 +154,11 @@ function peekGame(stage, random) {
       hits = hits.filter((h) => h.t > 0);
       return left > 0;
     },
-    overTitle: (game) => `¡Encontraste a Lumi ${game.score} ${game.score === 1 ? "vez" : "veces"}!`,
+    overTitle: (game) =>
+      tr(
+        `¡Encontraste a Lumi ${game.score} ${game.score === 1 ? "vez" : "veces"}!`,
+        `You found Lumi ${game.score} ${game.score === 1 ? "time" : "times"}!`,
+      ),
     snapshot: () => ({ pops: pops.map((p) => ({ ...p, ...holes[p.hole] })), left, holes }),
     draw(ctx, sprite) {
       ctx.fillStyle = "#cfe9c4";
@@ -345,7 +350,11 @@ function memoryGame(stage, random) {
       }
       return pairs < ICONS.length;
     },
-    overTitle: () => `¡Memoria completa! ${misses} ${misses === 1 ? "error" : "errores"}`,
+    overTitle: () =>
+      tr(
+        `¡Memoria completa! ${misses} ${misses === 1 ? "error" : "errores"}`,
+        `Memory complete! ${misses} ${misses === 1 ? "mistake" : "mistakes"}`,
+      ),
     snapshot: () => ({ cards: cards.map((c) => ({ ...c })), open: [...open], wait, misses, pairs, cursor }),
     cardCenter: (index) => ({
       x: X0 + (index % COLS) * (CW + GAP_X) + CW / 2,
@@ -408,23 +417,37 @@ ${spriteSvg(stage, 'x="11" y="15" width="32" height="27"')}
 export const MORE_GAMES = [
   {
     id: "catch",
-    name: "Lluvia de estrellas",
-    hint: "Mueve a Lumi con el dedo, el ratón o las flechas. Evita las piedras.",
-    stageHint: "Con tus alas atrapas desde más lejos.",
+    get name() {
+      return tr("Lluvia de estrellas", "Star Shower");
+    },
+    get hint() {
+      return tr("Mueve a Lumi con el dedo, el ratón o las flechas. Evita las piedras.", "Move Lumi with your finger, the mouse or the arrow keys. Avoid the rocks.");
+    },
+    get stageHint() {
+      return tr("Con tus alas atrapas desde más lejos.", "With your wings you catch from farther away.");
+    },
     thumb: catchThumb,
     logic: catchGame,
   },
   {
     id: "peek",
-    name: "¿Dónde está Lumi?",
-    hint: "Toca a Lumi cuando asome (o pulsa 1-6). Las nubes de tormenta restan.",
+    get name() {
+      return tr("¿Dónde está Lumi?", "Where's Lumi?");
+    },
+    get hint() {
+      return tr("Toca a Lumi cuando asome (o pulsa 1-6). Las nubes de tormenta restan.", "Tap Lumi when she peeks out (or press 1-6). Storm clouds take points away.");
+    },
     thumb: peekThumb,
     logic: peekGame,
   },
   {
     id: "memory",
-    name: "Memoria de Lumi",
-    hint: "Encuentra las parejas. Con teclado: flechas y Espacio.",
+    get name() {
+      return tr("Memoria de Lumi", "Lumi's Memory");
+    },
+    get hint() {
+      return tr("Encuentra las parejas. Con teclado: flechas y Espacio.", "Find the pairs. With a keyboard: arrows and Space.");
+    },
     thumb: memoryThumb,
     logic: memoryGame,
   },

@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { repairAuthHash, requestSignal } from "./platform.js";
+import { tr } from "./i18n.js";
 const url = import.meta.env.VITE_SUPABASE_URL?.trim();
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim();
 // ID de cliente Web de Google (público). Sólo lo usa la app de Android para Credential Manager.
@@ -49,17 +50,23 @@ export function loadAuthSettings() {
 export async function checked(promise) {
   const { data, error } = await promise;
   if (error) {
+    const missingTables = tr(
+      "Faltan las tablas de PlanifIA. Aplica las migraciones de Supabase indicadas en el README.",
+      "PlanifIA's tables are missing. Apply the Supabase migrations listed in the README.",
+    );
     const messages = {
-      invalid_credentials: "Correo o contraseña incorrectos.",
-      email_not_confirmed: "Confirma primero tu correo electrónico.",
-      user_already_exists:
+      invalid_credentials: tr("Correo o contraseña incorrectos.", "Wrong email or password."),
+      email_not_confirmed: tr("Confirma primero tu correo electrónico.", "Confirm your email first."),
+      user_already_exists: tr(
         "Ese correo ya tiene una cuenta. Prueba iniciar sesión.",
-      weak_password:
+        "That email already has an account. Try signing in.",
+      ),
+      weak_password: tr(
         "Usa una contraseña más segura: al menos 10 caracteres, con letras y números.",
-      PGRST205:
-        "Faltan las tablas de PlanifIA. Aplica las migraciones de Supabase indicadas en el README.",
-      "42P01":
-        "Faltan las tablas de PlanifIA. Aplica las migraciones de Supabase indicadas en el README.",
+        "Use a stronger password: at least 10 characters, with letters and numbers.",
+      ),
+      PGRST205: missingTables,
+      "42P01": missingTables,
     };
     if (messages[error.code]) throw new Error(messages[error.code]);
     throw error;
@@ -80,7 +87,10 @@ async function all(table, columns = "*") {
     if (page.length < 1000) return rows;
   }
   throw new Error(
-    "Hay demasiados registros para esta vista. Contacta con soporte para exportarlos.",
+    tr(
+      "Hay demasiados registros para esta vista. Contacta con soporte para exportarlos.",
+      "There are too many records for this view. Contact support to export them.",
+    ),
   );
 }
 export async function loadState() {
@@ -110,7 +120,7 @@ export const rpc = (name, args) => checked(cloud.rpc(name, args));
 export async function generatePlan(input, { signal } = {}) {
   const { data: sessionData } = await cloud.auth.getSession();
   const account = sessionData.session?.user.id;
-  if (!account) throw new Error("Inicia sesión para crear un plan.");
+  if (!account) throw new Error(tr("Inicia sesión para crear un plan.", "Sign in to create a plan."));
   const digest = await crypto.subtle.digest(
     "SHA-256",
     new TextEncoder().encode(JSON.stringify(input)),
@@ -134,7 +144,7 @@ export async function generatePlan(input, { signal } = {}) {
       detail = await error.context?.json();
     } catch {}
     const failure = new Error(
-      detail?.error || "No pudimos crear la propuesta. Inténtalo de nuevo en un momento.",
+      detail?.error || tr("No pudimos crear la propuesta. Inténtalo de nuevo en un momento.", "We couldn't create the proposal. Try again in a moment."),
     );
     // La meta describe una crisis: la app muestra las líneas de ayuda en vez de un error.
     failure.crisis = detail?.crisis === true;
@@ -151,7 +161,7 @@ export async function requestCloudFallback(jobId) {
     try {
       detail = await error.context?.json();
     } catch {}
-    throw new Error(detail?.error || "La IA de respaldo no respondió.");
+    throw new Error(detail?.error || tr("La IA de respaldo no respondió.", "The backup AI didn't respond."));
   }
   return data;
 }

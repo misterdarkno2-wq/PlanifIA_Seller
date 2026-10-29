@@ -13,6 +13,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.Locale
 
 private const val TAG = "PlanifiaReminders"
 private const val PREFS = "planifia-reminders"
@@ -108,10 +109,15 @@ object ReminderScheduler {
     if (System.currentTimeMillis() - reminder.at > LATE_LIMIT_MS) return
     val manager = NotificationManagerCompat.from(context)
     if (!manager.areNotificationsEnabled()) return
+    // El nombre del canal se ve en los ajustes de Android: va en el idioma del teléfono (el texto
+    // del aviso ya llega redactado en el idioma de la app).
+    val spanish = Locale.getDefault().language == "es"
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
       context.getSystemService(NotificationManager::class.java)?.createNotificationChannel(
-        NotificationChannel(CHANNEL, "Recordatorios", NotificationManager.IMPORTANCE_DEFAULT).apply {
-          description = "El aviso diario a la hora que elegiste para avanzar en tus metas."
+        NotificationChannel(CHANNEL, if (spanish) "Recordatorios" else "Reminders", NotificationManager.IMPORTANCE_DEFAULT).apply {
+          description =
+            if (spanish) "El aviso diario a la hora que elegiste para avanzar en tus metas."
+            else "The daily notification at the time you chose to move forward on your goals."
         },
       )
     val open = context.packageManager.getLaunchIntentForPackage(context.packageName)?.let {

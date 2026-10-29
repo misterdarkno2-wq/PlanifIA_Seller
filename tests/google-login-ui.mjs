@@ -120,7 +120,7 @@ function supabaseFixture({ googleEnabled = true } = {}) {
 }
 
 async function newContext({ android = false, desktopApp = false, mobile = false, googleEnabled = true } = {}) {
-  const context = await browser.newContext({
+  const context = await browser.newContext({ locale: "es-CL",
     viewport: mobile || android ? { width: 375, height: 812 } : { width: 1366, height: 900 },
     ...(android ? { userAgent: ANDROID_UA } : {}),
   });

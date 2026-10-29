@@ -285,3 +285,29 @@ Deno.test(
     );
   },
 );
+
+Deno.test("Con language en, las instrucciones y la corrección piden la propuesta en inglés", async () => {
+  const systems: string[] = [];
+  let calls = 0;
+  const fetchImpl = (async (_url: string, init: RequestInit) => {
+    const body = JSON.parse(String(init.body));
+    systems.push(body.messages[0].content);
+    if (calls++ === 0) {
+      const data = JSON.parse(body.messages[1].content);
+      assert(data.language === "en" && /^remainingWeekly is the TOTAL/.test(data.capacity_instructions));
+      return completion("no es JSON");
+    }
+    assert(/Write every text field in English/.test(JSON.parse(body.messages.at(-1).content).instruction));
+    return completion(validPlan());
+  }) as typeof fetch;
+  const base = options(fetchImpl);
+  await generateValidatedPlan({ ...base, requestData: { ...base.requestData, language: "en" } });
+  assert(systems.length === 2 && systems.every((s) => /^You are a planning companion\. Write every text field in English/.test(s)));
+  // Sin idioma (solicitudes guardadas antes de este cambio) sigue en español.
+  const spanish: string[] = [];
+  await generateValidatedPlan(options((async (_url: string, init: RequestInit) => {
+    spanish.push(JSON.parse(String(init.body)).messages[0].content);
+    return completion(validPlan());
+  }) as typeof fetch));
+  assert(/^Eres un acompañante de planificación/.test(spanish[0]));
+});

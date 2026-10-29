@@ -14,7 +14,7 @@ try {
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
   browser = await chromium.launch({ channel: process.platform === "win32" ? "msedge" : undefined, headless: true });
-  const page = await browser.newPage();
+  const page = await browser.newPage({ locale: "es-CL" });
   await page.route("https://supabase.example.test/**", (route) => route.abort());
   await page.goto("http://127.0.0.1:5187");
   await page.evaluate(async () => {
