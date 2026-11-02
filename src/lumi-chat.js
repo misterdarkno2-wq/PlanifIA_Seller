@@ -70,7 +70,8 @@ export function lumiChatPage({ stage = 1, name = "", escape }) {
         <p data-lumi-chat-say role="status" aria-live="polite">${escape(greeting(name))}</p></div>
     </div>
     <div class="lumi-chat-head"><h1 id="lumi-chat-title">${tr("Hablar con Lumi", "Talk with Lumi")}</h1>
-      <button type="button" class="text-button" data-lumi-chat-clear>${tr("Borrar conversación", "Delete conversation")}</button></div>
+      <div class="lumi-chat-tools"><button type="button" class="text-button" data-lumi-skins><span aria-hidden="true">🎨</span> ${tr("Skins", "Skins")}</button>
+      <button type="button" class="text-button" data-lumi-chat-clear>${tr("Borrar conversación", "Delete conversation")}</button></div></div>
     <ol class="lumi-chat-log" data-lumi-chat-log aria-label="${tr("Conversación con Lumi", "Conversation with Lumi")}" aria-live="polite"></ol>
     <form class="lumi-chat-form" data-lumi-chat-form>
       <label class="sr-only" for="lumi-chat-input">${tr("Mensaje para Lumi", "Message for Lumi")}</label>

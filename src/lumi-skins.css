@@ -1,0 +1,338 @@
+/* Efectos animados de las skins de Lumi. El modo tranquilo y el movimiento reducido los detienen (pet.css). */
+.lumi-fx-p,
+.lumi-fx-gem,
+.lumi-fx-specks > * {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.lumi-fx-p {
+  opacity: 0.8;
+}
+/* Cada partícula parte en otro momento del ciclo. */
+:is(.lumi-fx, .lumi-fx-ring, .lumi-fx-specks) > :nth-child(2) {
+  --i: 1;
+}
+:is(.lumi-fx, .lumi-fx-ring, .lumi-fx-specks) > :nth-child(3) {
+  --i: 2;
+}
+:is(.lumi-fx, .lumi-fx-ring, .lumi-fx-specks) > :nth-child(4) {
+  --i: 3;
+}
+:is(.lumi-fx, .lumi-fx-ring, .lumi-fx-specks) > :nth-child(5) {
+  --i: 4;
+}
+:is(.lumi-fx, .lumi-fx-ring, .lumi-fx-specks) > :nth-child(6) {
+  --i: 5;
+}
+:is(.lumi-fx, .lumi-fx-ring, .lumi-fx-specks) > :nth-child(7) {
+  --i: 6;
+}
+.lumi-fx-hearts .lumi-fx-p {
+  animation: lumi-fx-rise 4.8s ease-in-out calc(var(--i, 0) * -1.2s) infinite;
+}
+.lumi-fx-bubbles .lumi-fx-p {
+  animation: lumi-fx-bubble 5.4s linear calc(var(--i, 0) * -0.9s) infinite;
+}
+.lumi-fx-petals .lumi-fx-p {
+  animation: lumi-fx-fall 6s ease-in-out calc(var(--i, 0) * -1s) infinite;
+}
+.lumi-fx-ring {
+  transform-box: view-box;
+  transform-origin: 130px 110px;
+  animation: lumi-fx-spin 16s linear infinite;
+}
+:is(.lumi-fx-orbit, .lumi-fx-stars, .lumi-fx-glitter) .lumi-fx-p {
+  animation: lumi-fx-twinkle 2.4s ease-in-out calc(var(--i, 0) * -0.7s) infinite;
+}
+.lumi-fx-gem {
+  animation: lumi-fx-pulse 2.8s ease-in-out infinite;
+}
+.lumi-fx-shooting {
+  opacity: 0;
+  animation: lumi-fx-shoot 6.5s ease-in 1.5s infinite;
+}
+.lumi-fx-specks > * {
+  animation: lumi-fx-twinkle 3s ease-in-out calc(var(--i, 0) * -0.5s) infinite;
+}
+.lumi-fx-embers .lumi-fx-p {
+  animation: lumi-fx-ember 3.2s ease-out calc(var(--i, 0) * -0.46s) infinite;
+}
+.lumi-art[data-lumi-skin="volcan"] .lumi-belly {
+  animation: lumi-fx-glow 2.6s ease-in-out infinite;
+}
+.lumi-fx-rainbow .lumi-fx-p {
+  opacity: 0.6;
+  animation: lumi-fx-shimmer 3s ease-in-out calc(var(--i, 0) * -0.4s) infinite;
+}
+.lumi-art[data-lumi-skin="arcoiris"] .lumi-skin-body {
+  animation: lumi-fx-rainbow 9s linear infinite;
+}
+.lumi-art[data-lumi-skin="arcoiris"] .lumi-skin-ears {
+  animation: lumi-fx-rainbow 9s linear -3s infinite;
+}
+.lumi-art[data-lumi-skin="arcoiris"] .lumi-skin-wing {
+  animation: lumi-fx-rainbow 9s linear -6s infinite;
+}
+.lumi-fx-shine {
+  animation: lumi-fx-shine 4.5s ease-in-out 0.8s infinite;
+}
+@keyframes lumi-fx-rise {
+  0% {
+    transform: translateY(18px) scale(0.6);
+    opacity: 0;
+  }
+  25% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateY(-36px) scale(1.05);
+    opacity: 0;
+  }
+}
+@keyframes lumi-fx-bubble {
+  0% {
+    transform: translate(0, 30px);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.9;
+  }
+  50% {
+    transform: translate(4px, -8px);
+  }
+  100% {
+    transform: translate(-3px, -52px);
+    opacity: 0;
+  }
+}
+@keyframes lumi-fx-fall {
+  0% {
+    transform: translate(-6px, -30px) rotate(0);
+    opacity: 0;
+  }
+  15%,
+  85% {
+    opacity: 0.95;
+  }
+  100% {
+    transform: translate(16px, 46px) rotate(260deg);
+    opacity: 0;
+  }
+}
+@keyframes lumi-fx-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes lumi-fx-twinkle {
+  0%,
+  100% {
+    transform: scale(0.5);
+    opacity: 0.3;
+  }
+  50% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@keyframes lumi-fx-pulse {
+  0%,
+  100% {
+    transform: scale(0.85);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+}
+@keyframes lumi-fx-shoot {
+  0% {
+    stroke-dashoffset: 16;
+    opacity: 0;
+  }
+  2% {
+    opacity: 1;
+  }
+  16%,
+  100% {
+    stroke-dashoffset: -72;
+    opacity: 0;
+  }
+}
+@keyframes lumi-fx-ember {
+  0% {
+    transform: translateY(16px) scale(1);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  45% {
+    opacity: 0.5;
+  }
+  65% {
+    opacity: 0.95;
+  }
+  100% {
+    transform: translate(6px, -60px) scale(0.4);
+    opacity: 0;
+  }
+}
+@keyframes lumi-fx-glow {
+  50% {
+    fill: #ffb45c;
+  }
+}
+@keyframes lumi-fx-shimmer {
+  50% {
+    opacity: 0.3;
+  }
+}
+@keyframes lumi-fx-rainbow {
+  0%,
+  100% {
+    fill: #f49ac1;
+  }
+  20% {
+    fill: #f7c46c;
+  }
+  40% {
+    fill: #9ad77f;
+  }
+  60% {
+    fill: #6fc3e8;
+  }
+  80% {
+    fill: #b79cf2;
+  }
+}
+@keyframes lumi-fx-shine {
+  0% {
+    transform: translateX(0);
+  }
+  30%,
+  100% {
+    transform: translateX(200px);
+  }
+}
+
+/* Botón de la tarjeta de Lumi y selector de skins. Va en la esquina superior izquierda, sobre la
+   columna del retrato: no se mueve cuando el mensaje de Lumi cambia de alto (si se moviera, el
+   primer toque podría perderse) y no tapa el globo de diálogo en ningún ancho. */
+.pet-card.featured {
+  position: relative;
+}
+.pet-skin-button {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 1;
+  padding: 4px 11px;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 999px;
+  min-height: 0;
+}
+.lumi-skins-stage {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr);
+  align-items: center;
+  gap: 18px;
+  padding: 8px 20px;
+  margin-bottom: 18px;
+  border-radius: 16px;
+  background: radial-gradient(ellipse at 20% 50%, #e1f3e6, transparent 60%), #fbfdf9;
+  border: 1px solid #d9e7de;
+}
+.lumi-skins-caption strong {
+  display: block;
+  font-size: 22px;
+  letter-spacing: -0.5px;
+  margin-bottom: 4px;
+}
+.lumi-skins-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.lumi-skin-option {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 2px;
+  padding: 8px 6px 10px;
+  border: 2px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  font-size: 13px;
+  text-align: center;
+  cursor: pointer;
+}
+.lumi-skin-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.lumi-skin-option:hover:not(.is-locked) {
+  border-color: #9fd3bf;
+}
+.lumi-skin-option:has(input:focus-visible) {
+  outline: 3px solid #c0e4ce;
+  outline-offset: 2px;
+}
+.lumi-skin-option:has(input:checked) {
+  border-color: var(--green);
+  background: #f0faf5;
+  box-shadow: 0 4px 0 #d2eadf;
+}
+.lumi-skin-option small {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.lumi-skin-option:has(input:checked) small {
+  color: var(--green);
+}
+.lumi-skin-thumb {
+  width: 92px;
+}
+.lumi-skin-option.is-locked {
+  cursor: not-allowed;
+  color: var(--muted);
+}
+.lumi-skin-option.is-locked .lumi-art {
+  filter: grayscale(0.45);
+  opacity: 0.55;
+}
+.lumi-skin-option.is-locked .lumi-art * {
+  animation-play-state: paused !important;
+}
+.lumi-skins-grid + .muted {
+  margin: 14px 0 0;
+}
+.lumi-skins-actions {
+  justify-items: end;
+  margin-top: 6px;
+}
+@media (max-width: 680px) {
+  .lumi-skins-stage {
+    grid-template-columns: 120px minmax(0, 1fr);
+    gap: 12px;
+    padding: 6px 12px;
+  }
+  .lumi-skins-caption strong {
+    font-size: 19px;
+  }
+  .lumi-skins-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .lumi-skin-thumb {
+    width: 100%;
+    max-width: 80px;
+  }
+}
