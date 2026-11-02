@@ -13,6 +13,7 @@
     "test:billing-ui": "node tests/billing-ui.mjs",
     "test:companion-ui": "node tests/companion-ui.mjs",
     "test:chat-ui": "node tests/lumi-chat-ui.mjs",
+    "test:skins-ui": "node tests/lumi-skins-ui.mjs",
     "test:update-ui": "node tests/update-ui.mjs",
     "test:legal-ui": "node tests/legal-ui.mjs",
     "test:google-ui": "node tests/google-login-ui.mjs",

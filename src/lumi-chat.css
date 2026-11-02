@@ -77,6 +77,12 @@
   margin: 0;
   font-size: 26px;
 }
+.lumi-chat-tools {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px 14px;
+}
 .lumi-chat-log {
   display: flex;
   flex-direction: column;

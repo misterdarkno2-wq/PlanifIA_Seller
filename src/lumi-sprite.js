@@ -1,6 +1,6 @@
 import { portrait } from "./pet-art.js";
 
-/** Lumi estática para canvas e imágenes: sin fondo, sombra ni capas que oculta el CSS. */
+/** Lumi estática para canvas e imágenes: sin fondo, sombra, efectos de la skin ni capas que oculta el CSS. */
 export function spriteSvg(stage, attributes = "") {
   return portrait(stage)
     .replace(
@@ -9,6 +9,7 @@ export function spriteSvg(stage, attributes = "") {
     )
     .replace(/<g class="lumi-shadow-position">.*?<\/g>/, "")
     .replace(/<circle cx="130" cy="105" r="87"[^>]*\/>/, "")
+    .replace(/<!--fx-->.*?<!--\/fx-->/s, "")
     .replace(/<g class="lumi-sparks"[^>]*>.*?<\/g>/, "");
 }
 
