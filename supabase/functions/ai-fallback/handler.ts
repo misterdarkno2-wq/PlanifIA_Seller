@@ -1,11 +1,11 @@
 // Respaldo de planes: con el PC apagado (o Ollama detenido) la cola no avanza. La app llama a esta
 // función con la sesión de la persona; si la IA local sigue sin señal, toma UNA solicitud en cola
-// de esa cuenta y la prepara con Groq. La clave sólo existe en Deno.env. Los créditos ya se
+// de esa cuenta y la prepara con Gemini. La clave sólo existe en Deno.env. Los créditos ya se
 // cobraron al encolar y la base los devuelve si la solicitud termina en error o cancelada.
 import { createClient } from "npm:@supabase/supabase-js@2.58.0";
 import { BodyTooLarge, readRequestText } from "../_shared/request-body.ts";
-import { cloudPlanAddendum, CloudUnavailable, cloudSettings, isRetiredModel, type CloudSettings } from "../_shared/ai-fallback.ts";
-import { generateValidatedPlan, PlanGenerationError, planJobResult } from "../_shared/generate-plan.ts";
+import { cloudPlan, CloudUnavailable, cloudSettings, type CloudSettings } from "../_shared/ai-fallback.ts";
+import { PlanGenerationError, planJobResult } from "../_shared/generate-plan.ts";
 import { allowIp } from "../_shared/rate-limit.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -32,28 +32,9 @@ export async function runCloudJob(admin: SupabaseAdmin, job: ClaimedJob, setting
     problem: string | null = null,
     retry = false;
   try {
-    let proposal;
-    for (const [index, model] of settings.models.entries()) {
-      try {
-        proposal = await generateValidatedPlan({
-          endpoint: settings.endpoint,
-          apiKey: settings.apiKey,
-          model,
-          requestData: job.payload.requestData,
-          limits: job.payload.limits,
-          budgetMs: job.timeout_ms,
-          systemAddendum: cloudPlanAddendum(job.payload.requestData?.language),
-          responseFormat: settings.planFormat,
-        });
-        break;
-      } catch (error) {
-        // Un modelo retirado (404/410) responde de inmediato: se prueba el siguiente de la lista.
-        const retired = error instanceof PlanGenerationError && isRetiredModel(error.providerStatus);
-        if (!retired || index === settings.models.length - 1) throw error;
-        console.error("ai-fallback model retired", model);
-      }
-    }
-    result = planJobResult(job.payload, proposal!);
+    const { requestData, limits } = job.payload;
+    const proposal = await cloudPlan({ settings, requestData, limits, budgetMs: job.timeout_ms });
+    result = planJobResult(job.payload, proposal);
   } catch (error) {
     problem =
       error instanceof PlanGenerationError

@@ -1,6 +1,7 @@
-// Contratos del respaldo de planes: Auth, base de datos y Groq son respuestas sintéticas, sin claves reales.
+// Contratos del respaldo de planes con respuestas simuladas de Auth, la base de datos y Gemini.
 import { handleAiFallback, LIMITED, UNAVAILABLE } from "./handler.ts";
-import { GROQ_DEFAULT_MODEL } from "../_shared/ai-fallback.ts";
+import { GEMINI_DEFAULT_MODEL } from "../_shared/ai-fallback.ts";
+import { PLAN_SCHEMA } from "../_shared/plan.js";
 
 function assert(condition: unknown, message = "Assertion failed") {
   if (!condition) throw new Error(message);
@@ -32,13 +33,20 @@ const payload = {
   expected_version: null,
 };
 
-// claim: lo que responde claim_ai_job_cloud. cloud: "ok" | "fenced" | "503" | "400". key: con GROQ_API_KEY.
+const geminiRequest = /^https:\/\/generativelanguage\.googleapis\.com\/v1beta\/models\/([^/]+):generateContent$/;
+type GeminiPlanRequest = {
+  generationConfig: { responseMimeType?: string; responseJsonSchema?: object; maxOutputTokens: number };
+  systemInstruction: { parts: { text: string }[] };
+  contents: { role: string; parts: { text: string }[] }[];
+};
+
 function setup({ claim = "claimed", cloud = "ok", key = true }: { claim?: string; cloud?: string; key?: boolean } = {}) {
   const savedFetch = globalThis.fetch;
   const rpcs: { name: string; body: Record<string, unknown> }[] = [];
-  let cloudBody: Record<string, unknown> | null = null;
+  let cloudBody: GeminiPlanRequest | null = null;
+  let cloudModel = "";
   let cloudAuth = "";
-  const keys = ["SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY", "ALLOWED_ORIGINS", "GROQ_API_KEY", "GROQ_MODEL", "GROQ_PLAN_FORMAT"];
+  const keys = ["SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY", "ALLOWED_ORIGINS", "GEMINI_API_KEY", "GEMINI_MODEL", "GEMINI_CHAT_MODEL", "GEMINI_PLAN_FORMAT"];
   const saved = new Map(keys.map((k) => [k, Deno.env.get(k)]));
   for (const k of keys) Deno.env.delete(k);
   for (const [k, value] of Object.entries({
@@ -48,7 +56,7 @@ function setup({ claim = "claimed", cloud = "ok", key = true }: { claim?: string
     ALLOWED_ORIGINS: "https://web.example.test,https://tauri.localhost",
   }))
     Deno.env.set(k, value);
-  if (key) Deno.env.set("GROQ_API_KEY", "gsk_test-only-not-a-real-key");
+  if (key) Deno.env.set("GEMINI_API_KEY", "test-only-gemini-key");
   globalThis.fetch = async (input, options) => {
     const url = String(input);
     if (url.includes("/auth/v1/user")) {
@@ -65,12 +73,18 @@ function setup({ claim = "claimed", cloud = "ok", key = true }: { claim?: string
           : { status: claim });
       if (rpc === "finish_ai_job") return Response.json(true);
     }
-    if (url === "https://api.groq.com/openai/v1/chat/completions") {
+    const model = url.match(geminiRequest)?.[1];
+    if (model) {
+      const firstRequest = cloudBody === null;
+      cloudModel = model;
       cloudBody = JSON.parse(String(options?.body));
-      cloudAuth = new Headers(options?.headers).get("authorization") || "";
+      cloudAuth = new Headers(options?.headers).get("x-goog-api-key") || "";
       if (/^\d{3}$/.test(cloud)) return Response.json({ error: "fixture" }, { status: Number(cloud) });
-      const content = cloud === "fenced" ? "```json\n" + JSON.stringify(plan) + "\n```" : JSON.stringify(plan);
-      return Response.json({ choices: [{ finish_reason: "stop", message: { role: "assistant", content } }] });
+      let text = JSON.stringify(plan);
+      if (cloud === "fenced") text = "```json\n" + text + "\n```";
+      if (cloud === "corrected" && firstRequest) text = "{invalid";
+      const finishReason = cloud === "truncated" ? "MAX_TOKENS" : "STOP";
+      return Response.json({ candidates: [{ finishReason, content: { parts: [{ text }] } }] });
     }
     throw new Error("Unexpected fixture URL " + url);
   };
@@ -78,6 +92,7 @@ function setup({ claim = "claimed", cloud = "ok", key = true }: { claim?: string
     rpcs: () => rpcs,
     finish: () => rpcs.find((r) => r.name === "finish_ai_job")?.body,
     cloudBody: () => cloudBody,
+    cloudModel: () => cloudModel,
     cloudAuth: () => cloudAuth,
     close: () => {
       globalThis.fetch = savedFetch;
@@ -103,7 +118,7 @@ Deno.test("ai-fallback exige origen permitido, sesión válida e identificador c
   } finally { f.close(); }
 });
 
-Deno.test("Sin GROQ_API_KEY no toma la solicitud: sigue en cola para la IA local", async () => {
+Deno.test("Sin GEMINI_API_KEY la solicitud sigue en cola para la IA local", async () => {
   const f = setup({ key: false });
   try {
     const response = await handleAiFallback(request());
@@ -113,7 +128,7 @@ Deno.test("Sin GROQ_API_KEY no toma la solicitud: sigue en cola para la IA local
   } finally { f.close(); }
 });
 
-Deno.test("Si el PC volvió, no hay nada en cola o se alcanzó el límite, no llama a Groq", async () => {
+Deno.test("Si el PC volvió, no hay nada en cola o se alcanzó el límite, no llama a Gemini", async () => {
   for (const [claim, status, expected] of [["local_online", 200, "local"], ["none", 200, "none"], ["limited", 429, "limited"]] as const) {
     const f = setup({ claim });
     try {
@@ -129,18 +144,26 @@ Deno.test("Si el PC volvió, no hay nada en cola o se alcanzó el límite, no ll
   }
 });
 
-Deno.test("Con el PC apagado prepara la propuesta en Groq, la valida y la guarda con el token de la concesión", async () => {
-  for (const cloud of ["ok", "fenced"]) {
+Deno.test("Con el PC apagado prepara la propuesta en Gemini, la valida y la guarda con el token de la concesión", async () => {
+  for (const cloud of ["ok", "fenced", "corrected"]) {
     const f = setup({ cloud });
     try {
       const response = await handleAiFallback(request());
       assert(response.status === 202, `${cloud}: ${response.status}`);
       assert((await response.json()).status === "processing");
-      assert(f.cloudAuth() === "Bearer gsk_test-only-not-a-real-key");
-      const body = f.cloudBody() as { model: string; response_format: { type: string }; messages: { role: string; content: string }[] };
-      assert(body.model === GROQ_DEFAULT_MODEL);
-      assert(body.response_format.type === "json_schema");
-      assert(/Formato de respuesta/.test(body.messages[0].content), "Prompt de sistema adaptado a la nube");
+      assert(f.cloudAuth() === "test-only-gemini-key");
+      assert(f.cloudModel() === GEMINI_DEFAULT_MODEL);
+      const body = f.cloudBody()!;
+      assert(body.generationConfig.maxOutputTokens === 6000);
+      assert(body.generationConfig.responseMimeType === "application/json");
+      assert(JSON.stringify(body.generationConfig.responseJsonSchema) === JSON.stringify(PLAN_SCHEMA));
+      assert(/Formato de respuesta/.test(body.systemInstruction.parts[0].text), "Prompt de sistema adaptado a la nube");
+      assert(body.contents[0].role === "user");
+      assert(JSON.parse(body.contents[0].parts[0].text).idea === payload.requestData.idea);
+      if (cloud === "corrected") {
+        assert(body.contents.length === 1);
+        assert(/JSON válido/.test(JSON.parse(body.contents[0].parts[1].text).correction));
+      }
       const finish = f.finish() as { p_id: string; p_token: string; p_result: { proposal: Record<string, unknown> }; p_error: unknown; p_retry: boolean };
       assert(finish.p_id === JOB && finish.p_token === "66666666-6666-4666-8666-666666666666");
       assert(finish.p_error === null && finish.p_retry === false);
@@ -152,8 +175,8 @@ Deno.test("Con el PC apagado prepara la propuesta en Groq, la valida y la guarda
   }
 });
 
-Deno.test("Un fallo de Groq no guarda propuesta: reintenta sólo si es transitorio (los créditos los devuelve la base)", async () => {
-  for (const [cloud, retry] of [["503", true], ["400", false]] as const) {
+Deno.test("Un fallo de Gemini no guarda propuesta y reintenta sólo si es transitorio", async () => {
+  for (const [cloud, retry] of [["503", true], ["429", true], ["400", false], ["truncated", false]] as const) {
     const f = setup({ cloud });
     try {
       assert((await handleAiFallback(request())).status === 202);
@@ -165,35 +188,38 @@ Deno.test("Un fallo de Groq no guarda propuesta: reintenta sólo si es transitor
   }
 });
 
-Deno.test("GROQ_MODEL y GROQ_PLAN_FORMAT cambian el modelo y el formato pedido", async () => {
-  const f = setup();
-  try {
-    Deno.env.set("GROQ_MODEL", "qwen/qwen3.5-122b-a10b");
-    Deno.env.set("GROQ_PLAN_FORMAT", "json_object");
-    assert((await handleAiFallback(request())).status === 202);
-    const body = f.cloudBody() as { model: string; response_format: { type: string } };
-    assert(body.model === "qwen/qwen3.5-122b-a10b" && body.response_format.type === "json_object");
-  } finally { f.close(); }
+Deno.test("GEMINI_MODEL y GEMINI_PLAN_FORMAT cambian el modelo y el formato pedido", async () => {
+  for (const [format, mimeType] of [["json_object", "application/json"], ["none", undefined]] as const) {
+    const f = setup();
+    try {
+      Deno.env.set("GEMINI_MODEL", "gemini-3.1-flash-lite");
+      Deno.env.set("GEMINI_PLAN_FORMAT", format);
+      assert((await handleAiFallback(request())).status === 202);
+      const config = f.cloudBody()!.generationConfig;
+      assert(f.cloudModel() === "gemini-3.1-flash-lite" && config.responseMimeType === mimeType);
+      assert(config.responseJsonSchema === undefined);
+    } finally { f.close(); }
+  }
 });
 
-Deno.test("Si Groq retiró el primer modelo (410), el plan se prepara con el siguiente de GROQ_MODEL", async () => {
+Deno.test("Si Gemini retiró el primer modelo (410), el plan se prepara con el siguiente de GEMINI_MODEL", async () => {
   const f = setup();
   const savedFetch = globalThis.fetch;
   const asked: string[] = [];
   try {
-    Deno.env.set("GROQ_MODEL", "meta/llama-3.3-70b-instruct,openai/gpt-oss-20b");
+    Deno.env.set("GEMINI_MODEL", `gemini-retirado,${GEMINI_DEFAULT_MODEL}`);
     globalThis.fetch = async (input, options) => {
-      if (String(input).includes("api.groq.com")) {
-        const model = JSON.parse(String(options?.body)).model;
+      const model = String(input).match(geminiRequest)?.[1];
+      if (model) {
         asked.push(model);
-        if (model === "meta/llama-3.3-70b-instruct") return Response.json({ title: "Gone" }, { status: 410 });
+        if (model === "gemini-retirado") return Response.json({ title: "Gone" }, { status: 410 });
       }
       return savedFetch(input, options);
     };
     assert((await handleAiFallback(request())).status === 202);
     const finish = f.finish() as { p_result: { proposal: Record<string, unknown> }; p_error: unknown };
     assert(finish.p_error === null && finish.p_result.proposal.title === "Aprender a dibujar");
-    assert(JSON.stringify(asked) === JSON.stringify(["meta/llama-3.3-70b-instruct", "openai/gpt-oss-20b"]), asked.join());
+    assert(JSON.stringify(asked) === JSON.stringify(["gemini-retirado", GEMINI_DEFAULT_MODEL]), asked.join());
   } finally {
     globalThis.fetch = savedFetch;
     f.close();

@@ -1,3 +1,4 @@
+import { fetchGemini, geminiCompletion, geminiEndpoint } from "./gemini.ts";
 import { fitSchedule, PLAN_SCHEMA, planLanguage, SYSTEM, SYSTEM_EN, validateProposal } from "./plan.js";
 
 // Instrucciones que acompañan a los datos, en el idioma en que debe responder la IA.
@@ -42,7 +43,6 @@ export type PlanLimits = {
 };
 
 type GenerationOptions = {
-  endpoint: string;
   apiKey: string;
   model: string;
   requestData: Record<string, unknown>;
@@ -57,7 +57,10 @@ type GenerationOptions = {
   systemAddendum?: string;
   /** Algunos proveedores no aceptan json_schema; la validación local se aplica siempre. */
   responseFormat?: "json_schema" | "json_object" | "none";
-};
+} & (
+  | { provider?: "openai"; endpoint: string }
+  | { provider: "gemini"; endpoint?: never }
+);
 
 const timeoutError = () =>
   new PlanGenerationError(
@@ -150,6 +153,7 @@ export function planJobResult(payload: JobPayload, proposal: Record<string, unkn
 /** Generates at most twice, validating every result without saving a plan. */
 export async function generateValidatedPlan({
   endpoint,
+  provider,
   apiKey,
   model,
   requestData,
@@ -169,7 +173,7 @@ export async function generateValidatedPlan({
     );
   let url: URL;
   try {
-    url = new URL(endpoint);
+    url = new URL(provider === "gemini" ? geminiEndpoint(model) : endpoint);
   } catch {
     throw new PlanGenerationError(
       502,
@@ -238,41 +242,53 @@ export async function generateValidatedPlan({
     const content = await withinBudget(
       deadline,
       async (signal) => {
-        const response = await fetchImpl(url.href, {
-          method: "POST",
-          signal,
-          redirect: "error",
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model,
-            temperature: 0.2,
-            max_tokens: 6000,
-            ...(responseFormat === "none"
-              ? {}
-              : {
-                  response_format:
-                    responseFormat === "json_object"
-                      ? { type: "json_object" }
-                      : {
-                          type: "json_schema",
-                          json_schema: {
-                            name: "goal_plan",
-                            strict: true,
-                            schema: PLAN_SCHEMA,
-                          },
-                        },
-                }),
-            messages,
-          }),
-        });
+        const response = await (provider === "gemini"
+          ? fetchGemini({
+              model, apiKey, messages, signal, fetchImpl,
+              generationConfig: {
+                maxOutputTokens: 6000,
+                ...(responseFormat === "none" ? {} : { responseMimeType: "application/json" }),
+                ...(responseFormat === "json_schema" ? { responseJsonSchema: PLAN_SCHEMA } : {}),
+              },
+            })
+          : fetchImpl(url.href, {
+              method: "POST",
+              signal,
+              redirect: "error",
+              headers: {
+                Authorization: `Bearer ${apiKey}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                model,
+                temperature: 0.2,
+                max_tokens: 6000,
+                ...(responseFormat === "none"
+                  ? {}
+                  : {
+                      response_format:
+                        responseFormat === "json_object"
+                          ? { type: "json_object" }
+                          : {
+                              type: "json_schema",
+                              json_schema: {
+                                name: "goal_plan",
+                                strict: true,
+                                schema: PLAN_SCHEMA,
+                              },
+                            },
+                    }),
+                messages,
+              }),
+            }));
         if (!response.ok) {
+          await response.body?.cancel();
           if (response.status === 429)
             throw new PlanGenerationError(
               429,
               "La IA está ocupada. Inténtalo de nuevo en unos segundos.",
+              true,
+              response.status,
             );
           if (response.status === 504) throw timeoutError();
           throw new PlanGenerationError(
@@ -292,13 +308,16 @@ export async function generateValidatedPlan({
             "El proveedor de IA devolvió una respuesta ilegible.",
           );
         }
-        if (result?.choices?.[0]?.finish_reason !== "stop")
+        const choice = result?.choices?.[0];
+        const { complete, text } = provider === "gemini"
+          ? geminiCompletion(result)
+          : { complete: choice?.finish_reason === "stop", text: choice?.message?.content };
+        if (!complete)
           throw new PlanGenerationError(
             502,
             "La IA no terminó la propuesta. Inténtalo con una meta más acotada.",
             false,
           );
-        const text = result.choices[0].message?.content;
         if (typeof text !== "string" || text.length > 128000)
           throw new PlanGenerationError(
             502,
