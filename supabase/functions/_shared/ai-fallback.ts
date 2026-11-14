@@ -1,31 +1,16 @@
-// Conmutación IA local (Ollama en el PC, vía túnel) ↔ respaldo en la nube (Groq, API compatible con OpenAI).
-// La clave de Groq sólo existe como secreto de Supabase (Deno.env); nunca llega al teléfono.
+// Conmutación entre Ollama y GPT-6 Luna.
 // Sin imports npm: también lo cargan las pruebas de Node en tests/.
 
-export const GROQ_BASE_URL = "https://api.groq.com/openai/v1";
-/**
- * gpt-oss-20b admite chat y JSON Schema en Groq. La prueba histórica en otro proveedor no
- * valida estas credenciales: ejecutar npm run check:groq. Se cambia con
- * GROQ_MODEL, que acepta una lista separada por comas: ante 404/410 (modelo inexistente o retirado)
- * se usa el siguiente.
- */
-export const GROQ_DEFAULT_MODELS = ["openai/gpt-oss-20b"];
-export const GROQ_DEFAULT_MODEL = GROQ_DEFAULT_MODELS[0];
-const MODEL_NAME = /^[A-Za-z0-9_./:-]{1,200}$/;
+const OPENAI_ENDPOINT = "https://api.openai.com/v1/chat/completions";
+const OPENAI_MODEL = "gpt-6-luna";
 const LOCAL_TIMEOUT_MS = 35000;
 const CLOUD_CHAT_TIMEOUT_MS = 25000;
 
 export type AiSource = "local" | "cloud";
-export type PlanFormat = "json_schema" | "json_object" | "none";
 export type CloudSettings = {
   apiKey: string;
   endpoint: string;
-  /** Primer modelo de cada lista; los siguientes se usan si el proveedor retiró el anterior. */
   model: string;
-  chatModel: string;
-  models: string[];
-  chatModels: string[];
-  planFormat: PlanFormat;
 };
 type ChatMessage = { role: string; content: string };
 type EnvGetter = (key: string) => string | undefined;
@@ -65,33 +50,14 @@ export class CloudLimited extends Error {
   }
 }
 
-/** null = respaldo apagado (falta GROQ_API_KEY). */
 export function cloudSettings(get: EnvGetter = denoEnv): CloudSettings | null {
-  const apiKey = (get("GROQ_API_KEY") || "").trim();
-  if (!apiKey) return null;
-  const list = (value: string | undefined) => (value || "").split(",").map((m) => m.trim()).filter(Boolean);
-  const models = list(get("GROQ_MODEL"));
-  if (!models.length) models.push(...GROQ_DEFAULT_MODELS);
-  const chatModels = list(get("GROQ_CHAT_MODEL"));
-  if (!chatModels.length) chatModels.push(...models);
-  if (models.length > 5 || chatModels.length > 5 || ![...models, ...chatModels].every((m) => MODEL_NAME.test(m)))
-    throw new CloudUnavailable("GROQ_MODEL o GROQ_CHAT_MODEL tiene un nombre inválido (máximo 5 por lista).");
-  const format = (get("GROQ_PLAN_FORMAT") || "json_schema").trim();
-  if (!["json_schema", "json_object", "none"].includes(format))
-    throw new CloudUnavailable("GROQ_PLAN_FORMAT debe ser json_schema, json_object o none.");
-  return {
-    apiKey,
-    endpoint: `${GROQ_BASE_URL}/chat/completions`,
-    model: models[0],
-    chatModel: chatModels[0],
-    models,
-    chatModels,
-    planFormat: format as PlanFormat,
-  };
+  const apiKey = get("OPENAI_API_KEY")?.trim();
+  return apiKey ? { apiKey, endpoint: OPENAI_ENDPOINT, model: OPENAI_MODEL } : null;
 }
 
-/** El proveedor retiró el modelo (410) o no lo ofrece (404): se prueba el siguiente de la lista. */
-export const isRetiredModel = (status: number | undefined) => status === 404 || status === 410;
+export function openAIOptions(maxTokens: number, effort: "none" | "low") {
+  return { max_completion_tokens: maxTokens, reasoning_effort: effort, store: false };
+}
 
 /**
  * ¿Es una caída de la IA local? Sí: error de red, timeout, 5xx (502/503/504 del gateway,
@@ -158,54 +124,21 @@ export async function localChat({
   return text;
 }
 
-/** Respuesta de texto de Groq (formato OpenAI). Lanza CloudUnavailable. */
+/** Genera una respuesta de chat con el proveedor de respaldo. */
 export async function cloudChat({
   settings,
   messages,
-  temperature = 0.7,
-  // Holgura para modelos que razonan antes de responder (gpt-oss); Lumi igual responde en 1 a 4 frases.
   maxTokens = 700,
   timeoutMs = CLOUD_CHAT_TIMEOUT_MS,
   fetchImpl = fetch,
 }: {
   settings: CloudSettings | null;
   messages: ChatMessage[];
-  temperature?: number;
   maxTokens?: number;
   timeoutMs?: number;
   fetchImpl?: typeof fetch;
 }) {
-  if (!settings) throw new CloudUnavailable("Falta GROQ_API_KEY");
-  const deadline = Date.now() + timeoutMs;
-  let lastError = new CloudUnavailable("Sin modelos configurados");
-  for (const model of settings.chatModels) {
-    try {
-      return await cloudChatOnce({ settings, model, messages, temperature, maxTokens, timeoutMs: deadline - Date.now(), fetchImpl });
-    } catch (error) {
-      if (!(error instanceof CloudUnavailable) || !isRetiredModel(error.status) || deadline <= Date.now()) throw error;
-      lastError = error;
-    }
-  }
-  throw lastError;
-}
-
-async function cloudChatOnce({
-  settings,
-  model,
-  messages,
-  temperature,
-  maxTokens,
-  timeoutMs,
-  fetchImpl,
-}: {
-  settings: CloudSettings;
-  model: string;
-  messages: ChatMessage[];
-  temperature: number;
-  maxTokens: number;
-  timeoutMs: number;
-  fetchImpl: typeof fetch;
-}) {
+  if (!settings) throw new CloudUnavailable("Falta la clave de la IA de respaldo");
   let response: Response;
   try {
     response = await fetchImpl(settings.endpoint, {
@@ -218,10 +151,9 @@ async function cloudChatOnce({
         Accept: "application/json",
       },
       body: JSON.stringify({
-        model,
+        model: settings.model,
         messages,
-        temperature,
-        max_tokens: maxTokens,
+        ...openAIOptions(maxTokens, "none"),
         stream: false,
       }),
     });
@@ -230,7 +162,7 @@ async function cloudChatOnce({
   }
   if (!response.ok) {
     await response.body?.cancel();
-    throw new CloudUnavailable(`HTTP ${response.status} (${model})`, response.status);
+    throw new CloudUnavailable(`HTTP ${response.status} (${settings.model})`, response.status);
   }
   let choice: { finish_reason?: string; message?: { content?: unknown } } | undefined;
   try {
@@ -277,7 +209,7 @@ export async function withCloudFallback<T>({
 export const CLOUD_CHAT_ADDENDUM = `
 Formato de respuesta (obligatorio):
 - Escribe sólo lo que Lumi diría, en texto plano y en español. Sin razonamiento, sin etiquetas, sin Markdown, sin listas ni emojis en exceso.
-- No te presentes como un modelo de lenguaje ni menciones a Groq, OpenAI u otros proveedores: eres Lumi.`;
+- Preséntate como Lumi.`;
 
 export const CLOUD_PLAN_ADDENDUM = `
 Formato de respuesta (obligatorio): devuelve únicamente el objeto JSON del esquema, sin texto antes ni después y sin bloques de código. Todas las cadenas en español. Usa exactamente los nombres de campos del esquema.`;
@@ -285,7 +217,7 @@ Formato de respuesta (obligatorio): devuelve únicamente el objeto JSON del esqu
 const CLOUD_CHAT_ADDENDUM_EN = `
 Response format (required):
 - Write only what Lumi would say, in plain text and in English. No reasoning, no tags, no Markdown, no lists and no excessive emojis.
-- Don't present yourself as a language model or mention Groq, OpenAI or other providers: you are Lumi.`;
+- Introduce yourself as Lumi.`;
 
 const CLOUD_PLAN_ADDENDUM_EN = `
 Response format (required): return only the JSON object of the schema, with no text before or after and no code blocks. Every string in English. Use exactly the field names of the schema.`;

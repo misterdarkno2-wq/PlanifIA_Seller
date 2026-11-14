@@ -1,10 +1,10 @@
 // Respaldo de planes: con el PC apagado (o Ollama detenido) la cola no avanza. La app llama a esta
 // función con la sesión de la persona; si la IA local sigue sin señal, toma UNA solicitud en cola
-// de esa cuenta y la prepara con Groq. La clave sólo existe en Deno.env. Los créditos ya se
+// de esa cuenta y la prepara con el proveedor de respaldo. Los créditos ya se
 // cobraron al encolar y la base los devuelve si la solicitud termina en error o cancelada.
 import { createClient } from "npm:@supabase/supabase-js@2.58.0";
 import { BodyTooLarge, readRequestText } from "../_shared/request-body.ts";
-import { cloudPlanAddendum, CloudUnavailable, cloudSettings, isRetiredModel, type CloudSettings } from "../_shared/ai-fallback.ts";
+import { cloudPlanAddendum, cloudSettings, type CloudSettings } from "../_shared/ai-fallback.ts";
 import { generateValidatedPlan, PlanGenerationError, planJobResult } from "../_shared/generate-plan.ts";
 import { allowIp } from "../_shared/rate-limit.ts";
 
@@ -32,28 +32,15 @@ export async function runCloudJob(admin: SupabaseAdmin, job: ClaimedJob, setting
     problem: string | null = null,
     retry = false;
   try {
-    let proposal;
-    for (const [index, model] of settings.models.entries()) {
-      try {
-        proposal = await generateValidatedPlan({
-          endpoint: settings.endpoint,
-          apiKey: settings.apiKey,
-          model,
-          requestData: job.payload.requestData,
-          limits: job.payload.limits,
-          budgetMs: job.timeout_ms,
-          systemAddendum: cloudPlanAddendum(job.payload.requestData?.language),
-          responseFormat: settings.planFormat,
-        });
-        break;
-      } catch (error) {
-        // Un modelo retirado (404/410) responde de inmediato: se prueba el siguiente de la lista.
-        const retired = error instanceof PlanGenerationError && isRetiredModel(error.providerStatus);
-        if (!retired || index === settings.models.length - 1) throw error;
-        console.error("ai-fallback model retired", model);
-      }
-    }
-    result = planJobResult(job.payload, proposal!);
+    const proposal = await generateValidatedPlan({
+      provider: "openai",
+      ...settings,
+      requestData: job.payload.requestData,
+      limits: job.payload.limits,
+      budgetMs: job.timeout_ms,
+      systemAddendum: cloudPlanAddendum(job.payload.requestData?.language),
+    });
+    result = planJobResult(job.payload, proposal);
   } catch (error) {
     problem =
       error instanceof PlanGenerationError
@@ -111,13 +98,7 @@ export async function handleAiFallback(req: Request) {
     return json({ error: "Identificador de solicitud inválido." }, 422, headers);
   }
 
-  let settings: CloudSettings | null;
-  try {
-    settings = cloudSettings();
-  } catch (error) {
-    console.error("ai-fallback config", error instanceof CloudUnavailable ? error.message : "unknown");
-    settings = null;
-  }
+  const settings = cloudSettings();
   if (!settings) return json({ status: "unavailable", error: UNAVAILABLE }, 503, headers);
 
   const admin = createClient(url, service, { auth: { persistSession: false } });

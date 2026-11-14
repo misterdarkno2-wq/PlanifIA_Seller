@@ -1,5 +1,5 @@
 // Chat "Hablar con Lumi": cobra el mensaje, pide la respuesta al modo rápido del gateway local y
-// guarda la conversación. Con el PC apagado o el túnel caído responde la IA de respaldo (Groq).
+// guarda la conversación. Con el PC apagado o el túnel caído responde la IA de respaldo.
 // Si Lumi no responde, devuelve los créditos. Nunca usa la cola de planes.
 import { createClient } from "npm:@supabase/supabase-js@2.58.0";
 import { BodyTooLarge, readRequestText } from "../_shared/request-body.ts";
@@ -195,6 +195,7 @@ export async function handleLumiChat(req: Request) {
   let source: "local" | "cloud" = "local";
   let failure = RESTING;
   try {
+    const settings = cloudSettings();
     // El trabajador del PC renueva esta señal sólo si su /health confirma que Ollama responde.
     // Si la consulta falla se intenta igual la IA local.
     const online = await admin.rpc("ai_local_online");
@@ -208,12 +209,12 @@ export async function handleLumiChat(req: Request) {
         }),
       cloud: () =>
         cloudChat({
-          settings: cloudSettings(),
+          settings,
           messages: [{ role: "system", content: lumiSystem(language) + cloudChatAddendum(language) }, ...messages.slice(1)],
         }),
       allowCloud: async () => {
         // Una configuración ausente no es cuota agotada y no debe consumir el límite diario.
-        if (!cloudSettings()) throw new CloudUnavailable("Falta GROQ_API_KEY");
+        if (!settings) throw new CloudUnavailable("Falta OPENAI_API_KEY");
         const taken = await admin.rpc("ai_fallback_take", { p_user: user.id, p_kind: "chat" });
         return !taken.error && taken.data === true;
       },

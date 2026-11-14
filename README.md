@@ -2,7 +2,7 @@
 
 Versión **2.3.6** · Android `versionCode=20306`.
 
-**Tus metas, un plan claro y un paso a la vez.** Aplicación de metas, acciones, hábitos y progreso con Lumi. Comparte la misma interfaz entre web, escritorio y Android. Supabase guarda cuentas y datos; Ollama procesa la IA local y Groq es el respaldo opcional en la nube.
+**Tus metas, un plan claro y un paso a la vez.** Aplicación de metas, acciones, hábitos y progreso con Lumi. Comparte la misma interfaz entre web, escritorio y Android. Supabase guarda cuentas y datos; Ollama procesa la IA local y GPT-6 Luna es el respaldo en la nube.
 
 ## Empezar en cinco minutos
 
@@ -41,9 +41,9 @@ npm.cmd run preview
 | `.env.local` desde `.env.example` | `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`; opcional `VITE_BASE_PATH` | Únicos valores que llegan al navegador. |
 | `.env.gateway.local` desde `.env.gateway.example` | `GATEWAY_SECRET`, `OLLAMA_MODEL`, `OLLAMA_CHAT_MODEL`, `QUEUE_SUPABASE_URL`, `QUEUE_SERVICE_ROLE_KEY` | Trabajador privado de planes y chat local. |
 | Secretos de Supabase; plantilla `supabase/functions/.env.example` | `ALLOWED_ORIGINS`, `AI_BASE_URL`, `AI_API_KEY` | Orígenes permitidos y conexión HTTPS al gateway. `AI_API_KEY` debe coincidir con `GATEWAY_SECRET`. |
-| Secretos de Supabase | `GROQ_API_KEY`; opcionales `GROQ_MODEL`, `GROQ_CHAT_MODEL`, `GROQ_PLAN_FORMAT` | Respaldo Groq. Modelo predeterminado `openai/gpt-oss-20b`, formato `json_schema`. |
+| Secretos de Supabase y `supabase/functions/.env` para pruebas | `OPENAI_API_KEY` | Respaldo GPT-6 Luna para Lumi y los planes. |
 
-Nunca uses `VITE_` para claves de Groq, `service_role`, `sb_secret_…`, pagos ni contraseñas. Los archivos `.env*.local`, certificados, registros y exportaciones están excluidos de Git. El control de compilación rechaza secretos reconocibles en variables públicas. Las credenciales internas `SUPABASE_*` de las Edge Functions las proporciona Supabase.
+Nunca uses `VITE_` para claves de OpenAI, `service_role`, `sb_secret_…`, pagos ni contraseñas. Los archivos `.env*.local`, certificados, registros y exportaciones están excluidos de Git. El control de compilación rechaza secretos reconocibles en variables públicas. Las credenciales internas `SUPABASE_*` de las Edge Functions las proporciona Supabase.
 
 `AI_MODEL` y `AI_DAILY_LIMIT` ya no se leen en las funciones: el modelo local lo decide el gateway y los límites se guardan en la base de datos. Las variables de pagos y anuncios sólo se necesitan para esas funciones; consulta [monetización](docs/monetizacion.md) y [pagos](docs/billing.md).
 
@@ -70,9 +70,9 @@ npx.cmd supabase functions deploy ai-fallback
 
 Los comandos anteriores cambian el proyecto remoto indicado. No son necesarios para instalar el frontend de un proyecto ya desplegado. Las funciones de compras/anuncios se documentan por separado en [Google Play](docs/google-play.md).
 
-## IA local y Groq
+## IA local y GPT-6 Luna
 
-Los planes pasan por `goal-plan` → cola persistente en PostgreSQL → trabajador del PC → Ollama. Las propuestas deben revisarse y aprobarse antes de modificar metas. El chat usa `lumi-chat` y la ruta rápida del gateway. La señal del trabajador permite decidir si recurrir a Groq.
+Los planes pasan por `goal-plan` → cola persistente en PostgreSQL → trabajador del PC → Ollama. Las propuestas deben revisarse y aprobarse antes de modificar metas. El chat usa `lumi-chat` y la ruta rápida del gateway. La señal del trabajador permite decidir si recurrir a GPT-6 Luna.
 
 En este PC los modelos instalados son `qwen3.5:9b` (planes) y `qwen3:4b-instruct` (chat). En otra instalación elige modelos disponibles en tu Ollama y adapta `.env.gateway.local`. Para arrancar los servicios configurados y la web en Windows:
 
@@ -82,17 +82,13 @@ powershell -ExecutionPolicy RemoteSigned -File .\scripts\start-services.ps1 -Loc
 
 El script necesita Ollama, cloudflared y las credenciales locales del túnel; consulta [cola y gateway](docs/lumi-cola-ia.md). El gateway escucha en `127.0.0.1:8012`; Ollama en `127.0.0.1:11434`. Las metas y hábitos manuales no requieren ninguno de esos procesos.
 
-**Estado comprobado el 20 de octubre de 2026:** faltaban `GROQ_API_KEY` y la activación del respaldo. Se guardó la clave en Supabase, se desplegó la corrección de `lumi-chat` y se activó el respaldo del **chat** con autorización del responsable. La API real de Groq y el manejador de Lumi con caída local simulada respondieron correctamente; se verificó cobro único, historial y rechazo de duplicados. El endpoint de producción también respondió con IA local.
-
-Se mantienen 10 mensajes por persona/hora y 100 diarios para toda la app. **Los planes de Groq siguen desactivados (límites cero) y no se validaron con la API real**; los planes locales sí se generaron y aprobaron en la prueba. Para otra instalación, configura el secreto, el despliegue y `private.ai_fallback_settings`; agregar una clave al frontend o al gateway no lo habilita. Instrucciones: [respaldo en la nube](docs/respaldo-nube.md).
+Se mantienen 10 mensajes por persona/hora y 100 diarios para toda la app. La cuota de respaldo para planes se consulta en `private.ai_fallback_settings`. Para otra instalación, configura el secreto, el despliegue y `private.ai_fallback_settings`; agregar una clave al frontend o al gateway no lo habilita. Instrucciones: [respaldo en la nube](docs/respaldo-nube.md).
 
 Prueba directa con datos sintéticos, sin imprimir claves ni respuestas:
 
 ```powershell
-# Requiere GROQ_API_KEY en el entorno o en supabase/functions/.env.local (ignorado).
-npm.cmd run check:groq
-# Sólo si la cuenta permite el consumo de un plan:
-npm.cmd run check:groq -- --plan
+# Requiere OPENAI_API_KEY en supabase/functions/.env (ignorado).
+npm.cmd run check:openai -- --plan
 ```
 
 La prueba directa comprueba la API; no sustituye comprobar el cambio local/nube dentro de la app. Sin clave termina con error explícito.

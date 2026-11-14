@@ -80,7 +80,7 @@ export function lumiChatPage({ stage = 1, name = "", escape }) {
       <p class="fine" data-lumi-chat-cost></p>
       <p class="fine lumi-chat-source" data-lumi-chat-source hidden></p>
     </form>
-    <p class="muted fine lumi-chat-note">${tr("Lumi es una IA: puede equivocarse y no da consejos médicos, psicológicos, legales ni financieros. Tus mensajes se envían a la IA de PlanifIA o, si no está disponible, a la de respaldo de Groq, y se guardan los últimos 100. No compartas datos sensibles. Si una respuesta te parece ofensiva o peligrosa, usa «Reportar respuesta».", "Lumi is an AI: it can be wrong and doesn't give medical, psychological, legal or financial advice. Your messages are sent to PlanifIA's AI or, if it isn't available, to Groq's backup AI, and the last 100 are saved. Don't share sensitive data. If a reply seems offensive or dangerous, use “Report reply”.")}</p>
+    <p class="muted fine lumi-chat-note">${tr("Lumi es una IA: puede equivocarse y no da consejos médicos, psicológicos, legales ni financieros. Tus mensajes se envían a la IA de PlanifIA o, si no está disponible, a OpenAI como respaldo, y se guardan los últimos 100. No compartas datos sensibles. Si una respuesta te parece ofensiva o peligrosa, usa «Reportar respuesta».", "Lumi is an AI: it can be wrong and doesn't give medical, psychological, legal or financial advice. Your messages are sent to PlanifIA's AI or, if it isn't available, to OpenAI as a backup, and the last 100 are saved. Don't share sensitive data. If a reply seems offensive or dangerous, use “Report reply”.")}</p>
   </section>`;
 }
 

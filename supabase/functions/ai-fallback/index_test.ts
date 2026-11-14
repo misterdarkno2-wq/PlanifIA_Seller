@@ -1,6 +1,5 @@
-// Contratos del respaldo de planes: Auth, base de datos y Groq son respuestas sintéticas, sin claves reales.
+// Contratos del respaldo de planes: Auth, base de datos y OpenAI son respuestas sintéticas, sin claves reales.
 import { handleAiFallback, LIMITED, UNAVAILABLE } from "./handler.ts";
-import { GROQ_DEFAULT_MODEL } from "../_shared/ai-fallback.ts";
 
 function assert(condition: unknown, message = "Assertion failed") {
   if (!condition) throw new Error(message);
@@ -32,13 +31,13 @@ const payload = {
   expected_version: null,
 };
 
-// claim: lo que responde claim_ai_job_cloud. cloud: "ok" | "fenced" | "503" | "400". key: con GROQ_API_KEY.
+// claim: lo que responde claim_ai_job_cloud. cloud: "ok" | "fenced" | "503" | "400". key: con OPENAI_API_KEY.
 function setup({ claim = "claimed", cloud = "ok", key = true }: { claim?: string; cloud?: string; key?: boolean } = {}) {
   const savedFetch = globalThis.fetch;
   const rpcs: { name: string; body: Record<string, unknown> }[] = [];
   let cloudBody: Record<string, unknown> | null = null;
   let cloudAuth = "";
-  const keys = ["SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY", "ALLOWED_ORIGINS", "GROQ_API_KEY", "GROQ_MODEL", "GROQ_PLAN_FORMAT"];
+  const keys = ["SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY", "ALLOWED_ORIGINS", "OPENAI_API_KEY", "GROQ_API_KEY"];
   const saved = new Map(keys.map((k) => [k, Deno.env.get(k)]));
   for (const k of keys) Deno.env.delete(k);
   for (const [k, value] of Object.entries({
@@ -48,7 +47,7 @@ function setup({ claim = "claimed", cloud = "ok", key = true }: { claim?: string
     ALLOWED_ORIGINS: "https://web.example.test,https://tauri.localhost",
   }))
     Deno.env.set(k, value);
-  if (key) Deno.env.set("GROQ_API_KEY", "gsk_test-only-not-a-real-key");
+  if (key) Deno.env.set("OPENAI_API_KEY", "fixture-openai-key");
   globalThis.fetch = async (input, options) => {
     const url = String(input);
     if (url.includes("/auth/v1/user")) {
@@ -65,7 +64,7 @@ function setup({ claim = "claimed", cloud = "ok", key = true }: { claim?: string
           : { status: claim });
       if (rpc === "finish_ai_job") return Response.json(true);
     }
-    if (url === "https://api.groq.com/openai/v1/chat/completions") {
+    if (url === "https://api.openai.com/v1/chat/completions") {
       cloudBody = JSON.parse(String(options?.body));
       cloudAuth = new Headers(options?.headers).get("authorization") || "";
       if (/^\d{3}$/.test(cloud)) return Response.json({ error: "fixture" }, { status: Number(cloud) });
@@ -103,9 +102,10 @@ Deno.test("ai-fallback exige origen permitido, sesión válida e identificador c
   } finally { f.close(); }
 });
 
-Deno.test("Sin GROQ_API_KEY no toma la solicitud: sigue en cola para la IA local", async () => {
+Deno.test("Sin OPENAI_API_KEY no toma la solicitud: sigue en cola para la IA local", async () => {
   const f = setup({ key: false });
   try {
+    Deno.env.set("GROQ_API_KEY", "fixture-legacy-key");
     const response = await handleAiFallback(request());
     const body = await response.json();
     assert(response.status === 503 && body.error === UNAVAILABLE);
@@ -113,7 +113,7 @@ Deno.test("Sin GROQ_API_KEY no toma la solicitud: sigue en cola para la IA local
   } finally { f.close(); }
 });
 
-Deno.test("Si el PC volvió, no hay nada en cola o se alcanzó el límite, no llama a Groq", async () => {
+Deno.test("Si el PC volvió, no hay nada en cola o se alcanzó el límite, no llama a OpenAI", async () => {
   for (const [claim, status, expected] of [["local_online", 200, "local"], ["none", 200, "none"], ["limited", 429, "limited"]] as const) {
     const f = setup({ claim });
     try {
@@ -129,16 +129,16 @@ Deno.test("Si el PC volvió, no hay nada en cola o se alcanzó el límite, no ll
   }
 });
 
-Deno.test("Con el PC apagado prepara la propuesta en Groq, la valida y la guarda con el token de la concesión", async () => {
+Deno.test("Con el PC apagado prepara la propuesta en OpenAI, la valida y la guarda con el token de la concesión", async () => {
   for (const cloud of ["ok", "fenced"]) {
     const f = setup({ cloud });
     try {
       const response = await handleAiFallback(request());
       assert(response.status === 202, `${cloud}: ${response.status}`);
       assert((await response.json()).status === "processing");
-      assert(f.cloudAuth() === "Bearer gsk_test-only-not-a-real-key");
+      assert(f.cloudAuth() === "Bearer fixture-openai-key");
       const body = f.cloudBody() as { model: string; response_format: { type: string }; messages: { role: string; content: string }[] };
-      assert(body.model === GROQ_DEFAULT_MODEL);
+      assert(body.model === "gpt-6-luna");
       assert(body.response_format.type === "json_schema");
       assert(/Formato de respuesta/.test(body.messages[0].content), "Prompt de sistema adaptado a la nube");
       const finish = f.finish() as { p_id: string; p_token: string; p_result: { proposal: Record<string, unknown> }; p_error: unknown; p_retry: boolean };
@@ -152,7 +152,7 @@ Deno.test("Con el PC apagado prepara la propuesta en Groq, la valida y la guarda
   }
 });
 
-Deno.test("Un fallo de Groq no guarda propuesta: reintenta sólo si es transitorio (los créditos los devuelve la base)", async () => {
+Deno.test("Un fallo de OpenAI no guarda propuesta: reintenta sólo si es transitorio (los créditos los devuelve la base)", async () => {
   for (const [cloud, retry] of [["503", true], ["400", false]] as const) {
     const f = setup({ cloud });
     try {
@@ -165,37 +165,16 @@ Deno.test("Un fallo de Groq no guarda propuesta: reintenta sólo si es transitor
   }
 });
 
-Deno.test("GROQ_MODEL y GROQ_PLAN_FORMAT cambian el modelo y el formato pedido", async () => {
+Deno.test("OpenAI recibe el esquema del plan y la propuesta validada se guarda", async () => {
   const f = setup();
   try {
-    Deno.env.set("GROQ_MODEL", "qwen/qwen3.5-122b-a10b");
-    Deno.env.set("GROQ_PLAN_FORMAT", "json_object");
     assert((await handleAiFallback(request())).status === 202);
-    const body = f.cloudBody() as { model: string; response_format: { type: string } };
-    assert(body.model === "qwen/qwen3.5-122b-a10b" && body.response_format.type === "json_object");
+    const sent = f.cloudBody()!;
+    const format = sent.response_format as { type: string; json_schema: { strict: boolean } };
+    assert(f.cloudAuth() === "Bearer fixture-openai-key");
+    assert(sent.model === "gpt-6-luna" && sent.store === false && sent.reasoning_effort === "low");
+    assert(sent.max_completion_tokens === 6000 && sent.max_tokens === undefined);
+    assert(format.type === "json_schema" && format.json_schema.strict);
+    assert(Boolean(f.finish()?.p_result) && f.finish()?.p_error === null);
   } finally { f.close(); }
-});
-
-Deno.test("Si Groq retiró el primer modelo (410), el plan se prepara con el siguiente de GROQ_MODEL", async () => {
-  const f = setup();
-  const savedFetch = globalThis.fetch;
-  const asked: string[] = [];
-  try {
-    Deno.env.set("GROQ_MODEL", "meta/llama-3.3-70b-instruct,openai/gpt-oss-20b");
-    globalThis.fetch = async (input, options) => {
-      if (String(input).includes("api.groq.com")) {
-        const model = JSON.parse(String(options?.body)).model;
-        asked.push(model);
-        if (model === "meta/llama-3.3-70b-instruct") return Response.json({ title: "Gone" }, { status: 410 });
-      }
-      return savedFetch(input, options);
-    };
-    assert((await handleAiFallback(request())).status === 202);
-    const finish = f.finish() as { p_result: { proposal: Record<string, unknown> }; p_error: unknown };
-    assert(finish.p_error === null && finish.p_result.proposal.title === "Aprender a dibujar");
-    assert(JSON.stringify(asked) === JSON.stringify(["meta/llama-3.3-70b-instruct", "openai/gpt-oss-20b"]), asked.join());
-  } finally {
-    globalThis.fetch = savedFetch;
-    f.close();
-  }
 });

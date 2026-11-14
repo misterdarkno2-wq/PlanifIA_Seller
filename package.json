@@ -31,7 +31,7 @@
     "android:release": "npm run tauri -- android build --apk --target aarch64 armv7 x86_64",
     "android:aab": "npm run tauri -- android build --aab --target aarch64 armv7 x86_64",
     "android:dev": "npm run tauri -- android dev",
-    "check:groq": "node --env-file-if-exists=supabase/functions/.env.local scripts/check-groq.mjs"
+    "check:openai": "node --env-file-if-exists=supabase/functions/.env scripts/check-openai.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.58.0",

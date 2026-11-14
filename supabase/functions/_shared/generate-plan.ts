@@ -1,3 +1,4 @@
+import { openAIOptions } from "./ai-fallback.ts";
 import { fitSchedule, PLAN_SCHEMA, planLanguage, SYSTEM, SYSTEM_EN, validateProposal } from "./plan.js";
 
 // Instrucciones que acompañan a los datos, en el idioma en que debe responder la IA.
@@ -42,6 +43,7 @@ export type PlanLimits = {
 };
 
 type GenerationOptions = {
+  provider?: "openai";
   endpoint: string;
   apiKey: string;
   model: string;
@@ -149,6 +151,7 @@ export function planJobResult(payload: JobPayload, proposal: Record<string, unkn
 
 /** Generates at most twice, validating every result without saving a plan. */
 export async function generateValidatedPlan({
+  provider,
   endpoint,
   apiKey,
   model,
@@ -248,8 +251,9 @@ export async function generateValidatedPlan({
           },
           body: JSON.stringify({
             model,
-            temperature: 0.2,
-            max_tokens: 6000,
+            ...(provider === "openai"
+              ? openAIOptions(6000, "low")
+              : { temperature: 0.2, max_tokens: 6000 }),
             ...(responseFormat === "none"
               ? {}
               : {
@@ -273,6 +277,8 @@ export async function generateValidatedPlan({
             throw new PlanGenerationError(
               429,
               "La IA está ocupada. Inténtalo de nuevo en unos segundos.",
+              true,
+              response.status,
             );
           if (response.status === 504) throw timeoutError();
           throw new PlanGenerationError(

@@ -31,7 +31,7 @@ Revisa estas señales al menos una vez por semana y siempre que algo parezca rar
   where created_at > now() - interval '1 day' group by 1 order by 2 desc;
   select bucket, count(*), max(hits) from private.rate_limits group by 1;
   ```
-- **Proveedores**: avisos de Google Play Console (políticas o pagos), AdMob (tráfico no válido), Groq (uso y facturación), Cloudflare (túnel).
+- **Proveedores**: avisos de Google Play Console (políticas o pagos), AdMob (tráfico no válido), OpenAI (uso y facturación), Cloudflare (túnel).
 - **Personas**: correos a planifiaprivacity@gmail.com y reportes de contenido de la IA (sección 8).
 - **PC de la IA**: archivos `seller-*.log` en la raíz del proyecto. No deben contener tokens, correos ni texto de los usuarios.
 
@@ -40,7 +40,7 @@ Revisa estas señales al menos una vez por semana y siempre que algo parezca rar
 | Nivel | Ejemplos | Plazo para contener |
 | --- | --- | --- |
 | Crítico | Clave de servicio de Supabase filtrada; acceso a la base de datos; datos de muchas personas expuestos; keystore de carga filtrado | Inmediato (mismo día) |
-| Alto | Clave de Groq, de Google Play o del gateway filtrada; una cuenta tomada por otra persona; contenido enviado a un proveedor no declarado en la política | 24 horas |
+| Alto | Clave de OpenAI, de Google Play o del gateway filtrada; una cuenta tomada por otra persona; contenido enviado a un proveedor no declarado en la política | 24 horas |
 | Medio | Fraude con créditos o anuncios; abuso de la IA; vulnerabilidad sin explotar | 72 horas |
 | Bajo | Error sin datos expuestos; reporte de contenido aislado | Siguiente revisión |
 
@@ -63,7 +63,7 @@ Después de cada rotación, comprueba que la app funcione (iniciar sesión, chat
 | --- | --- | --- |
 | Clave de servicio de Supabase (`sb_secret_…` o `service_role`) | Edge Functions (automática), `.env.gateway.local` del PC (`QUEUE_SERVICE_ROLE_KEY`) | Supabase → **Project Settings → API Keys**: crea una clave secreta nueva y revoca la anterior. Actualiza `QUEUE_SERVICE_ROLE_KEY` en el PC y reinicia `scripts/start-services.ps1`. Si el proyecto usa las claves JWT antiguas, rotar el *JWT secret* invalida también la clave pública y todas las sesiones: habría que recompilar la web y la app. |
 | Clave pública (`sb_publishable_…`) | Web y app (no es secreta) | Sólo si se abusa de ella: crea una nueva, actualiza `VITE_SUPABASE_PUBLISHABLE_KEY` en GitHub (variables del repositorio), publica la web y sube una versión de la app. |
-| `GROQ_API_KEY` | Secreto de Supabase | console.groq.com → **API Keys**: revoca la clave y crea otra. `npx.cmd supabase secrets set GROQ_API_KEY=gsk_...` |
+| `OPENAI_API_KEY` | Secreto de Supabase | Revoca la clave y crea otra en [OpenAI API Keys](https://platform.openai.com/api-keys). Guarda la nueva en Edge Functions → Secrets. |
 | `NVIDIA_API_KEY` (ya no se usa) | Secreto de Supabase | Revócala en build.nvidia.com → **API Keys** y bórrala: `npx.cmd supabase secrets unset NVIDIA_API_KEY` |
 | Secreto del gateway (`GATEWAY_SECRET` = `AI_API_KEY`) | `.env.gateway.local` del PC y secreto de Supabase | Genera 32 bytes aleatorios (`node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`), cámbialo en los dos lugares a la vez y reinicia los servicios del PC. |
 | Credenciales del túnel de Cloudflare | `.cloudflared/planifia-seller-ia.json` | Cloudflare **Zero Trust → Networks → Tunnels**: rota el token del túnel (o crea uno nuevo y borra el anterior) y reemplaza el archivo. |
@@ -93,7 +93,7 @@ Después de cada rotación, comprueba que la app funcione (iniciar sesión, chat
 2. **A quién avisar** (confirmar con el abogado):
    - **Agencia de Protección de Datos Personales** (desde que rija la Ley 21.719): por los medios más expeditos y sin dilaciones indebidas cuando la vulneración pueda afectar a las personas. [PENDIENTE: canal de notificación de la Agencia]
    - **Personas afectadas**: cuando la vulneración afecte datos sensibles o pueda causarles un daño, y siempre que convenga para que se protejan (por ejemplo, cambiar la contraseña).
-   - **Proveedores**: Supabase, Groq, Google o Cloudflare, si el incidente pasa por ellos.
+   - **Proveedores**: Supabase, OpenAI, Google o Cloudflare, si el incidente pasa por ellos.
    - **Google Play**: si cambia lo declarado en Seguridad de los datos.
    - El CSIRT de Gobierno (csirt.gob.cl) recibe reportes voluntarios de incidentes.
 
