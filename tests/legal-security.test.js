@@ -7,6 +7,7 @@ import { LEGAL_URLS, LEGAL_VERSION } from "../src/legal.js";
 import { setLang } from "../src/i18n.js";
 import { REFERRER_POLICY, STATIC_PAGE_CSP, webCsp } from "../scripts/web-csp.js";
 import { CRISIS_LINES } from "../supabase/functions/_shared/crisis.js";
+import { geminiEndpoint } from "../supabase/functions/_shared/gemini.ts";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 const exists = (path) => access(new URL(`../${path}`, import.meta.url)).then(() => true, () => false);
@@ -103,15 +104,12 @@ test("La CSP de la web equivale a la de Tauri, con el proyecto de Supabase y sin
 });
 
 test("La política de privacidad nombra a cada proveedor de IA que usa el servidor", async () => {
+  assert.equal(new URL(geminiEndpoint("gemini-test")).hostname, "generativelanguage.googleapis.com");
   for (const page of ["public/privacidad.html", "public/privacy.html"]) {
     const policy = text(await read(page));
-    const fallback = await read("supabase/functions/_shared/ai-fallback.ts");
-    const hosts = [...fallback.matchAll(/https:\/\/(?:api\.|integrate\.api\.)?([a-z0-9-]+)\.(?:com|ai|io)\b/g)].map((m) => m[1]);
-    assert.ok(hosts.length, "ai-fallback.ts declara la URL de su proveedor");
-    for (const provider of new Set(hosts))
-      assert.match(policy, new RegExp(provider, "i"), `${page} debe mencionar a ${provider}`);
     for (const provider of ["Supabase", "Cloudflare", "GitHub", "Google Play", "AdMob", "Brevo"])
       assert.ok(policy.includes(provider), `${page}: ${provider}`);
+    assert.match(policy, /Google \(Gemini API\)/, `${page} identifica al proveedor de respaldo`);
   }
 });
 

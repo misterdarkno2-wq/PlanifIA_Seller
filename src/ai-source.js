@@ -1,6 +1,4 @@
-// Origen de la IA que se muestra en la app. La conmutación local ↔ nube ocurre en el servidor
-// (lumi-chat y ai-fallback): la clave de Groq nunca llega al teléfono. Aquí sólo se muestra el
-// origen y se pide el respaldo para una propuesta en cola mientras el PC está apagado.
+// Muestra el origen de la IA y pide el respaldo para los planes en cola cuando el PC está apagado.
 
 import { tr } from "./i18n.js";
 

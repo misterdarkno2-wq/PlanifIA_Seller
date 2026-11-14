@@ -7,7 +7,7 @@
 import { locale, tr } from "./i18n.js";
 import { serverText } from "./server-messages.js";
 
-export const LEGAL_VERSION = Object.freeze({ terms: "2026-10-21", privacy: "2026-10-22" });
+export const LEGAL_VERSION = Object.freeze({ terms: "2026-11-14", privacy: "2026-11-14" });
 
 /** La más reciente de dos versiones (fechas ISO, se comparan como texto). */
 export const newerVersion = (a, b) => (a > b ? a : b);
@@ -89,7 +89,7 @@ export function legalUpdateCard({ doc = document, accept, onAccepted = () => {},
       <li>${tr("En la app para Android puedes activar un recordatorio diario: guardamos la hora que eliges y el aviso lo programa tu teléfono.", "In the Android app you can turn on a daily reminder: we store the time you choose and your phone schedules the notification.")}</li>
       <li>${tr("Ahora puedes entrar con tu cuenta de Google: explicamos qué datos nos entrega Google y cómo quitarle el acceso.", "You can now sign in with your Google account: we explain what data Google gives us and how to remove its access.")}</li>
       <li>${tr("Identificamos a quien responde por tus datos y explicamos todos tus derechos y cómo ejercerlos.", "We identify who is responsible for your data and explain all your rights and how to exercise them.")}</li>
-      <li>${tr("Detallamos qué datos recibe cada proveedor (Supabase, Groq, Google, Cloudflare y GitHub) y en qué país.", "We detail what data each provider receives (Supabase, Groq, Google, Cloudflare and GitHub) and in which country.")}</li>
+      <li>${tr("Gemini de Google es la IA de respaldo. La Política de privacidad explica qué datos recibe.", "Google's Gemini provides backup AI. The Privacy Policy explains what data it receives.")}</li>
       <li>${tr("Explicamos los límites de la IA, las líneas de ayuda y cómo reportar una respuesta.", "We explain the AI's limits, the helplines and how to report a response.")}</li>
       <li>${tr("Aclaramos las compras, la renovación de las suscripciones, el retracto y los reembolsos.", "We clarify purchases, subscription renewals, withdrawal and refunds.")}</li>
     </ul>

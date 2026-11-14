@@ -1,4 +1,4 @@
-// Conmutación IA local ↔ respaldo en la nube (Groq), simulando caídas de red, del túnel y de Ollama.
+// Conmutación IA local ↔ respaldo en Gemini, simulando caídas de red, del túnel y de Ollama.
 // Ninguna prueba usa la red ni claves reales.
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -12,7 +12,7 @@ import {
   LocalBusy,
   localChat,
   LocalUnavailable,
-  GROQ_DEFAULT_MODEL,
+  GEMINI_DEFAULT_MODEL,
   withCloudFallback,
 } from "../supabase/functions/_shared/ai-fallback.ts";
 import { parseJsonContent } from "../supabase/functions/_shared/generate-plan.ts";
@@ -23,7 +23,7 @@ import { jobDescription } from "../src/ai-jobs.js";
 
 const BASE = "https://ia.example.test/v1";
 const KEY = "test-only-gateway-key";
-const settings = cloudSettings((k) => ({ GROQ_API_KEY: "gsk_test-only" })[k]);
+const settings = cloudSettings((k) => ({ GEMINI_API_KEY: "test-only-gemini-key" })[k]);
 const messages = [{ role: "user", content: "Hola" }];
 const pause = (ms = 10) => new Promise((r) => setTimeout(r, ms));
 
@@ -138,36 +138,47 @@ test("El secreto del gateway nunca viaja por HTTP sin cifrar", async () => {
   assert.equal(local.calls.length, 0);
 });
 
-test("Groq: clave sólo del entorno del servidor, modelo configurable y respuesta normalizada", async () => {
+test("Gemini usa la clave del servidor, el modelo configurado y las partes de texto de la respuesta", async () => {
   assert.equal(cloudSettings(() => undefined), null, "Sin clave no hay respaldo");
-  assert.equal(settings.model, GROQ_DEFAULT_MODEL);
-  assert.equal(settings.endpoint, "https://api.groq.com/openai/v1/chat/completions");
-  const custom = cloudSettings((k) => ({ GROQ_API_KEY: "k", GROQ_MODEL: "groq/plan", GROQ_CHAT_MODEL: "groq/chat" })[k]);
-  assert.equal(custom.model, "groq/plan");
-  assert.equal(custom.chatModel, "groq/chat");
-  assert.throws(() => cloudSettings((k) => ({ GROQ_API_KEY: "k", GROQ_MODEL: "bad model; rm" })[k]), CloudUnavailable);
+  assert.equal(cloudSettings((k) => ({ GROQ_API_KEY: "legacy", GEMINI_API_KEY: "   " })[k]), null);
+  assert.deepEqual(settings.models, [GEMINI_DEFAULT_MODEL]);
+  const custom = cloudSettings((k) => ({ GEMINI_API_KEY: "k", GEMINI_MODEL: "models/gemini-plan", GEMINI_CHAT_MODEL: "gemini-chat" })[k]);
+  assert.deepEqual(custom.models, ["gemini-plan"]);
+  assert.deepEqual(custom.chatModels, ["gemini-chat"]);
+  assert.throws(() => cloudSettings((k) => ({ GEMINI_API_KEY: "k", GEMINI_MODEL: "../../invalid" })[k]), CloudUnavailable);
   let sent;
   const reply = await cloudChat({
     settings,
     messages,
     fetchImpl: async (url, options) => {
       sent = { url, options, body: JSON.parse(options.body) };
-      return Response.json({ choices: [{ message: { content: "<think>razono</think> ¡Hola desde la nube!" } }] });
+      return Response.json({ candidates: [{ finishReason: "STOP", content: { parts: [
+        { thought: true, text: "razonamiento" }, { text: "¡Hola" }, { text: " desde la nube!" },
+      ] } }] });
     },
   });
   assert.equal(reply, "¡Hola desde la nube!", "Mismo formato que la IA local: sólo el texto");
-  assert.equal(sent.url, "https://api.groq.com/openai/v1/chat/completions");
-  assert.equal(new Headers(sent.options.headers).get("authorization"), "Bearer gsk_test-only");
-  assert.equal(sent.body.model, GROQ_DEFAULT_MODEL);
-  assert.equal(sent.body.stream, false);
+  assert.equal(sent.url, `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_DEFAULT_MODEL}:generateContent`);
+  assert.equal(new Headers(sent.options.headers).get("x-goog-api-key"), "test-only-gemini-key");
+  assert.equal(sent.options.redirect, "error");
+  assert.deepEqual(sent.body, {
+    contents: [{ role: "user", parts: [{ text: "Hola" }] }],
+    generationConfig: { maxOutputTokens: 700 },
+  });
   await assert.rejects(cloudChat({ settings: null, messages }), CloudUnavailable);
   await assert.rejects(cloudChat({ settings, messages, fetchImpl: async () => { throw new TypeError("fetch failed"); } }), CloudUnavailable);
 });
 
-test("Groq no acepta como respuesta un chat truncado por el límite de tokens", async () => {
+test("Gemini descarta las respuestas truncadas, bloqueadas o sin texto", async () => {
+  for (const response of [
+    { candidates: [{ finishReason: "MAX_TOKENS", content: { parts: [{ text: "Para empezar debes" }] } }] },
+    { promptFeedback: { blockReason: "SAFETY" } },
+  ]) {
+    await assert.rejects(cloudChat({ settings, messages, fetchImpl: async () => Response.json(response) }), /Respuesta incompleta/);
+  }
   await assert.rejects(cloudChat({ settings, messages, fetchImpl: async () => Response.json({
-    choices: [{ finish_reason: "length", message: { content: "Para empezar debes" } }],
-  }) }), /Respuesta incompleta/);
+    candidates: [{ finishReason: "STOP", content: { parts: [{ thought: true, text: "razonamiento" }] } }],
+  }) }), /Respuesta vacía/);
 });
 
 test("Las propuestas JSON envueltas en un bloque de código se aceptan; el texto libre no", () => {
@@ -310,31 +321,34 @@ test("La app muestra un indicador discreto del origen de la IA", () => {
   assert.doesNotMatch(jobDescription({ status: "completed", provider: "local" }), /nube/);
 });
 
-test("Si Groq retiró un modelo (404/410) el chat usa el siguiente de la lista; otros errores no", async () => {
-  const chain = cloudSettings((k) => ({ GROQ_API_KEY: "k", GROQ_MODEL: "viejo/retirado, nuevo/activo" })[k]);
-  assert.deepEqual(chain.models, ["viejo/retirado", "nuevo/activo"]);
+test("Si Gemini retiró un modelo (404/410) el chat usa el siguiente de la lista", async () => {
+  const chain = cloudSettings((k) => ({ GEMINI_API_KEY: "k", GEMINI_MODEL: "gemini-viejo, gemini-nuevo" })[k]);
+  assert.deepEqual(chain.models, ["gemini-viejo", "gemini-nuevo"]);
   assert.deepEqual(chain.chatModels, chain.models, "El chat usa la misma lista si no se configura otra");
+  const requestedModel = (url) => new URL(url).pathname.split("/").at(-1).split(":")[0];
   for (const retired of [404, 410]) {
     const asked = [];
     const reply = await cloudChat({
       settings: chain,
       messages,
-      fetchImpl: async (_url, options) => {
-        const { model } = JSON.parse(options.body);
+      fetchImpl: async (url) => {
+        const model = requestedModel(url);
         asked.push(model);
-        return model === "viejo/retirado"
+        return model === "gemini-viejo"
           ? Response.json({ title: "Gone" }, { status: retired })
-          : Response.json({ choices: [{ message: { content: "Hola" } }] });
+          : Response.json({ candidates: [{ finishReason: "STOP", content: { parts: [{ text: "Hola" }] } }] });
       },
     });
     assert.equal(reply, "Hola");
-    assert.deepEqual(asked, ["viejo/retirado", "nuevo/activo"]);
+    assert.deepEqual(asked, ["gemini-viejo", "gemini-nuevo"]);
   }
   const asked = [];
   await assert.rejects(
-    cloudChat({ settings: chain, messages, fetchImpl: async (_u, o) => (asked.push(JSON.parse(o.body).model), new Response("", { status: 401 })) }),
+    cloudChat({ settings: chain, messages, fetchImpl: async (url) => {
+      asked.push(requestedModel(url));
+      return new Response("", { status: 401 });
+    } }),
     CloudUnavailable,
   );
-  assert.deepEqual(asked, ["viejo/retirado"], "Una clave inválida no se arregla cambiando de modelo");
-  assert.deepEqual(cloudSettings((k) => ({ GROQ_API_KEY: "k" })[k]).models, ["openai/gpt-oss-20b"]);
+  assert.deepEqual(asked, ["gemini-viejo"], "Una clave inválida no se arregla cambiando de modelo");
 });

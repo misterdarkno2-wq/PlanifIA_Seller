@@ -1,17 +1,9 @@
-// Conmutación IA local (Ollama en el PC, vía túnel) ↔ respaldo en la nube (Groq, API compatible con OpenAI).
-// La clave de Groq sólo existe como secreto de Supabase (Deno.env); nunca llega al teléfono.
-// Sin imports npm: también lo cargan las pruebas de Node en tests/.
+// Conmutación entre la IA local (Ollama vía túnel) y el respaldo en Gemini.
+import { fetchGemini, geminiCompletion, type ChatMessage } from "./gemini.ts";
+import { generateValidatedPlan, PlanGenerationError, type PlanLimits } from "./generate-plan.ts";
 
-export const GROQ_BASE_URL = "https://api.groq.com/openai/v1";
-/**
- * gpt-oss-20b admite chat y JSON Schema en Groq. La prueba histórica en otro proveedor no
- * valida estas credenciales: ejecutar npm run check:groq. Se cambia con
- * GROQ_MODEL, que acepta una lista separada por comas: ante 404/410 (modelo inexistente o retirado)
- * se usa el siguiente.
- */
-export const GROQ_DEFAULT_MODELS = ["openai/gpt-oss-20b"];
-export const GROQ_DEFAULT_MODEL = GROQ_DEFAULT_MODELS[0];
-const MODEL_NAME = /^[A-Za-z0-9_./:-]{1,200}$/;
+export const GEMINI_DEFAULT_MODEL = "gemini-3.5-flash-lite";
+const MODEL_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$/;
 const LOCAL_TIMEOUT_MS = 35000;
 const CLOUD_CHAT_TIMEOUT_MS = 25000;
 
@@ -19,15 +11,11 @@ export type AiSource = "local" | "cloud";
 export type PlanFormat = "json_schema" | "json_object" | "none";
 export type CloudSettings = {
   apiKey: string;
-  endpoint: string;
-  /** Primer modelo de cada lista; los siguientes se usan si el proveedor retiró el anterior. */
-  model: string;
-  chatModel: string;
+  /** Los modelos se prueban en orden si el anterior ya no está disponible. */
   models: string[];
   chatModels: string[];
   planFormat: PlanFormat;
 };
-type ChatMessage = { role: string; content: string };
 type EnvGetter = (key: string) => string | undefined;
 
 const denoEnv: EnvGetter = (key) =>
@@ -65,33 +53,26 @@ export class CloudLimited extends Error {
   }
 }
 
-/** null = respaldo apagado (falta GROQ_API_KEY). */
+/** null = respaldo apagado (falta GEMINI_API_KEY). */
 export function cloudSettings(get: EnvGetter = denoEnv): CloudSettings | null {
-  const apiKey = (get("GROQ_API_KEY") || "").trim();
+  const apiKey = (get("GEMINI_API_KEY") || "").trim();
   if (!apiKey) return null;
-  const list = (value: string | undefined) => (value || "").split(",").map((m) => m.trim()).filter(Boolean);
-  const models = list(get("GROQ_MODEL"));
-  if (!models.length) models.push(...GROQ_DEFAULT_MODELS);
-  const chatModels = list(get("GROQ_CHAT_MODEL"));
+  const list = (value: string | undefined) => (value || "").split(",")
+    .map((m) => m.trim()).filter(Boolean).map((m) => m.replace(/^models\//, ""));
+  const models = list(get("GEMINI_MODEL"));
+  if (!models.length) models.push(GEMINI_DEFAULT_MODEL);
+  const chatModels = list(get("GEMINI_CHAT_MODEL"));
   if (!chatModels.length) chatModels.push(...models);
   if (models.length > 5 || chatModels.length > 5 || ![...models, ...chatModels].every((m) => MODEL_NAME.test(m)))
-    throw new CloudUnavailable("GROQ_MODEL o GROQ_CHAT_MODEL tiene un nombre inválido (máximo 5 por lista).");
-  const format = (get("GROQ_PLAN_FORMAT") || "json_schema").trim();
+    throw new CloudUnavailable("GEMINI_MODEL o GEMINI_CHAT_MODEL tiene un nombre inválido (máximo 5 por lista).");
+  const format = get("GEMINI_PLAN_FORMAT")?.trim() || "json_schema";
   if (!["json_schema", "json_object", "none"].includes(format))
-    throw new CloudUnavailable("GROQ_PLAN_FORMAT debe ser json_schema, json_object o none.");
-  return {
-    apiKey,
-    endpoint: `${GROQ_BASE_URL}/chat/completions`,
-    model: models[0],
-    chatModel: chatModels[0],
-    models,
-    chatModels,
-    planFormat: format as PlanFormat,
-  };
+    throw new CloudUnavailable("GEMINI_PLAN_FORMAT debe ser json_schema, json_object o none.");
+  return { apiKey, models, chatModels, planFormat: format as PlanFormat };
 }
 
 /** El proveedor retiró el modelo (410) o no lo ofrece (404): se prueba el siguiente de la lista. */
-export const isRetiredModel = (status: number | undefined) => status === 404 || status === 410;
+const isRetiredModel = (status: number | undefined) => status === 404 || status === 410;
 
 /**
  * ¿Es una caída de la IA local? Sí: error de red, timeout, 5xx (502/503/504 del gateway,
@@ -158,29 +139,26 @@ export async function localChat({
   return text;
 }
 
-/** Respuesta de texto de Groq (formato OpenAI). Lanza CloudUnavailable. */
+/** Respuesta de texto de Gemini. Lanza CloudUnavailable. */
 export async function cloudChat({
   settings,
   messages,
-  temperature = 0.7,
-  // Holgura para modelos que razonan antes de responder (gpt-oss); Lumi igual responde en 1 a 4 frases.
   maxTokens = 700,
   timeoutMs = CLOUD_CHAT_TIMEOUT_MS,
   fetchImpl = fetch,
 }: {
   settings: CloudSettings | null;
   messages: ChatMessage[];
-  temperature?: number;
   maxTokens?: number;
   timeoutMs?: number;
   fetchImpl?: typeof fetch;
 }) {
-  if (!settings) throw new CloudUnavailable("Falta GROQ_API_KEY");
+  if (!settings) throw new CloudUnavailable("Falta GEMINI_API_KEY");
   const deadline = Date.now() + timeoutMs;
   let lastError = new CloudUnavailable("Sin modelos configurados");
   for (const model of settings.chatModels) {
     try {
-      return await cloudChatOnce({ settings, model, messages, temperature, maxTokens, timeoutMs: deadline - Date.now(), fetchImpl });
+      return await cloudChatOnce({ apiKey: settings.apiKey, model, messages, maxTokens, timeoutMs: deadline - Date.now(), fetchImpl });
     } catch (error) {
       if (!(error instanceof CloudUnavailable) || !isRetiredModel(error.status) || deadline <= Date.now()) throw error;
       lastError = error;
@@ -190,40 +168,29 @@ export async function cloudChat({
 }
 
 async function cloudChatOnce({
-  settings,
+  apiKey,
   model,
   messages,
-  temperature,
   maxTokens,
   timeoutMs,
   fetchImpl,
 }: {
-  settings: CloudSettings;
+  apiKey: string;
   model: string;
   messages: ChatMessage[];
-  temperature: number;
   maxTokens: number;
   timeoutMs: number;
   fetchImpl: typeof fetch;
 }) {
   let response: Response;
   try {
-    response = await fetchImpl(settings.endpoint, {
-      method: "POST",
-      redirect: "error",
+    response = await fetchGemini({
+      model,
+      apiKey,
+      messages,
       signal: AbortSignal.timeout(timeoutMs),
-      headers: {
-        Authorization: `Bearer ${settings.apiKey}`,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature,
-        max_tokens: maxTokens,
-        stream: false,
-      }),
+      fetchImpl,
+      generationConfig: { maxOutputTokens: maxTokens },
     });
   } catch (error) {
     throw new CloudUnavailable(error instanceof Error ? error.name : "network");
@@ -232,18 +199,43 @@ async function cloudChatOnce({
     await response.body?.cancel();
     throw new CloudUnavailable(`HTTP ${response.status} (${model})`, response.status);
   }
-  let choice: { finish_reason?: string; message?: { content?: unknown } } | undefined;
+  let completion: ReturnType<typeof geminiCompletion>;
   try {
-    choice = (await response.json())?.choices?.[0];
+    completion = geminiCompletion(await response.json());
   } catch {
     throw new CloudUnavailable("Respuesta ilegible");
   }
-  if (choice?.finish_reason && choice.finish_reason !== "stop")
-    throw new CloudUnavailable("Respuesta incompleta");
-  const content = choice?.message?.content;
-  const text = typeof content === "string" ? stripThinking(content) : "";
+  if (!completion.complete) throw new CloudUnavailable("Respuesta incompleta");
+  const text = stripThinking(completion.text);
   if (!text) throw new CloudUnavailable("Respuesta vacía");
   return text;
+}
+
+/** Genera y valida con la misma lógica que el trabajador local. */
+export async function cloudPlan({ settings, requestData, limits, budgetMs = 125000 }: {
+  settings: CloudSettings;
+  requestData: Record<string, unknown>;
+  limits: PlanLimits;
+  budgetMs?: number;
+}) {
+  const started = performance.now();
+  let remainingMs = budgetMs;
+  for (const [index, model] of settings.models.entries()) {
+    try {
+      return await generateValidatedPlan({
+        provider: "gemini", apiKey: settings.apiKey, model, requestData, limits,
+        budgetMs: remainingMs,
+        systemAddendum: cloudPlanAddendum(requestData.language),
+        responseFormat: settings.planFormat,
+      });
+    } catch (error) {
+      const retired = error instanceof PlanGenerationError && isRetiredModel(error.providerStatus);
+      remainingMs = budgetMs - Math.floor(performance.now() - started);
+      if (!retired || index === settings.models.length - 1 || remainingMs < 1) throw error;
+      console.error("ai-fallback model unavailable", model);
+    }
+  }
+  throw new CloudUnavailable("Sin modelos configurados");
 }
 
 /**
@@ -277,7 +269,7 @@ export async function withCloudFallback<T>({
 export const CLOUD_CHAT_ADDENDUM = `
 Formato de respuesta (obligatorio):
 - Escribe sólo lo que Lumi diría, en texto plano y en español. Sin razonamiento, sin etiquetas, sin Markdown, sin listas ni emojis en exceso.
-- No te presentes como un modelo de lenguaje ni menciones a Groq, OpenAI u otros proveedores: eres Lumi.`;
+- No te presentes como un modelo de lenguaje ni menciones a Gemini u otros proveedores: eres Lumi.`;
 
 export const CLOUD_PLAN_ADDENDUM = `
 Formato de respuesta (obligatorio): devuelve únicamente el objeto JSON del esquema, sin texto antes ni después y sin bloques de código. Todas las cadenas en español. Usa exactamente los nombres de campos del esquema.`;
@@ -285,7 +277,7 @@ Formato de respuesta (obligatorio): devuelve únicamente el objeto JSON del esqu
 const CLOUD_CHAT_ADDENDUM_EN = `
 Response format (required):
 - Write only what Lumi would say, in plain text and in English. No reasoning, no tags, no Markdown, no lists and no excessive emojis.
-- Don't present yourself as a language model or mention Groq, OpenAI or other providers: you are Lumi.`;
+- Don't present yourself as a language model or mention Gemini or other providers: you are Lumi.`;
 
 const CLOUD_PLAN_ADDENDUM_EN = `
 Response format (required): return only the JSON object of the schema, with no text before or after and no code blocks. Every string in English. Use exactly the field names of the schema.`;

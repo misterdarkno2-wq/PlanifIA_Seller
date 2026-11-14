@@ -10,6 +10,7 @@ test("Una compilación pública rechaza las claves administrativas y de IA", () 
   for (const value of [
     "sb_secret_test-only-fixture",
     "sk-test-only-fixture",
+    "AIza-test-only-fixture",
     "header." +
       Buffer.from(JSON.stringify({ role: "service_role" })).toString(
         "base64url",
@@ -85,4 +86,15 @@ test("Transbank y el secreto de renovaciones quedan fuera de la web publicada", 
     assert.match(result.stderr, /privada/);
     assert.equal(result.stderr.includes(value), false);
   }
+});
+
+test("Las variables públicas rechazan la clave de Gemini por nombre", () => {
+  const value = "test-only-gemini-key";
+  const result = spawnSync(process.execPath, ["scripts/check-public-config.js"], {
+    env: { ...process.env, VITE_GEMINI_API_KEY: value },
+    encoding: "utf8",
+  });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /privada/);
+  assert.equal(result.stderr.includes(value), false);
 });
