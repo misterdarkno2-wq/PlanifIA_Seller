@@ -260,12 +260,12 @@ test("Quitar anuncios: compra única por cuenta, se restaura sin duplicar y un r
   assert.equal((await monetization(db)).ad_free, false);
 });
 
-test("Anuncios recompensados dan 10 créditos, una vez por transacción y hasta 5 por día", async (t) => {
+test("Anuncios recompensados dan 15 créditos, una vez por transacción y hasta 5 por día", async (t) => {
   const db = await setup(t);
   await service(db);
   const reward = (tx, id = A) =>
     one(db, "select public.admob_reward($1,$2) result", [id, tx]);
-  assert.deepEqual(await reward("tx-1"), { granted: true, credits: 10 });
+  assert.deepEqual(await reward("tx-1"), { granted: true, credits: 15 });
   assert.equal((await reward("tx-1")).reason, "duplicate");
   for (let i = 2; i <= 5; i++) assert.equal((await reward("tx-" + i)).granted, true);
   assert.equal((await reward("tx-6")).reason, "daily_limit");
@@ -274,7 +274,8 @@ test("Anuncios recompensados dan 10 créditos, una vez por transacción y hasta 
     "unknown_user",
   );
   const state = await monetization(db);
-  assert.equal(state.credits.balance, 110);
+  assert.equal(state.credits.balance, 135);
+  assert.equal(state.ads.reward, 15);
   assert.equal(state.ads.today, 5);
   assert.equal(state.ads.daily_limit, 5);
 });

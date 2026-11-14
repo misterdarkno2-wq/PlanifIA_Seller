@@ -14,7 +14,7 @@ Esta guía explica cómo funciona la monetización de PlanifIA en la app de Goog
 - **Cada mensaje a Lumi** (sección **Hablar con Lumi**) cuesta **5 créditos** (`chat_cost`). Si Lumi no responde (PC apagado, error, tiempo agotado o un plan en curso) se devuelven. Límites: 6 mensajes por minuto y 200 por día (`chat_per_minute`, `chat_per_day`). Se guardan los últimos 100 mensajes (`chat_history`).
 - Los créditos del plan **se renuevan cada mes pagado y no se acumulan**. Cambiar entre Plus y Pro no reinicia el mes, para que nadie pueda regalarse créditos cambiando de plan.
 - Los créditos **extra no vencen** y se gastan después de los del plan:
-  - **Anuncio recompensado:** +10 créditos, hasta 5 por día (hora de Chile). Solo en el plan Gratis.
+  - **Anuncio recompensado:** +15 créditos, hasta 5 por día (hora de Chile). Solo en el plan Gratis.
   - **Invitaciones:** +40 para quien invita y +20 para quien llega, cuando la persona invitada confirma su correo y usa la IA por primera vez. Máximo 10 invitaciones premiadas al mes.
   - **Paquetes de créditos:** 100, 300 o 1.000 créditos. Cuestan $900, $2.400 y $6.900, y se definen en Play Console.
 - **Plus y Pro no muestran ningún anuncio**, ni siquiera recompensados.
@@ -60,7 +60,7 @@ En escritorio (`npm run desktop:dev`) los plugins responden "no disponible" y la
 | App "PlanifIA" (Android) | `ca-app-pub-7813096396596933~5887633291` |
 | Banner "Banner inferior" (sin uso desde la 2.2.3) | `ca-app-pub-7813096396596933/7123684189` |
 | Intersticial "Pausa natural" (video al usar la IA) | `ca-app-pub-7813096396596933/4497520843` |
-| Recompensado "Créditos de IA" (10 `creditos`) | `ca-app-pub-7813096396596933/3062904262` |
+| Recompensado "Créditos de IA" | `ca-app-pub-7813096396596933/3062904262` |
 
 Ya están en `admob.xml` y en `supabase/functions/.env.local` (`ADMOB_REWARDED_AD_UNIT`). El perfil de pagos está completo y el mensaje de consentimiento europeo "PlanifIA - Consentimiento Europa" está publicado (botones Consentir, No consentir y Gestionar opciones; política `https://planifia.cl/privacidad.html`).
 
@@ -78,7 +78,7 @@ Pasos originales, por si necesitas repetirlos:
 4. Crea tres **bloques de anuncios** y copia el ID de cada uno (`ca-app-pub-…/NNNNNNNNNN`):
    - **Banner**, nombre "Banner inferior".
    - **Intersticial**, nombre "Pausa natural".
-   - **Recompensado**, nombre "Créditos de IA", con recompensa **10** y artículo **creditos**.
+   - **Recompensado**, nombre "Créditos de IA", con recompensa **15** y artículo **creditos**.
      - En **Verificación del lado del servidor** pega `https://hlnzxgpdxgadbdcqavcd.supabase.co/functions/v1/admob-ssv` y pulsa **Verificar URL**. Primero despliega la función (sección 7).
 5. Abre `src-tauri/gen/android/app/src/main/res/values/admob.xml` y reemplaza los cuatro IDs de prueba por los tuyos.
    - Las compilaciones de depuración siguen usando los de prueba automáticamente.
@@ -264,7 +264,7 @@ Instala la app desde el enlace de prueba cerrada con una cuenta de prueba de lic
 - [ ] Al cerrar ese video aparece la tarjeta "Quitar anuncios por $2.900" con el precio de Google Play; "Ahora no" la cierra y la compra quita los videos sin reiniciar la app.
 - [ ] Con **Quitar anuncios** comprado (Mi plan → Planes), la IA ya no muestra videos y el anuncio voluntario para ganar créditos sigue disponible. **Restaurar compras** lo recupera en otro teléfono.
   - [ ] Nunca más de uno cada 5 minutos.
-- [ ] En **Mi plan → Ver anuncio**, al terminar el anuncio el saldo sube 10 créditos en unos segundos.
+- [ ] En **Mi plan → Ver anuncio**, al terminar el anuncio el saldo sube 15 créditos en unos segundos.
   - [ ] El sexto anuncio del día ya no está disponible.
 
 **Compras**

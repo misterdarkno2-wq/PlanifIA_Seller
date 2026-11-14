@@ -6,7 +6,7 @@
     - admob_app_id: "ID de la app" (con ~).
     - admob_banner_id: bloque "Banner inferior".
     - admob_interstitial_id: bloque "Pausa natural".
-    - admob_rewarded_id: bloque "Créditos de IA" (recompensa 10 creditos).
+    - admob_rewarded_id: bloque "Créditos de IA".
 
   Las compilaciones de depuración (npm run android:apk) usan siempre los IDs de prueba de
   src/debug/res/values/admob.xml. Nunca hagas clic en tus propios anuncios reales: AdMob puede

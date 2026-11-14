@@ -605,7 +605,7 @@ try {
         plan === "plus"
           ? { balance: 1060, plan_available: 1000, plan_allowance: 1000, bonus: 60, cost_per_use: 20, renews_at: "2030-02-28T15:00:00Z" }
           : { balance: 60, plan_available: 0, plan_allowance: 0, bonus: 60, cost_per_use: 20 },
-      ads: { reward: 10, today: 0, daily_limit: 5 },
+      ads: { reward: 15, today: 0, daily_limit: 5 },
       referral: { code: "ABCD2345", inviter_reward: 40, invitee_reward: 20, monthly_limit: 10, rewarded_this_month: 1, can_redeem: plan === "free", invited: false },
       play_subscription:
         plan === "plus"
@@ -650,7 +650,7 @@ try {
   const store=createPlayStore({native,verify:async(list)=>{if(list[0].productId==='planifia_plus')m=plus;
     if(list[0].productId==='sin_anuncios')m={...m,ad_free:true};
     return {results:list.map((p)=>({kind:p.productId.startsWith('creditos')?'credits':p.productId==='sin_anuncios'?'ad_free':'subscription',purchaseToken:p.purchaseToken,active:true,acknowledged:true,granted:true,credits:100,consumed:true})),state:m};}});
-  const ads={ready:true,setEligible(){},setAdFree(v){window.adFree=v;},rewarded:async(userId)=>{window.adCalls.push(userId);m={...m,ads:{...m.ads,today:1},credits:{...m.credits,balance:70,bonus:70}};return {shown:true,earned:true};}};
+  const ads={ready:true,setEligible(){},setAdFree(v){window.adFree=v;},rewarded:async(userId)=>{window.adCalls.push(userId);m={...m,ads:{...m.ads,today:1},credits:{...m.credits,balance:75,bonus:75}};return {shown:true,earned:true};}};
   root.innerHTML=renderBilling({view:${JSON.stringify(view)},user});
   mountBilling(root,{user,loadState:async()=>(${JSON.stringify(initial())}),notify:(n)=>window.notes.push(n),
     monetization:{load:async()=>m,redeem:async(code)=>{window.redeemed=code;return {ok:true,invitee_reward:20};},store,ads,userId:user.id}});
@@ -731,10 +731,10 @@ try {
     {
       const page = await playPage("subscription");
       await page.locator("[data-credits]").waitFor();
-      await page.locator("[data-rewarded-ad]").click();
-      await page.waitForFunction(() => window.notes.some((n) => /\+10 créditos/.test(n)), null, { timeout: 15000 });
+      await page.getByRole("button", { name: "Ver anuncio (+15 créditos)" }).click();
+      await page.waitForFunction(() => window.notes.some((n) => /\+15 créditos/.test(n)), null, { timeout: 15000 });
       assert.deepEqual(await page.evaluate(() => window.adCalls), ["user-fixture"]);
-      assert.match(await page.locator("[data-credits]").innerText(), /70\s*créditos/);
+      assert.match(await page.locator("[data-credits]").innerText(), /75\s*créditos/);
       await page.locator("[data-redeem-form] input").fill("abcd2345");
       await page.locator("[data-redeem-form] button").click();
       await page.waitForFunction(() => window.notes.some((n) => /Código aplicado/.test(n)));

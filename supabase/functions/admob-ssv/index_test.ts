@@ -68,7 +68,7 @@ Deno.test("AdMob SSV: sólo una firma auténtica sobre la consulta exacta acredi
     if (url.includes("/rpc/admob_reward")) {
       const body = JSON.parse(String(init?.body ?? (input as Request).body ?? "{}"));
       assert(body.p_user === USER && body.p_transaction === "tx-1");
-      return Response.json({ granted: true, credits: 10 });
+      return Response.json({ granted: true, credits: 15 });
     }
     return new Response("unexpected", { status: 500 });
   }) as typeof fetch;
@@ -76,7 +76,8 @@ Deno.test("AdMob SSV: sólo una firma auténtica sobre la consulta exacta acredi
     resetAdmobKeyCache();
     const ok = await handleAdmobSsv(new Request(`https://x.test/functions/v1/admob-ssv?${valid}`));
     assert(ok.status === 200);
-    assert((await ok.json()).granted === true);
+    const reward = await ok.json();
+    assert(reward.granted === true && reward.credits === 15, "La recompensa la fija Supabase");
     const forged = await handleAdmobSsv(new Request(`https://x.test/functions/v1/admob-ssv?${valid.replace("tx-1", "tx-9")}`));
     assert(forged.status === 400);
     const unsignedUser = await handleAdmobSsv(new Request(`https://x.test/functions/v1/admob-ssv?${withoutUser}&user_id=${USER}`));
